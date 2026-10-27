@@ -1,0 +1,25 @@
+[Defines]
+  INF_VERSION = 0x00010005
+  BASE_NAME = VermeerProbe
+  FILE_GUID = 4E746B99-462F-4C10-8A77-C3F83E5D4F72
+  MODULE_TYPE = UEFI_APPLICATION
+  VERSION_STRING = 1.0
+  ENTRY_POINT = VermeerProbeEntry
+
+[Sources]
+  VermeerProbe.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  BaseLib
+  DebugLib
+  MemoryAllocationLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+
+[Protocols]
+  gEfiGraphicsOutputProtocolGuid
+
