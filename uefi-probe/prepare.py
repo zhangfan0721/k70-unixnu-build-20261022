@@ -26,7 +26,6 @@ REMOVE = (
     'os.path.join(os.environ.get("UNIXNU_ROOT"',
     "DiskIoDxe.inf", "PartitionDxe.inf", "Fat.inf", "EnglishDxe.inf",
     "UFSDxe.inf", "SdccDxe.inf", "UsbMassStorageDxe.inf",
-    "CapsuleRuntimeDxe.inf",
 )
 
 

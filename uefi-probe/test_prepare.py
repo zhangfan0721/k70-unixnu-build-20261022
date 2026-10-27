@@ -71,6 +71,15 @@ class ProbePackageTests(unittest.TestCase):
         self.assertIn("Source hash mismatch", result.stderr)
         self.assertFalse((self.root / "Platforms/Xiaomi/vermeerProbePkg").exists())
 
+    def test_preserves_required_capsule_architecture_provider(self):
+        result = self.prepare()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        probe = self.root / "Platforms/Xiaomi/vermeerProbePkg"
+        module = "INF MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf"
+        for name in ["Include/DXE.inc", "Include/APRIORI.inc"]:
+            active = "\n".join(line for line in (probe / name).read_text().splitlines() if not line.lstrip().startswith("#"))
+            self.assertIn(module, active, "DxeCore requires Capsule Arch before BDS entry")
+
     def test_refuses_existing_output_without_overwriting(self):
         destination = self.root / "Platforms/Xiaomi/vermeerProbePkg"
         destination.mkdir()

@@ -7,6 +7,8 @@ The original platform package is preserved. A separate vermeerProbePkg disables 
 
 The UEFI port currently exposes only a subset of installed RAM. LARGEST WINDOW describes that firmware map; it cannot by itself determine the capacity of a 12 GB phone or the feasibility of a full RAM-only iOS root image. The framebuffer values and display handoff still require a real K70 observation.
 
+Keep CapsuleRuntimeDxe in the firmware: DxeCore requires its architectural protocol before entering BDS. The pinned platform binds CapsuleLib to DxeCapsuleLibNull, whose processing functions return EFI_UNSUPPORTED, and uses emulated nonvolatile variables. Removing this protocol provider stopped the first hardware attempt at DxeCore's required-protocol assertion; the assertion remains enabled and the provider is restored. Storage modules remain excluded.
+
 Pinned firmware: yyx2025/uefi-vermeer da38b23cc7b3b3716cf7c72c42866bd73c978dd3.
 Pinned input DTB: yyx2025/UniXNU-vermeer 4d1572a93d15f5596309c0687fdc85d20ebf2e24, scripts/data/vermeer.dtb. The stock splash node is added for ABL display handoff and validated during packing. The pinned port's Gic-Spurious.patch is applied with an applicability check, as its bring-up documentation requires. No phone partition content, personal data or platform seed is uploaded.
 
