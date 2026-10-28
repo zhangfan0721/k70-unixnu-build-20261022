@@ -1,0 +1,204 @@
+name: K70 original bootstrap prefix checkpoint
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - xnu-bootstrap-checkpoint/**
+      - .github/workflows/k70-bootstrap-checkpoint.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: k70-bootstrap-checkpoint-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UEFI_REF: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+  DTB_REF: 4d1572a93d15f5596309c0687fdc85d20ebf2e24
+  CLANGPDB_AARCH64_PREFIX: aarch64-linux-gnu-
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: integration
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/UniXNU-vermeer
+          ref: 4d1572a93d15f5596309c0687fdc85d20ebf2e24
+          path: dtb-source
+          persist-credentials: false
+          sparse-checkout: scripts/data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download the pinned source-built kernel
+        uses: actions/download-artifact@v4
+        with:
+          name: k70-source-platform-40518851995-1
+          run-id: 40518851995
+          github-token: ${{ github.token }}
+          path: kernel-input
+      - name: Record pinned inputs
+        run: |
+          set -euo pipefail
+          mkdir -p evidence output
+          test "$(git -C uefi rev-parse HEAD)" = "$UEFI_REF"
+          test "$(git -C dtb-source rev-parse HEAD)" = "$DTB_REF"
+          git -C uefi diff --exit-code
+          git -C uefi submodule status --recursive | tee evidence/submodules-before.txt
+          if grep -E '^[+U-]' evidence/submodules-before.txt; then exit 1; fi
+          echo '5fcfc61aa8a2d9670b03e53127c93364a418c76d84d713b2c11aea69623a25a8  kernel-input/kernel.development.vermeer-build.macho' | sha256sum -c -
+      - name: Install firmware and host-test tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang llvm lld nasm uuid-dev mono-devel gcc-aarch64-linux-gnu device-tree-compiler
+          python -m pip install -r uefi/pip-requirements.txt
+          python -m pip install -r integration/xnu-bootstrap-checkpoint/requirements.txt
+          python -m pip freeze > evidence/python-packages.txt
+          clang --version > evidence/clang.txt
+      - name: Test and generate the original bootstrap checkpoint
+        env:
+          K70_UEFI_SOURCE: ${{ github.workspace }}/uefi
+          K70_DTB: ${{ github.workspace }}/dtb-source/scripts/data/vermeer.dtb
+          K70_KERNEL: ${{ github.workspace }}/kernel-input/kernel.development.vermeer-build.macho
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s integration/uefi-probe -v 2>&1 | tee evidence/probe-tests.log
+          python -m unittest discover -s integration/xnu-preflight -v 2>&1 | tee evidence/preflight-tests.log
+          python -m unittest discover -s integration/xnu-handoff-probe -v 2>&1 | tee evidence/handoff-tests.log
+          python -m unittest discover -s integration/xnu-entry-checkpoint -v 2>&1 | tee evidence/entry-tests.log
+          python -m unittest discover -s integration/xnu-bootstrap-checkpoint -v 2>&1 | tee evidence/bootstrap-tests.log
+          python integration/xnu-bootstrap-checkpoint/prepare.py --uefi uefi --dtb "$K70_DTB" \
+            --kernel "$K70_KERNEL" --payload output/payload.bin --blobs output/entry-blobs > evidence/entry-package.json
+          cp evidence/entry-package.json output/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/vermeerProbe.dsc evidence/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/vermeerProbe.fdf evidence/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Include/DXE.inc evidence/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Include/APRIORI.inc evidence/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Library/MemoryMapLib/MemoryMapLib.c evidence/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Probe/ExpectedPayload.h output/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Probe/HandoffTemplates.h output/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Probe/EntryBlobs.h output/
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Probe/Entry.c evidence/generated-Entry.c
+          cp uefi/Platforms/Xiaomi/vermeerProbePkg/Probe/Preflight.c evidence/generated-Preflight.c
+      - name: Preserve the verified display handoff
+        run: |
+          set -euo pipefail
+          tree=uefi/Resources/DTBs/vermeerProbe.dtb
+          fdtput -c "$tree" /reserved-memory/splash_region
+          fdtput -t s "$tree" /reserved-memory/splash_region label cont_splash_region
+          fdtput -t x "$tree" /reserved-memory/splash_region reg 0 b8000000 0 2b00000
+          test "$(fdtget -t x "$tree" /reserved-memory/splash_region reg)" = '0 b8000000 0 2b00000'
+      - name: Build the standalone original-bootstrap checkpoint firmware
+        working-directory: uefi
+        run: |
+          set -euo pipefail
+          git -C Mu_Basecore apply --check "$GITHUB_WORKSPACE/uefi/Resources/MuPatches/Gic-Spurious.patch"
+          git -C Mu_Basecore apply "$GITHUB_WORKSPACE/uefi/Resources/MuPatches/Gic-Spurious.patch"
+          python build_uefi.py -d vermeerProbe -r DEBUG -m 0 2>&1 | tee ../evidence/firmware-build.log
+      - name: Pack and prove the public zero-seed template
+        run: |
+          set -euo pipefail
+          python integration/xnu-preflight/pack_boot.py \
+            --fd uefi/Build/vermeerProbePkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd \
+            --uefi uefi --dtb uefi/Resources/DTBs/vermeerProbe.dtb --payload output/payload.bin \
+            --out unextended.img --report output/base-image-report.json
+          python integration/xnu-handoff-probe/seed_image.py template \
+            --input unextended.img --out output/K70-XNU-bootstrap-template.img \
+            --report output/boot-image-report.json
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json, struct, os, sys
+          sys.path.insert(0, str(Path('integration/uefi-probe').resolve()))
+          from verify_fv import probe_pe
+          template_path = Path('output/boot-image-report.json')
+          template = json.loads(template_path.read_text())
+          template['seed_envelope_format_mode'] = template['mode']
+          template['mode'] = 'original-prefix-bootstrap-checkpoint-template'
+          template_path.write_text(json.dumps(template, indent=2)+'\n')
+          root = Path('uefi/Build/vermeerProbePkg')
+          checkpoint = Path('output/entry-blobs/checkpoint.bin').read_bytes()
+          transition = Path('output/entry-blobs/transition.bin').read_bytes()
+          entry_proof = json.loads(Path('output/entry-blobs/proof.json').read_text())
+          vector_patch = Path('output/entry-blobs/vector-patches.bin').read_bytes()
+          apps = list(root.rglob('VermeerProbe.efi'))
+          if not apps:
+              raise SystemExit('Preflight application was not built')
+          records = []
+          for app in apps:
+              blob = app.read_bytes()
+              pe = struct.unpack_from('<I', blob, 0x3c)[0]
+              if blob[:2] != b'MZ' or blob[pe:pe+4] != b'PE\0\0' or struct.unpack_from('<H', blob, pe+4)[0] != 0xaa64 or struct.unpack_from('<H', blob, pe+24+68)[0] != 10:
+                  raise SystemExit('Not an AArch64 EFI application')
+              if checkpoint not in blob or transition not in blob or bytes.fromhex(entry_proof['instrumented_mapped_sha256']) not in blob:
+                  raise SystemExit('Built PE does not contain the reviewed entry blobs and mapped hash')
+              if vector_patch not in blob or bytes.fromhex(entry_proof['original_prefix_sha256']) not in blob:
+                  raise SystemExit('Original prefix hash or low vector patch missing from actual PE')
+              records.append({'path': str(app), 'sha256': hashlib.sha256(blob).hexdigest()})
+          volumes = [p for p in root.rglob('*') if p.name.upper() == 'FVMAIN.FV']
+          if len(volumes) != 1:
+              raise SystemExit('Expected one FVMAIN')
+          embedded_sha = hashlib.sha256(probe_pe(volumes[0].read_bytes())).hexdigest()
+          if any(record['sha256'] != embedded_sha for record in records):
+              raise SystemExit('Embedded app and built copies differ')
+          if list(root.rglob('*VermeerBootMemoryDxe*')) or not list(root.rglob('*CapsuleRuntimeDxe')):
+              raise SystemExit('Required bounded firmware profile was not retained')
+          report = {'uefi_commit': os.environ['UEFI_REF'], 'dtb_commit': os.environ['DTB_REF'],
+                    'integration_commit': os.environ['GITHUB_SHA'], 'probe_apps': records,
+                    'probe_guid': '4E746B99-462F-4C10-8A77-C3F83E5D4F72',
+                    'fvmain_sha256': hashlib.sha256(volumes[0].read_bytes()).hexdigest(),
+                    'embedded_probe_pe_sha256': embedded_sha, 'mode': 'original-prefix-bootstrap-checkpoint',
+                    'entry_proof': entry_proof, 'original_cpu_init_completed': False,
+                    'original_common_start_executed': False,
+                    'hardware_tested': False, 'xnu_executed': False, 'original_cpu_init_executed': False,
+                    'boot_args_built': False,
+                    'boot_args_template_built': True, 'private_seed_required': True}
+          Path('output/probe-report.json').write_text(json.dumps(report, indent=2)+'\n')
+          PY
+          cp uefi/Build/vermeerProbePkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd output/
+          cp uefi/Resources/DTBs/vermeerProbe.dtb output/
+          cp integration/xnu-bootstrap-checkpoint/README.md output/
+          (cd output && sha256sum K70-XNU-bootstrap-template.img payload.bin SILICIUM_UEFI.fd vermeerProbe.dtb *.h *.json entry-blobs/* > SHA256SUMS)
+          git -C uefi submodule status --recursive > evidence/submodules-after.txt
+          cmp evidence/submodules-before.txt evidence/submodules-after.txt
+          git -C uefi/Mu_Basecore diff --binary > evidence/basecore-build-patches.diff
+          cat output/probe-report.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload verified template - private seed required before boot
+        uses: actions/upload-artifact@v4
+        with:
+          name: k70-bootstrap-checkpoint-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k70-bootstrap-checkpoint-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/
+            uefi/Build/BUILDLOG*.*
+            uefi/Build/vermeerProbePkg/**/*.txt
+          if-no-files-found: warn
+          retention-days: 30
