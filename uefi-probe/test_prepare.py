@@ -2,6 +2,7 @@
 import hashlib
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -79,6 +80,40 @@ class ProbePackageTests(unittest.TestCase):
         for name in ["Include/DXE.inc", "Include/APRIORI.inc"]:
             active = "\n".join(line for line in (probe / name).read_text().splitlines() if not line.lstrip().startswith("#"))
             self.assertIn(module, active, "DxeCore requires Capsule Arch before BDS entry")
+
+    def test_conventional_ram_stays_inside_verified_k70_system_ram(self):
+        result = self.prepare()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        source = self.root / "Platforms/Xiaomi/vermeerProbePkg/Library/MemoryMapLib/MemoryMapLib.c"
+        entries = re.findall(r'\{"[^"]+",\s*(0x[\dA-Fa-f]+),\s*(0x[\dA-Fa-f]+),\s*AddMem,\s*SYS_MEM,\s*SYS_MEM_CAP,\s*Conv,', source.read_text())
+        self.assertEqual(len(entries), 5)
+        # Device /proc/iomem, cross-checked against its runtime DT (2026-10-28).
+        # These are containment limits, not a request to add all available RAM.
+        verified = [(0xA4A81000, 0xD4D00000), (0xE7CB0000, 0xFF800000),
+                    (0x880000000, 0x8B9D00000)]
+        for base, size in entries:
+            start, length = int(base, 16), int(size, 16)
+            self.assertGreater(length, 0)
+            self.assertTrue(any(low <= start and start + length <= high for low, high in verified),
+                            f"Unverified conventional RAM: {start:#x}..{start+length:#x}")
+        self.assertIn(("0xE7CB0000", "0x17B50000"), entries)
+        self.assertIn(("0x880000000", "0x39D00000"), entries)
+
+    def test_probe_does_not_expand_ram_from_unverified_boot_dtb(self):
+        result = self.prepare()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        probe = self.root / "Platforms/Xiaomi/vermeerProbePkg"
+        for name in ["Include/DXE.inc", "Include/APRIORI.inc"]:
+            active = "\n".join(line for line in (probe / name).read_text().splitlines() if not line.lstrip().startswith("#"))
+            self.assertNotIn("VermeerBootMemoryDxe.inf", active)
+
+    def test_refuses_unknown_memory_map_before_creating_output(self):
+        source = self.root / "Platforms/Xiaomi/vermeerPkg/Library/MemoryMapLib/MemoryMapLib.c"
+        source.write_bytes(source.read_bytes() + b"\n// unsupported map edit\n")
+        result = self.prepare()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Source hash mismatch", result.stderr)
+        self.assertFalse((self.root / "Platforms/Xiaomi/vermeerProbePkg").exists())
 
     def test_refuses_existing_output_without_overwriting(self):
         destination = self.root / "Platforms/Xiaomi/vermeerProbePkg"

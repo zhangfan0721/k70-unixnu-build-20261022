@@ -18,6 +18,7 @@ INPUTS = {
     "Platforms/Xiaomi/vermeerPkg/DeviceBuild.py": "2e9df2d0d0cb5922c7a20c4958944b72ac4b0b580852589454cdc8356eac8ee0",
     "Platforms/Xiaomi/vermeerPkg/Include/DXE.inc": "e9c41e0f37cf2059a256bf0d884d40b97f9a0d82676a55724b8449554ee82156",
     "Platforms/Xiaomi/vermeerPkg/Include/APRIORI.inc": "690356033943627e27f2e9247594f040887109af7351b5c55892191ee423ec7e",
+    "Platforms/Xiaomi/vermeerPkg/Library/MemoryMapLib/MemoryMapLib.c": "0767d8ac01dd5e86f67413014dc9106ffbc2543a50b929eec6b068a0a9d2cf60",
     "Resources/Configs/vermeer.toml": "dd50cbf859b5529fa2ca3420e257b701e50c8c624b5aad8446bd4b443026f5eb",
 }
 DTB_SHA = "fcd9bd27b37fd0f46b887be6f6e4e4b84f2b00a13c9152e46e076b532711d5c6"
@@ -26,6 +27,7 @@ REMOVE = (
     'os.path.join(os.environ.get("UNIXNU_ROOT"',
     "DiskIoDxe.inf", "PartitionDxe.inf", "Fat.inf", "EnglishDxe.inf",
     "UFSDxe.inf", "SdccDxe.inf", "UsbMassStorageDxe.inf",
+    "VermeerBootMemoryDxe.inf",
 )
 
 
@@ -65,6 +67,29 @@ def generate(root, dtb):
         file.write_text(text, newline="\n")
     (destination / "vermeer.dsc").rename(destination / "vermeerProbe.dsc")
     (destination / "vermeer.fdf").rename(destination / "vermeerProbe.fdf")
+    # Conservative subset verified against this 12 GB K70's runtime DT and
+    # /proc/iomem. Never bridge the 2 MiB hole at 0x8B9D00000..0x8B9F00000.
+    # Disable VermeerBootMemoryDxe above so its different DT cannot re-add RAM.
+    memory_map = destination / "Library/MemoryMapLib/MemoryMapLib.c"
+    text = memory_map.read_text(encoding="utf-8")
+    replacements = {
+        '{"DRAM gap 0xE671D000", 0xE671D000, 0x190E3000':
+        '{"DRAM gap 0xE7CB0000", 0xE7CB0000, 0x17B50000',
+        '{"DRAM bank 1 low", 0x880000000, 0x3B300000':
+        '{"DRAM bank 1 low", 0x880000000, 0x39D00000',
+    }
+    for before, after in replacements.items():
+        if text.count(before) != 1:
+            raise ValueError("Unexpected pinned memory-map entry")
+        text = text.replace(before, after)
+    text = text.replace(
+        "  // Second DRAM bank. Values carried over from the sheng (SM8550 tablet) SMEM usable-RAM table;\n"
+        "  // the low entry is hardware-proven there. The K70 SMEM table is not read yet, so only this\n"
+        "  // conservative low entry is exposed for first boot - the sheng 5 GiB high entry is dropped.\n",
+        "  // This 12 GB K70 runtime DT and Android System RAM agree on this extent.\n"
+        "  // Stop before the 2 MiB hole; do not add the segment on its far side.\n",
+    )
+    memory_map.write_text(text, encoding="utf-8", newline="\n")
     probe = destination / "Probe"
     probe.mkdir()
     here = Path(__file__).resolve().parent
@@ -104,6 +129,9 @@ VOID GetPlatformBootOptions (EFI_PLATFORM_BOOT_OPTION **Options, UINT8 *Count) {
     tree.write_bytes(blob)
     return {"package": "vermeerProbePkg", "input_hashes": INPUTS, "input_dtb_sha256": DTB_SHA,
             "vendor_hw": False, "storage_modules": False, "os_loader": False,
+            "boot_memory_expansion": False,
+            "memory_profile": "conservative subset of 12 GB K70 runtime DT and Android System RAM, 2026-10-28",
+            "probe_memory_map_sha256": hashlib.sha256(memory_map.read_bytes()).hexdigest(),
             "hardware_tested": False, "ram_scope": "firmware-exposed map; not total installed RAM"}
 
 
