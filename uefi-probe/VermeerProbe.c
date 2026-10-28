@@ -56,23 +56,18 @@ VermeerProbeEntry (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
   (VOID)SystemTable;
   gBS->SetWatchdogTimer (0, 0, 0, NULL);
   if (gST->ConOut != NULL) { gST->ConOut->ClearScreen (gST->ConOut); }
-  DEBUG ((DEBUG_ERROR, "\fVERMEER CPU / GOP / RAM PROBE\nNo kernel jump; no disk access\n\n"));
-  Print (L"VERMEER CPU / GOP / RAM PROBE\n");
+  // The framebuffer debug renderer and ConOut have independent cursors.
+  // Use the debug renderer alone so the CPU values remain readable.
+  DEBUG ((DEBUG_ERROR, "\fVERMEER CPU / GOP / RAM PROBE\nNo kernel jump; no disk access\nFirmware RAM map only; not a RAM test\n\n"));
   DEBUG ((DEBUG_ERROR, "EL %lu  MIDR %lx\nMPIDR %lx  AFF %lx\nCNTFRQ %lu Hz\nMMFR0 %lx  PFR0 %lx\n",
           READ_REG (El) >> 2, READ_REG (Midr), READ_REG (Mpidr), READ_REG (Mpidr) & 0xFF00FFFFFFULL,
           READ_REG (Counter), READ_REG (Mmfr), READ_REG (Pfr)));
-  Print (L"EL %lu MIDR %lx MPIDR %lx CNTFRQ %lu\n",
-         READ_REG (El) >> 2, READ_REG (Midr), READ_REG (Mpidr), READ_REG (Counter));
   Status = gBS->LocateProtocol (&gEfiGraphicsOutputProtocolGuid, NULL, (VOID **)&Gop);
   if (!EFI_ERROR (Status) && Gop->Mode != NULL && Gop->Mode->Info != NULL) {
     DEBUG ((DEBUG_ERROR, "GOP FB %lx  SIZE %lx\n%ux%u  STRIDE %u  FORMAT %u\n",
             Gop->Mode->FrameBufferBase, (UINT64)Gop->Mode->FrameBufferSize,
             Gop->Mode->Info->HorizontalResolution, Gop->Mode->Info->VerticalResolution,
             Gop->Mode->Info->PixelsPerScanLine, Gop->Mode->Info->PixelFormat));
-    Print (L"GOP FB %lx SIZE %lx %ux%u STRIDE %u FORMAT %u\n",
-           Gop->Mode->FrameBufferBase, (UINT64)Gop->Mode->FrameBufferSize,
-           Gop->Mode->Info->HorizontalResolution, Gop->Mode->Info->VerticalResolution,
-           Gop->Mode->Info->PixelsPerScanLine, Gop->Mode->Info->PixelFormat);
   } else {
     DEBUG ((DEBUG_ERROR, "GOP unavailable %r\n", Status));
   }
@@ -95,15 +90,14 @@ VermeerProbeEntry (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
           if (End <= Candidate) { continue; }
           Bytes = End - Candidate;
           if (Bytes > BestBytes) { BestBase = Candidate; BestBytes = Bytes; }
-          Print (L"FREE %lx..%lx CANDIDATE %lx\n", Entry->PhysicalStart, End, Candidate);
+          DEBUG ((DEBUG_ERROR, "FREE %lx..%lx CANDIDATE %lx\n", Entry->PhysicalStart, End, Candidate));
         }
       }
       FreePool (Map);
     } else { Status = EFI_OUT_OF_RESOURCES; }
   }
-  DEBUG ((DEBUG_ERROR, "MAP %r\nLARGEST WINDOW %lx @ %lx\n", Status, BestBytes, BestBase));
+  DEBUG ((DEBUG_ERROR, "MAP %r\nLARGEST WINDOW %lx @ %lx\nRAM WINDOW NOT HARDWARE-VERIFIED\n", Status, BestBytes, BestBase));
   DEBUG ((DEBUG_ERROR, "GIC stock: 17100000 / 17180000\nSTRIDE stock: 40000\n\nPHOTO THESE VALUES\nAny key returns to UEFI\nPower + VolDown: fastboot\n"));
-  Print (L"LARGEST WINDOW %lx @ %lx; any key returns\n", BestBytes, BestBase);
   for (;;) {
     gBS->Stall (100000);
     if (gST->ConIn != NULL && !EFI_ERROR (gST->ConIn->ReadKeyStroke (gST->ConIn, &Input))) { break; }
