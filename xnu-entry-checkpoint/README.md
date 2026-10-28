@@ -34,6 +34,14 @@ These tests prove instruction/control-flow/write bounds, not real cache/MMU
 behavior. Only a phone photo with blue and white can confirm the instrumented
 kernel-text checkpoint on hardware. Original CPU init remains unexecuted.
 
+MMU-off reads/writes are also checked against a conservative Device-memory
+natural-alignment contract. ADT properties have only 4-byte alignment; the
+64-byte seed is inspected using sixteen aligned 32-bit reads. The initial
+hardware run showed purple/orange without blue/white, and its 64-bit read at
+ADT+0x154 was reproduced as an alignment violation by this added regression.
+This identifies a concrete defect; a new phone run is still required to
+confirm the corrected checkpoint.
+
 Use the existing reviewed `xnu-handoff-probe/seed_image.py` locally to inject
 a fresh private 64-byte CSPRNG seed into the zero-seed public template before
 **each** boot. Never publish a seeded image or reuse an old seeded image.

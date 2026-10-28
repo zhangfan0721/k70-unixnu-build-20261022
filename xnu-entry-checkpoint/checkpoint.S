@@ -42,9 +42,11 @@ kernel_checkpoint_begin:
  equal x9, 0x0000000600000005
  // Seed belongs to the validated ADT and must remain nonzero after EBS.
  add x12, x12, #0x154
- mov x13, #8
+ // ADT properties are only 4-byte aligned. MMU-off data accesses must
+ // remain naturally aligned even when SCTLR.A is clear.
+ mov x13, #16
  mov x14, #0
-1: ldr x9, [x12], #8
+1: ldr w9, [x12], #4
  orr x14, x14, x9
  subs x13, x13, #1
  b.ne 1b

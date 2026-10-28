@@ -121,7 +121,15 @@ class Arm64ExecutionTests(BlobFixture, unittest.TestCase):
         u.hook_add(U.UC_HOOK_INSN, mrs, aux1=A.UC_ARM64_INS_MRS)
         u.hook_add(U.UC_HOOK_INSN, msr, aux1=A.UC_ARM64_INS_MSR)
         u.hook_add(U.UC_HOOK_INSN, system, aux1=A.UC_ARM64_INS_SYS)
+        def read(uc, access, address, size, value, _):
+            # Conservative MMU-off Device-memory contract: Unicorn's default
+            # Normal-memory mapping otherwise accepts the unaligned seed load.
+            if not state['sctlr'] & 1:
+                self.assertEqual(address % size, 0,
+                    'MMU-off unaligned read at %#x size %d' % (address, size))
+        u.hook_add(U.UC_HOOK_MEM_READ, read)
         def write(uc, access, address, size, value, _):
+            if not state['sctlr'] & 1: self.assertEqual(address % size, 0)
             self.assertGreaterEqual(address, FB if full else FB + 128 * ROW)
             self.assertLessEqual(address + size, FB + 384 * ROW)
             state['writes'] += 1; state['first'] = min(state['first'], address)
