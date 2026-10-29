@@ -2,10 +2,12 @@
 
 ## Current checkpoint status (2026-10-29)
 
-The K70 reached the instrumented virtual `arm_init` entry in the stage10
-hardware checkpoint. Seven display bands and the expected virtual code and
-`boot_args` addresses were observed. The original C prologue/body, full XNU,
-drivers, scheduler and iOS userspace have not run.
+The K70 passed stage12's original `arm_init` C-prologue hardware checkpoint.
+Eight display bands, the expected SP/FP, virtual addresses and frame-check=1
+were observed. The original 60-byte prologue established its 208-byte frame
+and passed the bounded 124-byte write checks. Execution stopped before the
+first helper call; full XNU, drivers, scheduler and iOS userspace have not run.
+Stage10 previously established the instrumented virtual entry before any C.
 [Stage10 workflow](.github/workflows/k70-c-entry-checkpoint.yml) runs 131 test
 instances, including inherited package tests; its original successful build was
 [40802153897](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40802153897).
@@ -16,11 +18,12 @@ The original ZIP and kernel SHA-256 checks remain enforced, without depending
 on an expiring Actions artifact download. Preserved bytes do not prove that a
 new macOS compilation would reproduce the same bytes.
 
-[Stage12](xnu-c-prologue-checkpoint/README.md) is the next bounded checkpoint:
-execute the original 60-byte C prologue and verify its saved-register frame,
-then stop before its first function call. Its workflow also runs every prior
-checkpoint suite and the preserved-input checks. Host/CI success alone does
-not establish stage12 hardware execution.
+[Stage12](xnu-c-prologue-checkpoint/README.md) runs every prior checkpoint suite
+and the preserved-input checks: all171 test instances and19 build steps passed
+in [40846393171](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40846393171).
+Actual FD/FV/PE verification preceded one fresh-seed temporary boot. A local
+phone photo then established the bounded hardware result; private evidence
+remains local. The next research boundary is the first helper call and return.
 
 Device tests use temporary `fastboot boot` images. Public checkpoint templates
 require a freshly generated private local seed before each boot. Private images,

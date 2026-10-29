@@ -1,6 +1,11 @@
 # K70 original C prologue checkpoint (stage12)
 
-Research diagnostic for Redmi K70/vermeer. It runs the exact original 60-byte arm_init prologue, then replaces its first BL with a branch to an owned diagnostic. The first helper, platform initialization, scheduler, storage and userland do not run. Stage10 has hardware evidence for virtual entry; this stage still requires its own phone photo.
+Research diagnostic for Redmi K70/vermeer. It runs the exact original 60-byte arm_init prologue, then replaces its first BL with a branch to an owned diagnostic. The first helper, platform initialization, scheduler, storage and userland do not run. Stage10 established virtual entry; the separately verified stage12 hardware result is recorded below.
+
+Hardware result (2026-10-29): this stage passed on the connected K70 after
+run40846393171 and independent actual-artifact verification. The supplied photo
+shows all eight bands, kind/cause0, SP/FP as specified below and frame-check21=1.
+Only one freshly seeded temporary boot was used. Photo/private image stay local.
 
 The pinned kernel SHA256 is `5fcfc61aa8a2d9670b03e53127c93364a418c76d84d713b2c11aea69623a25a8`. Only offsets `3f7290`, `3f733c`, `9e1e70` and the first word of 16 low vectors change. Original firstCPU prefix, TTBR helper, cold common_start tail and all 60 prologue bytes are independently preserved. The original guard slot at VA `FFFFFFF007B3C268` / PA `880B3C268` contains zero. Observing this uninitialized slot does not establish guard initialization or OS security.
 
