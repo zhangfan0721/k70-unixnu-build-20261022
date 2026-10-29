@@ -34,10 +34,10 @@ Files {prepare.py,test_prepare.py,README.md,requirements.txt,.gitignore},newwork
 
 ### Task3: Review, CI, device, archive
 
-- [ ] Onefreshfinalreview, fixImportantonceRED→GREEN/fullrelevanttests, publishandcompareallsourceobjects.
-- [ ] CIactualcounts/logs,downloadandindependentFD/FV/PE/ELF/header/callee/8pages/zerotemplateproof.
-- [ ] FreshseedandonebootifactualFASTBOOTconnected; photoevidencebeforehardwarePASS.
-- [ ] Centralreport/index/catalogfullhashaudit andstate exactpre-relocationboundary.
+- [x] Onefreshfinalreview, fixImportantonceRED→GREEN/fullrelevanttests, publishandcompareallsourceobjects.
+- [x] CIactualcounts/logs,downloadandindependentFD/FV/PE/ELF/header/callee/8pages/zerotemplateproof.
+- [x] FreshseedandonebootifactualFASTBOOTconnected; photoevidencebeforehardwarePASS.
+- [x] Centralreport/index/catalogfullhashaudit andstate exactpre-relocationboundary.
 
 ## Ledger
 
@@ -48,3 +48,5 @@ Files {prepare.py,test_prepare.py,README.md,requirements.txt,.gitignore},newwork
 - Task1/2 initial verification:27tests missingbuilder/package RED0.043s, then27/27GREEN204.903s including exactordered16writecallbacks, realcalleeRET trace, high-bitheader rejection beforeconditional, fourcallee/header exception sites, oldframe/cleanup tests and8pagehostpolicy. Prior171 regressions remain scheduled once in cloud; no redundant local rerun of unchanged old stages.
 - Final review: onefresh read-only gpt-6-astra/xhigh review3a2deb5..6025195. NoCritical/Important,declinednone. Independentfocused call/frame/header/exception/profile/8pagepolicy tests andtwodistinct-value emergency scenariosPASS; bothLRs,privateflags/base/Cx19 survivecleanup, dirtiescleared. Nativehashes/render/whitespacechecked, cleanHEADunchanged. Readypublication/CI,not hardware.
 - Final: minor (deferred): persist assertions for offsets280/296/304 with distinct injected emergency values in newtests. Currentbehavior independentlyverifiedcorrect; regression-strengtheningonly, no codefix/re-reviewthisround.
+- Task3 verification: source09580a7 all14publishedobjects match; CI40862768553/job123409878706SUCCESS19steps,27new+171prior=198tests. Artifact5df2e22c39ddbb240462945f72e2717664e118e5e429d21324435e92fe119a2f/evidence70b6a112569926e4124e0aebf0882ae1aa9765c2a0e7f2fe5befeb8365d1eaef downloaded/verified; actual26manifest/FD-FV-PE/nativeELF/caller76/callee4/8pages/zerotemplatePASS. Template22515712B SHA63898864cf8b299cd3b769d23880abfc2f053c9c1f1013949d500229517246ea. Freshprivateimagea9ca67db272b1bce3b1954a8c7f127d477254105a362ed843276a5107cd3e61b bootedexactlyonce. Userphoto351b5d27b51e5c0ca593809b068ba4fefcc65ed25cc92a6e9294c063613b5b8e PASS8bands/kind0/cause0/LR...5E74/flags200001/check23=1. NoTBIconfiguration/relocation/fullOS. Privatebyteslocal; archiveauditnext.
+- Task3 complete: fullcatalog5859files/493stage13/891.13MiB independentlyrehashed withzero mismatches afterall currentmetadata. Initialaudit saw only anextra run-final.json addedwhilehashing; refreshedandrepeatedsuccessfully. Sourcecloseoutchangesonly3documentationfiles, finalplan/closeoutmetadata arefollowedbyfinalrefresh/audit. SDDledger+reviewpackagearchivedandownedtemporaryworkspace removed withpath/hashchecks. Newexception/timergatesremainpendingfuturework, notthisstagePASScriteria.

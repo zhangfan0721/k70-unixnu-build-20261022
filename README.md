@@ -2,11 +2,12 @@
 
 ## Current checkpoint status (2026-10-29)
 
-The K70 passed stage12's original `arm_init` C-prologue hardware checkpoint.
-Eight display bands, the expected SP/FP, virtual addresses and frame-check=1
-were observed. The original 60-byte prologue established its 208-byte frame
-and passed the bounded 124-byte write checks. Execution stopped before the
-first helper call; full XNU, drivers, scheduler and iOS userspace have not run.
+The K70 passed stage13's original first-call/return and header-read checkpoint.
+Eight bands, live LR ending5E74, header flags00200001 and call-check23=1 were
+observed. The original208-byte frame and bounded124-byte write checks remain
+valid. The pinned callee is an empty RET, so TBI configuration is unchanged.
+Execution stopped before the relocation conditional; full XNU, drivers,
+scheduler and iOS userspace have not run. Stage12 established the C prologue.
 Stage10 previously established the instrumented virtual entry before any C.
 [Stage10 workflow](.github/workflows/k70-c-entry-checkpoint.yml) runs 131 test
 instances, including inherited package tests; its original successful build was
@@ -23,12 +24,13 @@ and the preserved-input checks: all171 test instances and19 build steps passed
 in [40846393171](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40846393171).
 Actual FD/FV/PE verification preceded one fresh-seed temporary boot. A local
 phone photo then established the bounded hardware result; private evidence
-remains local. The next research boundary is the first helper call and return.
+remains local. Stage13 subsequently established the first call and return.
 
-Stage13's bounded candidate verifies the original empty helper return and the
-following header read, stopping before the relocation conditional. Its new
-27 host tests are recorded separately from the171 prior regression instances;
-hardware evidence is still pending. Before deeper C initialization, the next
+[Stage13](xnu-first-call-checkpoint/README.md) passed after actual artifact
+verification and one fresh-seed temporary boot. Its27 new host tests and171
+prior regression instances all passed in19 steps in
+[40862768553](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40862768553).
+The hardware photo is local evidence, separate from those counts. Before deeper C initialization, the next
 quality gates are a controlled real exception with register capture, observed
 counter progression, and a separately scoped timer interrupt path. Stage and
 test counts are not percentages of OS readiness.

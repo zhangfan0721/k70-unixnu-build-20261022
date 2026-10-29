@@ -2,6 +2,13 @@
 
 This bounded diagnostic executes the original first BL, the pinned arm_set_kernel_tbi callee RET, and the next three caller instructions that read the Mach-O header flags. It intercepts the conditional at VAFFFFFFF0079E5E80 before it executes. No relocation/global writes, later helpers, scheduler, drivers or userland run.
 
+Hardware result2026-10-29: the connected K70 passed after run40862768553,
+independent actual-artifact verification and one fresh-seed temporary boot.
+The supplied original photo shows eight bands, kind/cause0, liveLR...5E74,
+header flags00200001 and check23=1.27 new host tests and171 prior regression
+instances are separate from this bounded hardware evidence. Real exception
+capture and timer counter/IRQ evidence remain next gates before deeper C.
+
 The actual pinned callee is one RET instruction. Despite its name, it does not configure TBI in this build; TCR must remain22A51A251A. This proves a call/return and header-read boundary, not feature enablement or complete OS boot. The source's conditional implementation and actual four executable bytes are both recorded.
 
 Kernel SHA2565fcfc61aa8a2d9670b03e53127c93364a418c76d84d713b2c11aea69623a25a8 remains fixed. Patch offsets are3f7290,3f733c,9e1e80 plus16vectorwords. Original76-byte caller prefix,60-byte prologue and4-byte callee are independently hashed before patching. The eighth ROX page8803F2000 joins all existing ownership, rollback and instruction-publication checks. Previous stages remain unchanged.
