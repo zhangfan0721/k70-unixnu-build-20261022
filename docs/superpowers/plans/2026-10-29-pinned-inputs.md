@@ -40,10 +40,13 @@ Consumes restore(bundle,output) fromTask1. Produces actual restored kernel-input
 File .github/workflows/k70-pinned-input.yml; logs outputs/K70-阶段日志/11-构建输入持久化/准备.
 - [x] Add quick Ubuntu workflow to test helper and restore real bundle, validate syntax and local commands.
 - [x] Final fresh reviewer of whole change; fix Important regressions RED→GREEN once, commit proof workflow separately.
-- [ ] Authenticate only if required; compare remote, push maintenance tip then proof tip separately; verify remote files/ZIP hashes and successful proof run.
-- [ ] Archive source/review/test/CI results, update central index and validate catalog.
+- [x] Authenticate only if required; compare remote, push maintenance tip then proof tip separately; verify remote files/ZIP hashes and successful proof run.
+- [x] Archive source/review/test/CI results, update central index and validate catalog.
 
 ## Ledger
+
+- Publicationcomplete: userperformedGCMdevice sign-in; no credentials/verificationcodes archived. Pushed47b0b5d then0e17a5c as2ordinaryfastforwards,17publishedGitobjects byte-equal. CI40826120116/job123289441187 completed7steps/16tests0.172s; kernelshaOK. Downloaded980BproofZIP SHA157decd58f731fbfd5aa3b03915b9c7621229d47910d45e23780ddc0fcebd5a5; exact2members/test/reportallverified. Stage11report/index/currentprogresssaved; finalcatalogauditpending.
+- Archivecloseout: centralcatalog4846files/stage11=21,fullSHAaudit0mismatches. Sourcearchive and finaldoccloseout will be included in the last catalogue refresh. AllTask1–3gates satisfied; later originalCprologue requires a separate plan and hardware proof.
 
 - Localcommits9582e74(tool/assets/spec/plan),47b0b5d(consumers/docs [skip ci]),4c1ac2b(proofworkflow). Cleanworkingtreebeforecloseout.
 - Finalfreshreview: first most-capablemodel callfailedimmediatelywithquotano-review; used availablegpt6.1-sol for the one completed fresh review. No Critical/Important/Minor findings. Reviewerindependentlyran16testsPASS0.442s and both ZIPCRC+SHAchecks. No fix/re-reviewneeded.
