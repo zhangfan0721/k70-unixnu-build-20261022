@@ -25,6 +25,14 @@ Actual FD/FV/PE verification preceded one fresh-seed temporary boot. A local
 phone photo then established the bounded hardware result; private evidence
 remains local. The next research boundary is the first helper call and return.
 
+Stage13's bounded candidate verifies the original empty helper return and the
+following header read, stopping before the relocation conditional. Its new
+27 host tests are recorded separately from the171 prior regression instances;
+hardware evidence is still pending. Before deeper C initialization, the next
+quality gates are a controlled real exception with register capture, observed
+counter progression, and a separately scoped timer interrupt path. Stage and
+test counts are not percentages of OS readiness.
+
 Device tests use temporary `fastboot boot` images. Public checkpoint templates
 require a freshly generated private local seed before each boot. Private images,
 phone photos, raw phone data and seeds must stay local. Checkpoint progress is
