@@ -53,6 +53,12 @@ temporary boot. A local3472x4624 original photo established the bounded result;
 private image/photos stay local. It does not establish general exception return
 or recovery. Counter progression and timer interrupts remain future gates.
 
+[Stage15](xnu-counter-checkpoint/README.md) prepares three ordered samples of
+each physical/virtual counter across two bounded intervals and checks stable
+firmware-reported frequency. Its20 new host tests passed;218 prior regression
+instances are scheduled separately in CI. No timer/GIC programming or IRQ is
+performed. Hardware progression remains pending device evidence.
+
 ## Original source-build baseline
 
 Manual macOS CI for pinned public UniXNU and Redmi K70 source repositories.
