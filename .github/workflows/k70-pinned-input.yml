@@ -1,0 +1,42 @@
+name: K70 preserved kernel input proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/**
+      - pinned-inputs/**
+      - .github/workflows/k70-pinned-input.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test preserved input validation
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tools -v 2>&1 | tee pinned-input-tests.log
+      - name: Restore and verify the original source-built kernel
+        run: |
+          set -euo pipefail
+          python3 tools/restore_pinned_kernel.py --output kernel-input | tee pinned-kernel-input.json
+          cd kernel-input
+          sha256sum --check SHA256SUMS
+      - name: Preserve validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k70-preserved-input-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            pinned-input-tests.log
+            pinned-kernel-input.json
+          retention-days: 30
+          if-no-files-found: error
