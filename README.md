@@ -16,6 +16,12 @@ The original ZIP and kernel SHA-256 checks remain enforced, without depending
 on an expiring Actions artifact download. Preserved bytes do not prove that a
 new macOS compilation would reproduce the same bytes.
 
+[Stage12](xnu-c-prologue-checkpoint/README.md) is the next bounded checkpoint:
+execute the original 60-byte C prologue and verify its saved-register frame,
+then stop before its first function call. Its workflow also runs every prior
+checkpoint suite and the preserved-input checks. Host/CI success alone does
+not establish stage12 hardware execution.
+
 Device tests use temporary `fastboot boot` images. Public checkpoint templates
 require a freshly generated private local seed before each boot. Private images,
 phone photos, raw phone data and seeds must stay local. Checkpoint progress is
