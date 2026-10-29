@@ -40,6 +40,14 @@ require a freshly generated private local seed before each boot. Private images,
 phone photos, raw phone data and seeds must stay local. Checkpoint progress is
 experimental and does not imply a usable operating system.
 
+[Stage14](xnu-exception-checkpoint/README.md) prepares a controlled synchronous
+`BRK #0x4B14` exception after the same bounded stage13 path. It captures the
+syndrome, triggering PC, saved state and SP0-to-SP1 switch, checks the one-shot
+contract, and halts without exception return. FAR is displayed as raw data,
+not a valid BRK fault address. Its20 new host tests are separate from198 prior
+regression instances and from pending hardware evidence. Counter progression
+and timer interrupts remain separate future gates.
+
 ## Original source-build baseline
 
 Manual macOS CI for pinned public UniXNU and Redmi K70 source repositories.
