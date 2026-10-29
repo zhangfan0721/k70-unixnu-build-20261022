@@ -34,10 +34,10 @@ Files prepare.py,test_prepare.py,README.md,requirements.txt,.gitignore,newworkfl
 
 ### Task3: Review, actual artifact, one device attempt, archive
 
-- [ ] Onefreshfinalreview, oneImportantfixpassTDDifneeded, publishcompare.
-- [ ] Cloudcounts/logs andindependentactualFD/FV/PE/nativeELF/BRKopcode/vector/profile/zeroseedproof.
-- [ ] ActualFASTBOOTreadiness, freshseedoneboot, phonephotoprovesESR/ELR/SPswitch/verified.
-- [ ] Centralreport/index/qualitygates/sourcecloseout/catalogfullSHAaudit.
+- [x] Onefreshfinalreview, noImportantfixneeded, publishcompare15objects.
+- [x] Cloud19steps/20new+198prior; independent26fileFD/FV/PE/nativeELF/BRKopcode/vector/profile/zeroseedproof.
+- [x] ActualFASTBOOTreadiness, freshseedoneboot, photoESRF2004B14/ELRFFFFFFF0086086C4/SP0toSP1/phase2verified1.
+- [x] Centralreport/index/qualitygates/sourcecloseout;6355filefullSHAauditzero mismatches beforedoccloseout; finalrefresh/audit aftercloseoutmetadata.
 
 ## Ledger
 

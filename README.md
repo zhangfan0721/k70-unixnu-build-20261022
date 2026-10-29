@@ -1,14 +1,14 @@
 # K70 XNU source build
 
-## Current checkpoint status (2026-10-29)
+## Current checkpoint status (2026-10-30)
 
-The K70 passed stage13's original first-call/return and header-read checkpoint.
-Eight bands, live LR ending5E74, header flags00200001 and call-check23=1 were
-observed. The original208-byte frame and bounded124-byte write checks remain
-valid. The pinned callee is an empty RET, so TBI configuration is unchanged.
-Execution stopped before the relocation conditional; full XNU, drivers,
-scheduler and iOS userspace have not run. Stage12 established the C prologue.
-Stage10 previously established the instrumented virtual entry before any C.
+The K70 passed stage14's controlled real synchronous exception capture.
+Local phone evidence shows ESR F2004B14, ELR FFFFFFF0086086C4, vector0,
+SP0-to-SP1 switch and verified phase2. The probe halts without ERET, before
+the original relocation conditional. Stage13's caller/empty RET and header
+read remain preserved. Full XNU, drivers, scheduler and iOS userspace have
+not run; counter progression and timer IRQ remain separate next gates.
+Stage12 established the C prologue; stage10 established virtual entry.
 [Stage10 workflow](.github/workflows/k70-c-entry-checkpoint.yml) runs 131 test
 instances, including inherited package tests; its original successful build was
 [40802153897](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40802153897).
@@ -30,9 +30,10 @@ remains local. Stage13 subsequently established the first call and return.
 verification and one fresh-seed temporary boot. Its27 new host tests and171
 prior regression instances all passed in19 steps in
 [40862768553](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40862768553).
-The hardware photo is local evidence, separate from those counts. Before deeper C initialization, the next
-quality gates are a controlled real exception with register capture, observed
-counter progression, and a separately scoped timer interrupt path. Stage and
+The hardware photo is local evidence, separate from those counts. Stage14
+has since established controlled real exception capture. Before deeper C
+initialization, counter progression and a separately scoped timer IRQ remain.
+Stage and
 test counts are not percentages of OS readiness.
 
 Device tests use temporary `fastboot boot` images. Public checkpoint templates
@@ -40,13 +41,17 @@ require a freshly generated private local seed before each boot. Private images,
 phone photos, raw phone data and seeds must stay local. Checkpoint progress is
 experimental and does not imply a usable operating system.
 
-[Stage14](xnu-exception-checkpoint/README.md) prepares a controlled synchronous
+[Stage14](xnu-exception-checkpoint/README.md) passed a controlled synchronous
 `BRK #0x4B14` exception after the same bounded stage13 path. It captures the
 syndrome, triggering PC, saved state and SP0-to-SP1 switch, checks the one-shot
 contract, and halts without exception return. FAR is displayed as raw data,
-not a valid BRK fault address. Its20 new host tests are separate from198 prior
-regression instances and from pending hardware evidence. Counter progression
-and timer interrupts remain separate future gates.
+not a valid BRK fault address. Its20 new host tests and198 prior regression
+instances passed in19 steps in
+[40906124944](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40906124944).
+Actual26-file FD/FV/PE/ELF/opcode/template verification preceded one fresh-seed
+temporary boot. A local3472x4624 original photo established the bounded result;
+private image/photos stay local. It does not establish general exception return
+or recovery. Counter progression and timer interrupts remain future gates.
 
 ## Original source-build baseline
 

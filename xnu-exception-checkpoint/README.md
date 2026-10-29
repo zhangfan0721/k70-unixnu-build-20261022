@@ -1,12 +1,26 @@
 # K70 controlled synchronous exception capture (stage14)
 
-This probe is intended to establish the first real exception-entry evidence on
-the connected K70. It retains the pinned stage13 original caller/empty RET and
+This probe established bounded real exception-entry evidence on the connected
+K70 on2026-10-30. It retains the pinned stage13 original caller/empty RET and
 stops before relocation, then deliberately executes one BRK #0x4B14 in owned
 diagnostic code. A stack-free vector handler captures and verifies evidence,
 cleans owned dirty data, disables MCI from physical instructions, renders and
-halts. It never ERETs or resumes original C. Hardware success is pending a phone
-photo; host models and firmware builds do not establish it.
+halts. It never ERETs or resumes original C. A local original phone photo
+established hardware success; host models and firmware builds alone cannot.
+
+The photo shows8bands,00/01=0,05=F2004B14,06/19=FFFFFFF0086086C4,
+SP1postFFFFFFF007C04000/SPSel1 versus SP0preFFFFFFF007BFBF30/SPSel0,
+phase1B=2 and capture23=1. RawSPSR620003C4 masks to600003C4; bits outside
+F00003DF are preserved in evidence and not asserted. RawFAR0 is not a valid
+BRK fault address. The original3472x4624 photoSHA256 is
+50a870cfcd475d319bbdb35c779459eb1ed96df2d1300fd43d5cee3af3e0f49a.
+
+[Cloud40906124944](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40906124944)
+passed19steps:20 new host checks and198 historical regression instances,
+recorded separately. Actual26-file FD/FV/PE/ELF/opcode/vector/template checks
+preceded one freshly seeded local temporary boot. The exact CI source was
+1c57f0c59808e9ee711903af5c1a3bde5fb034b2; later closeout changes are docs only.
+Private images, seed and original photo remain local. No flash/erase/retry.
 
 Original firstCPU selects SP1 topFFFFFFF007C04000 and then SP0. C entry uses
 SP0FFFFFFF007BFBF30. The expected same-EL synchronous vector is0; exception

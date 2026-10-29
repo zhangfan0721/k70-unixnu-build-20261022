@@ -17,3 +17,8 @@ prior stages, and halts with MCI on if its dirty record mapping cannot be
 proved. That failure can leave only earlier display output. A single BRK is
 captured without ERET; raw FAR is not treated as a BRK fault address. These
 are deliberate bounded contracts, not general recovery promises.
+
+Subsequent2026-10-30 device evidence completed the planned hardware gate:
+ESR F2004B14, ELR FFFFFFF0086086C4, vector0, SP0-to-SP1 switch and verified
+phase2 matched. The original photo and all private evidence remain local.
+This does not change the excluded general recovery, counter or IRQ claims.
