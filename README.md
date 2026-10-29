@@ -1,5 +1,28 @@
 # K70 XNU source build
 
+## Current checkpoint status (2026-10-29)
+
+The K70 reached the instrumented virtual `arm_init` entry in the stage10
+hardware checkpoint. Seven display bands and the expected virtual code and
+`boot_args` addresses were observed. The original C prologue/body, full XNU,
+drivers, scheduler and iOS userspace have not run.
+[Stage10 workflow](.github/workflows/k70-c-entry-checkpoint.yml) runs 131 test
+instances, including inherited package tests; its original successful build was
+[40802153897](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40802153897).
+
+Six checkpoint workflows now restore the same tested source kernel from
+[preserved original public artifacts](pinned-inputs/40518851995/README.md).
+The original ZIP and kernel SHA-256 checks remain enforced, without depending
+on an expiring Actions artifact download. Preserved bytes do not prove that a
+new macOS compilation would reproduce the same bytes.
+
+Device tests use temporary `fastboot boot` images. Public checkpoint templates
+require a freshly generated private local seed before each boot. Private images,
+phone photos, raw phone data and seeds must stay local. Checkpoint progress is
+experimental and does not imply a usable operating system.
+
+## Original source-build baseline
+
 Manual macOS CI for pinned public UniXNU and Redmi K70 source repositories.
 
 The `platform` build passed on 2026-10-22: [run 39801380604](https://github.com/xyyyds0106/k70-unixnu-build-20261022/actions/runs/39801380604),
