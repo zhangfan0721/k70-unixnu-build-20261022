@@ -1,9 +1,23 @@
 # Stage15: bounded physical and virtual counter progression
 
-Pending hardware evidence. This dedicated read-only probe retains the pinned
+Hardware PASS2026-10-30. This dedicated read-only probe retains the pinned
 stage14 precontract, original76-byte caller/emptyRET4,16vectors and8UEFI ROX
 pages. It stops before relocation. Stage14's real BRK hardware evidence stays
 unchanged; this probe deliberately triggers no BRK and never ERETs.
+
+The original local3472x4624 phone photo establishes both three-sample sequences
+strictly increasing,49/97ticks across the two intervals,146totalticks each,
+stable reported19,200,000Hz frequency andkind0/frame1/timerWrites0/verified1.
+PhotoSHA2566dfeed19ac802cd88ddda789afb647d8ceb249084b104d255b9d5fd99d0b7b54.
+Six absolute raw counter samples stay local; they are not an exact offset or
+absolute frequency calibration. Timer IRQ remains the next separate gate.
+
+[Cloud40924679614](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40924679614)
+passed19steps,20new host tests and218 historical regression instances recorded
+separately. Actual26-file FD/FV/PE/ELF/counter MRS/barrier/loop/zero-template
+verification preceded ONE freshly seeded temporary boot. Exact CI source is
+baf9ceb8a66dc26f6a66623f5f64acd62be1a299; subsequent closeout is docs only.
+No partition flash/erase or automatic retry. Private image/seed/photo stay local.
 
 It takes THREE ordered CNTPCT_EL0/CNTVCT_EL0 samples each, separated by TWO
 fixed4096/8192-iteration loops. Every counter MRS has an immediately preceding

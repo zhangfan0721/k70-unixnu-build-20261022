@@ -18,3 +18,11 @@ not hardware PASS. Actual K70 progression/firmware/photo and218 prior CI
 instances/actual artifacts remain pending at review time. Absolute calibration
 and exact cross-counter offset are excluded. IRQ/GIC, ERET, scheduler/deeperC
 and recovery from higher-EL traps or unavailable fetch remain unverified.
+
+Subsequent2026-10-30 device evidence completed the planned hardware gate:
+both three-sample sequences strictly increase,49/97-tick intervals and146total
+each, reportedfrequency19,200,000Hz stable,kind0/frame1/timerWrites0/verified1.
+The completed CI passed20new+218prior instances/19steps, and actual26-file
+firmware/MRS/ISB/loop/template proof preceded one fresh-seed temporary boot.
+Raw samples and all private evidence stay local. Calibration, exact offset,
+IRQ/GIC, ERET, scheduler/deeperC and general recovery remain unverified.

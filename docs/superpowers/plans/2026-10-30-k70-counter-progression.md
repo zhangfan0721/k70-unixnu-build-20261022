@@ -33,10 +33,10 @@ Interfaces generated Entry.c/EntryBlobs.h,entry-package.json new36schema; artifa
 - [x] Workflow runs218 prior instances+new suite, proves actual embedded counter blobs and private-zero-seed policy; parseYAML/bash/Python; save nativeproof, commit.
 
 ### Task3: Review/publish/artifact/device/archive
-- [ ] One fresh final reviewer, grade findings; ImportantONEfixTDD+fullsuite, no re-review; publish compare remote.
-- [ ] Cloud result counts separately, actualartifact manifest/FD-FV-PE/nativeELF/counterread profile/zero seed proof.
-- [ ] FASTBOOT readiness, newOSseed, ONEboot and actual photo; no command-acceptance hardware inference.
-- [ ] Central report/index/current/navigation, docs closeout and finalfullSHAaudit. Preserve raw evidence; scratch cleanup only if permitted, no retry of prior policy-blockedstage14 deletion.
+- [x] One fresh final reviewer clean, noImportantfix/re-review;15publishedobjects comparedremote.
+- [x] Cloud20new+218prior/19steps, actual26filemanifest/FD-FV-PE/nativeELF/MRSISB/loop/zero seed proof.
+- [x] FASTBOOT readiness, newOSseed, ONEboot and originalphoto:both3samples strictincrease,49/97intervals,146total,reported19200000Hzstable;kind0/frame1/verified1.
+- [x] Central report/index/current/navigation and docs closeout;6857file/500stage15 fullSHAauditzero beforecloseoutmetadata,refresh/auditafterlastwrites. Preserve raw evidence and archivedledger/diff; retainignoredscratchunderpriorcleanup-policyprecedent,no deletionretry.
 
 ## Rulings
 - Existing user delegation covers routine design/publication/one temporary boot; keep isolated clean clone/newbranch and historical dirty directory unchanged.

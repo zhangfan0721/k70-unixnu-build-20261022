@@ -2,12 +2,13 @@
 
 ## Current checkpoint status (2026-10-30)
 
-The K70 passed stage14's controlled real synchronous exception capture.
-Local phone evidence shows ESR F2004B14, ELR FFFFFFF0086086C4, vector0,
-SP0-to-SP1 switch and verified phase2. The probe halts without ERET, before
-the original relocation conditional. Stage13's caller/empty RET and header
-read remain preserved. Full XNU, drivers, scheduler and iOS userspace have
-not run; counter progression and timer IRQ remain separate next gates.
+The K70 passed stage15's bounded physical/virtual counter progression.
+Local phone evidence shows three strictly increasing samples for each counter,
+49/97-tick intervals,146 totalticks, and stable reported19,200,000Hz frequency.
+Stage14 established controlled real exception capture. Both probes halt before
+the original relocation conditional, without ERET. Stage13's caller/empty RET
+and header read remain preserved. Full XNU, drivers, scheduler and iOS userspace
+have not run; timer IRQ remains the next separately scoped hardware gate.
 Stage12 established the C prologue; stage10 established virtual entry.
 [Stage10 workflow](.github/workflows/k70-c-entry-checkpoint.yml) runs 131 test
 instances, including inherited package tests; its original successful build was
@@ -51,13 +52,17 @@ instances passed in19 steps in
 Actual26-file FD/FV/PE/ELF/opcode/template verification preceded one fresh-seed
 temporary boot. A local3472x4624 original photo established the bounded result;
 private image/photos stay local. It does not establish general exception return
-or recovery. Counter progression and timer interrupts remain future gates.
+or recovery. Stage15 has since established counter progression; timer IRQ remains.
 
-[Stage15](xnu-counter-checkpoint/README.md) prepares three ordered samples of
-each physical/virtual counter across two bounded intervals and checks stable
-firmware-reported frequency. Its20 new host tests passed;218 prior regression
-instances are scheduled separately in CI. No timer/GIC programming or IRQ is
-performed. Hardware progression remains pending device evidence.
+[Stage15](xnu-counter-checkpoint/README.md) passed three ordered samples of
+each physical/virtual counter across two bounded intervals and stable
+firmware-reported frequency. Its20 new host tests and218 prior regression
+instances passed separately in19 steps in
+[40924679614](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40924679614).
+Actual26-file FD/FV/PE/ELF/MRS/barrier/loop/template verification preceded ONE
+fresh-seed temporary boot. A local original photo established the bounded
+hardware result; raw samples, image and seed stay local. No timer/GIC programming,
+IRQ, absolute frequency calibration or exact virtual-offset claim is made.
 
 ## Original source-build baseline
 
