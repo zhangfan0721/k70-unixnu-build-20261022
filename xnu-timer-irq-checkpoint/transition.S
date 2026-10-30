@@ -110,6 +110,16 @@ transition_halt:
 gic_setup:
  constant x19, 0x881606000
  constant x20, 0x17100000
+.global gic_distributor_identity, gic_distributor_version_ok
+gic_distributor_identity:
+ constant x10, 0xffe8
+ ldr w9, [x20, x10]
+ ubfx w9, w9, #4, #4
+ cmp w9, #3
+ b.eq gic_distributor_version_ok
+ cmp w9, #4
+ b.ne gic_bad
+gic_distributor_version_ok:
  ldr w9, [x20]
  str x9, [x19, #512]
  and w10, w9, #7

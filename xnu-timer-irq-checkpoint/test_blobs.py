@@ -318,6 +318,7 @@ class TimerIrqTests(unittest.TestCase):
                 self.assertEqual(n,8 if address==rb+8 else 4)
                 off=address-rb
                 read={0x17100000:s['dctl']|(0x80000000 if gic_fault=='dist_rwp' else 0),
+                    0x1710ffe8:0x20 if gic_fault=='dist_pidr_invalid' else 0x50 if gic_fault=='dist_pidr_v5' else 0x40 if gic_fault=='dist_pidr_v4' else 0x30,
                     0x17100004:0x80000101 if gic_fault in ['espi','other_espi'] else 31 if gic_fault=='max_spi' else 1,rb:8 if gic_fault=='redist_rwp' else 1 if gic_fault=='lpi' else 0,
                     rb+8:(1<<32)|16 if gic_fault=='affinity' else 16,
                     rb+0xffe8:0x20 if gic_fault=='pidr' else 0x30,rb+0x14:2 if gic_fault=='asleep' else 0,
@@ -339,7 +340,9 @@ class TimerIrqTests(unittest.TestCase):
                     elif address==rb+0x10180:s['ppi']&=~value
                     else:s['pending']&=~value
                     s['mmio'].append((address,value))
-                else:uc.mem_write(address,int(read.get(address,0)).to_bytes(n,'little'))
+                else:
+                    s.setdefault('mmio_reads',[]).append(address)
+                    uc.mem_write(address,int(read.get(address,0)).to_bytes(n,'little'))
                 return
             if s['phase']=='xnu':
                 physical=walk(address,write=access==U.UC_MEM_WRITE);self.assertIsNotNone(physical,('unmapped data',hex(address)))
@@ -484,6 +487,18 @@ class TimerIrqTests(unittest.TestCase):
         for compatible in ['max_spi','espi','affinity_second','disabled_istatus']:
             with self.subTest(compatible=compatible):
                 raw,s,_=self.execute(gic_fault=compatible);self.assertEqual(raw[1],0);self.assertTrue(s['eret'])
+
+    def test_distributor_identity_is_checked_before_any_mutation(self):
+        for bad in ['dist_pidr_invalid','dist_pidr_v5']:
+            with self.subTest(bad=bad):
+                raw,s,_=self.execute(gic_fault=bad)
+                self.assertNotEqual(raw[1],0);self.assertEqual(raw[36],0)
+                self.assertFalse(s['eret']);self.assertEqual(s['mmio'],[])
+                self.assertIn(0x1710ffe8,s['mmio_reads'])
+                self.assertNotIn(0x17180000+0xffe8,s['mmio_reads'])
+        raw,s,_=self.execute(gic_fault='dist_pidr_v4')
+        self.assertEqual(raw[1],0);self.assertTrue(s['eret'])
+        self.assertLess(s['mmio_reads'].index(0x1710ffe8),s['mmio_reads'].index(0x17180000+0xffe8))
 
     def test_irq_record_translation_cannot_use_redirected_high_or_faulted_pa(self):
         for bad in ['fault','redirect','high']:

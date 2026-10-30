@@ -37,6 +37,9 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(step['if'],'always()')
         self.assertIn('$'+'{{ github.run_attempt }}',self.text)
 
+    def test_workflow_file_itself_triggers_ci(self):
+        self.assertIn(PATH.relative_to(HERE.parent).as_posix(),self.w['on']['push']['paths'])
+
     def test_same_revision_and_pinned_external_inputs(self):
         for name in ['checks','firmware']:
             steps=self.jobs[name]['steps']

@@ -6,7 +6,7 @@ on:
     branches: [main]
     paths:
       - xnu-timer-irq-checkpoint/**
-      - .github/workflows/k70-timer-irq.yml
+      - .github/workflows/k70-timer-irq-checkpoint.yml
 
 permissions:
   contents: read
