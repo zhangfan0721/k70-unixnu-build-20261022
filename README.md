@@ -1,5 +1,7 @@
 # K70 XNU source build
 
+Stage16 is being prepared: [one virtual timer IRQ and same-PC ERET](xnu-timer-irq-checkpoint/README.md), with five isolated CI groups retaining all238 prior test instances. No stage16 hardware result has been established.
+
 ## Current checkpoint status (2026-10-30)
 
 The K70 passed stage15's bounded physical/virtual counter progression.
