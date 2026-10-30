@@ -491,4 +491,3 @@ class TimerIrqTests(unittest.TestCase):
                 _,s,_=self.execute(fault='record_irq_'+bad);self.assertTrue(s['frame_halt']);self.assertFalse(s['eret'])
 
 if __name__=='__main__':unittest.main()
-

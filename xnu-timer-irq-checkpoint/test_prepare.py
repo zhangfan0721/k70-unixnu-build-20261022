@@ -89,4 +89,3 @@ class TimerIrqPackageTests(old.BootstrapPackageTests):
 
 if __name__=='__main__':unittest.main()
 
-

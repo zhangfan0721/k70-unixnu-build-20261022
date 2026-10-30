@@ -75,4 +75,3 @@ Primary pinned sources:
 [GICv3](https://github.com/microsoft/mu_basecore/blob/cfb93724a06ff86ff5ba971413368a7809ee42a5/ArmPkg/Drivers/ArmGicDxe/GicV3/ArmGicV3Dxe.c),
 [Arm timer](https://documentation-service.arm.com/static/65fac6957bcc0c1c661b36c0),
 [Arm GIC](https://documentation-service.arm.com/static/6012f824773bb020e3de7aad).
-

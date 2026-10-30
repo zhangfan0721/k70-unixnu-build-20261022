@@ -534,4 +534,3 @@ frame_cleanup_unavailable_halt:
 kernel_checkpoint_halt:
  wfe
  b kernel_checkpoint_halt
-

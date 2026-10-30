@@ -56,4 +56,3 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(len(uploads),1);self.assertNotIn('if',uploads[0])
 
 if __name__=='__main__':unittest.main()
-

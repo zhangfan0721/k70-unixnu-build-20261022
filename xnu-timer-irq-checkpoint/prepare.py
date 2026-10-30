@@ -51,4 +51,3 @@ if __name__=='__main__':
     try:r=prepare(a.uefi.resolve(),a.dtb.resolve(),a.kernel.resolve(),a.payload.resolve(),a.blobs.resolve())
     except (ValueError,OSError) as e:p.exit(1,str(e)+'\n')
     print(json.dumps(r,indent=2))
-

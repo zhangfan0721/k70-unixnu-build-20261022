@@ -511,4 +511,3 @@ irq_unarmed:
 irq_no_record:
  constant x9, RECORD_HALT_PA
  br x9
-

@@ -149,4 +149,3 @@ def build(kernel,output):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--kernel',type=Path,required=True);p.add_argument('--out',type=Path,required=True)
     a=p.parse_args();_,r=build(a.kernel,a.out);print(json.dumps(r,indent=2))
-
