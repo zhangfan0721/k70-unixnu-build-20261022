@@ -8,6 +8,18 @@ HERE = Path(__file__).resolve().parent
 
 
 class BootstrapTests(unittest.TestCase):
+    def test_entry_patch_uses_interior_anchor_independent_of_eof_newlines(self):
+        diff=(HERE/'EntryDiagnostics.patch').read_text()
+        tail=diff[diff.rfind('@@ '):]
+        snippet='\t/* Return to arm_init() */\n\tret\n\n//#include\t"globals_asm.h"\n\n/* vim: set ts=4: */'
+        for suffix in ('\n','\n\n','\n\n\n'):
+            with tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp); target=root/'osfmk/arm64/start.s'
+                target.parent.mkdir(parents=True);target.write_text(snippet+suffix)
+                patch='--- a/osfmk/arm64/start.s\n+++ b/osfmk/arm64/start.s\n'+tail
+                subprocess.run(['git','apply','--unsafe-paths','-'],input=patch,text=True,cwd=root,check=True)
+                self.assertLess(target.read_text().index('K70_ENTRY_HELPERS'),target.read_text().index('//#include'))
+
     def test_real_entry_macros_assemble_as_apple_arm64(self):
         with tempfile.TemporaryDirectory() as tmp:
             source=Path(tmp)/'entry.S'
