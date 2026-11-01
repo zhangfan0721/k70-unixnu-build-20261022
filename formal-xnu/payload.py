@@ -153,6 +153,7 @@ def build(args):
     for required in ['_k70_formal_after_vm','_k70_formal_thread_turn','_boot_progress_stage',
                      '_k70_formal_bootstrap','_k70_formal_early_exception','_k70_formal_trap',
                      '_k70_formal_c_entry',
+                     '_k70_formal_boot_args_pa',
                      '_armcpu_gic_ready','_armcpu_timer_interrupts']:
         if not any(line.split()[-1:]==[required] for line in symbols.splitlines()):
             raise ValueError('Missing diagnostic/platform symbol: '+required)

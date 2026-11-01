@@ -17,6 +17,8 @@ _Static_assert(offsetof(Boot_Video, v_depth)==40, "early ASM depth offset");
 
 static uint64_t k70_formal_fb_l2[512] __attribute__((aligned(4096)));
 volatile unsigned k70_formal_boot_map_status;
+/* Exception entry cannot rely on a live C function preserving x20's value. */
+volatile uintptr_t k70_formal_boot_args_pa;
 extern char ExceptionVectorsBase[];
 unsigned k70_formal_bootstrap(const boot_args *, volatile uint64_t *);
 void k70_formal_trap(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,const boot_args *);

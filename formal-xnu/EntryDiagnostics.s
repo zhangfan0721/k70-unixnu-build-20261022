@@ -104,7 +104,9 @@ LEXT(k70_formal_early_exception)
     mrs x4, TCR_EL1
     mrs x5, TTBR0_EL1
     mrs x6, TTBR1_EL1
-    mov x7, x20
+    adrp x9, EXT(k70_formal_boot_args_pa)@page
+    add x9, x9, EXT(k70_formal_boot_args_pa)@pageoff
+    ldr x7, [x9]
     bl EXT(k70_formal_trap)
 Lk70_fault_park:
     wfe
