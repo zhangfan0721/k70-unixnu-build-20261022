@@ -1,0 +1,239 @@
+name: K70 formal XNU diagnostic chain
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/k70-formal-xnu]
+    paths: [formal-xnu/**, uefi-probe/verify_fv.py, uefi-probe/test_verify_fv.py, .github/workflows/k70-formal-xnu.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k70-formal-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  CORE_REF: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+  DEVICE_REF: d4dbb3683023a17bb468b9774f52c87f3060e739
+  UEFI_REF: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+  BOARD_REF: 4d1572a93d15f5596309c0687fdc85d20ebf2e24
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+
+jobs:
+  kernel:
+    runs-on: macos-15
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: integration, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with:
+          repository: mansar1337/UniXNU-vermeer
+          ref: d4dbb3683023a17bb468b9774f52c87f3060e739
+          path: device
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+          path: upstream
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          persist-credentials: false
+          sparse-checkout: Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install and check the pinned diagnostic backend
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          test "$(git -C upstream rev-parse HEAD)" = "$CORE_REF"
+          test "$(git -C device rev-parse HEAD)" = "$DEVICE_REF"
+          python integration/formal-xnu/install_kernel.py --device device --uefi uefi > evidence/diagnostic-installation.json
+          python -m unittest discover -s device/tests -v 2>&1 | tee evidence/source-device-tests.log
+          python device/tools/build_source_kernel.py --unixnu upstream --profile platform --check
+          git -C upstream submodule status --recursive > evidence/submodules.txt
+          if grep -E '^[+U-]' evidence/submodules.txt; then exit 1; fi
+      - name: Install source-kernel tools and record the actual toolchain
+        run: |
+          set -euo pipefail
+          brew install cmake ninja unifdef llvm
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
+          { sw_vers; xcodebuild -version; xcode-select -p; xcrun --sdk iphoneos --show-sdk-version; clang --version; python --version; } > evidence/toolchain.txt
+      - name: Fetch pinned public header listings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cache=out/vermeer/tree/.cache/sources
+          mkdir -p "$cache"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit?ref=xnu-10063.121.3' > "$cache/xnu-driverkit-10063.121.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit/crypto?ref=xnu-10063.121.3' > "$cache/xnu-driverkit-crypto-10063.121.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/EXTERNAL_HEADERS/TrustCache?ref=xnu-8796.101.5' > "$cache/xnu-trustcache-8796.101.5.json"
+      - name: Build source XNU with real CPU and timer plus the observer
+        run: |
+          set -euo pipefail
+          python -u device/tools/build_source_kernel.py --unixnu upstream --out out --jobs 4 --profile platform 2>&1 | tee evidence/kernel-console.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k70-formal-kernel-${{ github.run_id }}
+          path: out/vermeer/kernel/
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k70-formal-kernel-evidence-${{ github.run_id }}
+          path: |
+            evidence/
+            out/vermeer/logs/
+            out/vermeer/.config
+            out/vermeer/tree/.cache/vermeer-patch-report.json
+            device/tools/k70-formal-diag/
+            device/configs/vermeer_platform_defconfig
+          include-hidden-files: true
+          retention-days: 30
+
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CLANGPDB_AARCH64_PREFIX: aarch64-linux-gnu-
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: integration, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+          path: upstream
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/UniXNU-vermeer
+          ref: 4d1572a93d15f5596309c0687fdc85d20ebf2e24
+          path: board
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install firmware tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang llvm lld nasm uuid-dev mono-devel gcc-aarch64-linux-gnu device-tree-compiler mtools
+          python -m pip install -r uefi/pip-requirements.txt
+          python -m pip freeze > evidence/python-packages.txt
+      - name: Run related checks and assemble the formal firmware package
+        env:
+          K70_UEFI_SOURCE: ${{ github.workspace }}/uefi
+          K70_DTB: ${{ github.workspace }}/board/scripts/data/vermeer.dtb
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          test "$(git -C uefi rev-parse HEAD)" = "$UEFI_REF"
+          test "$(git -C upstream rev-parse HEAD)" = "$CORE_REF"
+          test "$(git -C board rev-parse HEAD)" = "$BOARD_REF"
+          python -m unittest discover -s integration/formal-xnu -v 2>&1 | tee evidence/formal-tests.log
+          python -m unittest discover -s integration/uefi-probe -v 2>&1 | tee evidence/inherited-probe-tests.log
+          python integration/formal-xnu/prepare.py --uefi uefi --dtb "$K70_DTB" --core upstream > evidence/formal-package.json
+      - name: Apply the known display handoff and build the formal firmware
+        env:
+          UNIXNU_ROOT: ${{ github.workspace }}/upstream
+        run: |
+          set -euo pipefail
+          tree=uefi/Resources/DTBs/vermeerFormal.dtb
+          fdtput -c "$tree" /reserved-memory/splash_region
+          fdtput -t s "$tree" /reserved-memory/splash_region label cont_splash_region
+          fdtput -t x "$tree" /reserved-memory/splash_region reg 0 b8000000 0 2b00000
+          git -C uefi/Mu_Basecore apply --check "$GITHUB_WORKSPACE/uefi/Resources/MuPatches/Gic-Spurious.patch"
+          git -C uefi/Mu_Basecore apply "$GITHUB_WORKSPACE/uefi/Resources/MuPatches/Gic-Spurious.patch"
+          cd uefi
+          python build_uefi.py -d vermeerFormal -r DEBUG -m 0 2>&1 | tee ../evidence/firmware-build.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k70-formal-firmware-${{ github.run_id }}
+          path: |
+            uefi/Build/vermeerFormalPkg/**/*.efi
+            uefi/Build/vermeerFormalPkg/**/*.map
+            uefi/Build/vermeerFormalPkg/**/FVMAIN.Fv
+            uefi/Build/vermeerFormalPkg/**/SILICIUM_UEFI.fd
+            uefi/Resources/DTBs/vermeerFormal.dtb
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k70-formal-firmware-evidence-${{ github.run_id }}
+          path: |
+            evidence/
+            uefi/Platforms/Xiaomi/vermeerFormalPkg/
+            uefi/Build/BUILDLOG*
+          retention-days: 30
+
+  assemble:
+    needs: [kernel, firmware]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: integration, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/UniXNU-vermeer
+          ref: 4d1572a93d15f5596309c0687fdc85d20ebf2e24
+          path: board
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: k70-formal-kernel-${{ github.run_id }}
+          path: kernel
+      - uses: actions/download-artifact@v4
+        with:
+          name: k70-formal-firmware-${{ github.run_id }}
+          path: uefi
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Assemble and verify the public zero-identity template
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang llvm mtools device-tree-compiler
+          python integration/formal-xnu/payload.py --uefi uefi --board board \
+            --kernel kernel/kernel.development.vermeer-build.macho --symbols kernel/symbols.txt \
+            --kernel-report kernel/build-report.json --hmac kernel/crypto-hmac.json --out output
+          cat output/manifest.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k70-formal-public-template-${{ github.run_id }}
+          path: output/
+          if-no-files-found: error
+          retention-days: 30

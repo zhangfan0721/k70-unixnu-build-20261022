@@ -49,6 +49,18 @@ class FirmwareProofTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.verify(firmware_volume(firmware_file(GUID, 9, section)))
 
+    def test_same_parser_verifies_a_formal_driver_by_guid_and_type(self):
+        spec = importlib.util.spec_from_file_location('formal_fv', HERE/'verify_fv.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        guid='1B64AF87-8415-4B57-9B16-680D70913B9F'
+        pe=b'MZ-formal-driver'
+        section=(4+len(pe)).to_bytes(3,'little')+b'\x10'+pe
+        volume=firmware_volume(firmware_file(guid,7,section))
+        self.assertEqual(module.probe_pe(volume,uuid.UUID(guid).bytes_le,7),pe)
+        with self.assertRaises(ValueError):
+            module.probe_pe(volume)
+
 
 if __name__ == "__main__":
     unittest.main()

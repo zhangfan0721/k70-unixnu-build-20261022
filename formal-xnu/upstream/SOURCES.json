@@ -1,0 +1,19 @@
+{
+  "BootProgressMin.c": {
+    "repository": "peter8889/UniXNU-ishtar",
+    "commit": "89a54c0132b180212a4e8bf2fddf04c78347a2dd",
+    "path": "package/BootProgressMin.c",
+    "sha256": "7daf44ba19a5c7592a161cd4d20c2287417cef19b21f553540369728a3f60b1d",
+    "license": "MIT; retain upstream source notice"
+  },
+  "UniXNURamDiskDxe": {
+    "repository": "UniXNU/UniXNU",
+    "commit": "6790e7ce6e77f67a9174fba1255e64eacf1c41ad",
+    "path": "package/UniXNUPkg/Driver/UniXNURamDiskDxe",
+    "license": "BSD-2-Clause",
+    "files": {
+      "UniXNURamDiskDxe.c": "25c91103820436aac68c04f49fe5352c7694d670bd4bce250fbb8f166fdfc84a",
+      "UniXNURamDiskDxe.inf": "3eaa88d7d33347815ebb1b0738f167a4bb0e6a408a5dcab24200f2940a93872b"
+    }
+  }
+}

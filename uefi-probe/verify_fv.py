@@ -5,7 +5,7 @@ import uuid
 PROBE_GUID = uuid.UUID("4E746B99-462F-4C10-8A77-C3F83E5D4F72").bytes_le
 
 
-def probe_pe(blob):
+def probe_pe(blob, guid=PROBE_GUID, file_type=9):
     if len(blob) < 56 or blob[40:44] != b"_FVH":
         raise ValueError("Not an EFI firmware volume")
     end = struct.unpack_from("<Q", blob, 32)[0]
@@ -30,7 +30,7 @@ def probe_pe(blob):
             header = 32
         if size < header or offset + size > end:
             raise ValueError("Invalid FFS file size")
-        if blob[offset:offset+16] == PROBE_GUID and blob[offset+18] == 9:
+        if blob[offset:offset+16] == guid and blob[offset+18] == file_type:
             section = offset + header
             while section + 4 <= offset + size:
                 count = int.from_bytes(blob[section:section+3], "little")
