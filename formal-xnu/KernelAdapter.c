@@ -3,7 +3,6 @@
  * programming, storage access, or UEFI calls after ExitBootServices.
  */
 #include <pexpert/pexpert.h>
-#include <pexpert/arm/boot.h>
 #include <machine/machine_routines.h>
 #include <kern/thread.h>
 #include <kern/sched_prim.h>

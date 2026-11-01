@@ -142,6 +142,7 @@ jobs:
       - name: Install firmware tools
         run: |
           set -euo pipefail
+          mkdir -p evidence
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential clang llvm lld nasm uuid-dev mono-devel gcc-aarch64-linux-gnu device-tree-compiler mtools
           python -m pip install -r uefi/pip-requirements.txt
