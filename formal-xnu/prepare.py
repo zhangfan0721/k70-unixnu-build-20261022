@@ -73,7 +73,7 @@ def observer_source():
 \t}
 \tbp_build();
 \tbp_flush();''')
-    text = text.replace(' XNU BOOT PROGRESS  min-1 ', ' K70 FORMAL XNU  diagnostic-1 ')
+    text = text.replace(' XNU BOOT PROGRESS  min-1 ', ' K70 FORMAL XNU  diagnostic-2 ')
     text = replace_once(text, 'static const uint64_t bp_font',
                         'volatile uint32_t k70_formal_milestones;\nstatic const uint64_t bp_font')
     text = replace_once(text, '\tbp_out_puts(&out, " IRQ=");',
@@ -149,6 +149,11 @@ def kernel_patch(font):
  #include <kern/clock.h>
 --- a/osfmk/arm/arm_init.c
 +++ b/osfmk/arm/arm_init.c
+@@ -346,2 +346,4 @@
++\textern void k70_formal_c_entry(void *);
++\tk70_formal_c_entry(args);
+ \tarm_setup_pre_sign();
+\x20
 @@ -371,2 +371,4 @@
  \tPE_init_platform(FALSE, args); /* Get platform expert set up */
 +\textern void k70_formal_early(void *);
@@ -170,10 +175,13 @@ def kernel_patch(font):
  \t *\tInitialize the shared region module.
  \t */
 '''
+    patch += (HERE/'EntryDiagnostics.patch').read_text()
     source = observer_source() + '\n' + (HERE/'KernelAdapter.c').read_text()
     for path, text in [('pexpert/arm/k70_formal_diag.c', source),
                        ('pexpert/arm/FramebufferGuard.h', (HERE/'FramebufferGuard.h').read_text()),
-                       ('pexpert/arm/Font.h', font)]:
+                       ('pexpert/arm/Font.h', font),
+                       ('pexpert/arm/BootstrapMap.h', (HERE/'BootstrapMap.h').read_text()),
+                       ('osfmk/arm64/k70_formal_entry.s', (HERE/'EntryDiagnostics.s').read_text())]:
         patch += added_file(path, text)
     return patch
 

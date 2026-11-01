@@ -8,6 +8,87 @@
 #include <kern/sched_prim.h>
 #include <kern/clock.h>
 #include <mach/thread_act.h>
+#include "BootstrapMap.h"
+#include <stddef.h>
+
+_Static_assert(offsetof(boot_args, Video)==40, "early ASM boot video offset");
+_Static_assert(sizeof(Boot_Video)==48, "early ASM ARM64 video layout");
+_Static_assert(offsetof(Boot_Video, v_depth)==40, "early ASM depth offset");
+
+static uint64_t k70_formal_fb_l2[512] __attribute__((aligned(4096)));
+volatile unsigned k70_formal_boot_map_status;
+extern char ExceptionVectorsBase[];
+unsigned k70_formal_bootstrap(const boot_args *, volatile uint64_t *);
+void k70_formal_trap(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,const boot_args *);
+void k70_formal_c_entry(void *);
+
+/* Runs on a physical, dedicated stack with MMU off, after XNU's tables exist.
+ * No allocator, UEFI service, device register, or pointer initialized at link time. */
+__attribute__((no_stack_protector))
+unsigned k70_formal_bootstrap(const boot_args *args, volatile uint64_t *root)
+{
+    if (args->Video.v_baseAddr!=UINT64_C(0xb8000000) || args->Video.v_width!=1440 ||
+        args->Video.v_height!=3200 || args->Video.v_rowBytes!=5760 ||
+        (args->Video.v_depth & 255)!=32 || args->physBase>UINT64_MAX-args->memSize) {
+        return 0;
+    }
+    k70_formal_boot_map_status=k70_bootstrap_fb_map(root,k70_formal_fb_l2,
+        args->physBase,args->physBase+args->memSize);
+    return k70_formal_boot_map_status;
+}
+
+/* Source-level low-vector trap. The ASM wrapper supplies a dedicated stack and
+ * captures registers before C. Fatal only: it never returns to a failed path. */
+__attribute__((no_stack_protector))
+void k70_formal_trap(uint64_t esr, uint64_t elr, uint64_t far, uint64_t sctlr,
+    uint64_t tcr, uint64_t ttbr0, uint64_t ttbr1, const boot_args *args)
+{
+    static volatile unsigned entered;
+    if (entered) { return; }
+    entered=1;
+    if (!bp_translated((uintptr_t)args) || !bp_translated((uintptr_t)args+87)) { return; }
+    if (args->Video.v_baseAddr!=UINT64_C(0xb8000000)) { return; }
+    /* Fatal entry must bypass the normal observer lock; the interrupted code
+     * will never resume. Geometry and all WRITE translations are still checked. */
+    bp_impl_init();
+    bp_impl_bind((uintptr_t)args->Video.v_baseAddr,(unsigned)args->Video.v_width,
+        (unsigned)args->Video.v_height,(unsigned)args->Video.v_rowBytes,
+        (unsigned)args->Video.v_depth & 255);
+    if (!g_screen.bound) { return; }
+    bp_model_row(0,"K70 FORMAL XNU - EARLY EXCEPTION",BP_WHITE,BP_RED);
+    const uint64_t values[]={esr,elr,far,sctlr,tcr,ttbr0,ttbr1};
+    /* Avoid static pointer tables: the same code must also run at its PA. */
+    for (unsigned i=0;i<7;i++) {
+        char line[BP_MAX_COLS+1]; struct bp_out out;
+        bp_out_begin(&out,line);
+        switch(i) {
+        case 0: bp_out_puts(&out,"ESR_EL1   "); break;
+        case 1: bp_out_puts(&out,"ELR_EL1   "); break;
+        case 2: bp_out_puts(&out,"FAR_EL1   "); break;
+        case 3: bp_out_puts(&out,"SCTLR_EL1 "); break;
+        case 4: bp_out_puts(&out,"TCR_EL1   "); break;
+        case 5: bp_out_puts(&out,"TTBR0_EL1 "); break;
+        default: bp_out_puts(&out,"TTBR1_EL1 "); break;
+        }
+        bp_out_hex(&out,values[i],16);
+        bp_model_row(i+2,line,BP_WHITE,BP_BLACK);
+    }
+    bp_model_row(10,"Stopped in early XNU; no automatic retry",BP_AMBER,BP_BLACK);
+    bp_flush();
+}
+
+void k70_formal_c_entry(void *opaque)
+{
+    const boot_args *args=opaque;
+    boot_progress_init();
+    if (args->Video.v_baseAddr!=UINT64_C(0xb8000000)) { return; }
+    boot_progress_bind((uintptr_t)args->Video.v_baseAddr,(unsigned)args->Video.v_width,
+        (unsigned)args->Video.v_height,(unsigned)args->Video.v_rowBytes,
+        (unsigned)args->Video.v_depth & 255);
+    boot_progress_stage("arm_init entered; bootstrap framebuffer validated if visible");
+    boot_progress_stage(k70_formal_boot_map_status ?
+        "bootstrap framebuffer identity mapping installed" : "bootstrap framebuffer mapping refused");
+}
 
 static uint64_t k70_fb_pa;
 static unsigned k70_fb_width, k70_fb_height, k70_fb_stride, k70_fb_depth;
@@ -81,6 +162,8 @@ void k70_formal_thread_start(void)
 
 void k70_formal_early(void *opaque)
 {
+    /* Native vectors take over once the initial C observer is available. */
+    __asm__ volatile ("msr vbar_el1, %0; isb" :: "r"(ExceptionVectorsBase) : "memory");
     k70_formal_milestones |= 1; /* PE_init_platform(FALSE) returned. */
     const boot_args *args = opaque;
     k70_fb_pa = args->Video.v_baseAddr;

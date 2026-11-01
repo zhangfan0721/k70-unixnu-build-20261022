@@ -28,7 +28,7 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn('+++ b/pexpert/arm/k70_formal_diag.c', patch)
         self.assertIn('+#include "k70_formal_diag.c"', patch)
         self.assertIn('-#if defined(XNU_BOOT_PROGRESS) && XNU_BOOT_PROGRESS', patch)
-        self.assertNotIn('--- a/osfmk/arm64/start.s', patch)
+        self.assertIn('--- a/osfmk/arm64/start.s', patch)
 
     def test_actual_observer_compiles_for_arm64_and_retains_prebind_history(self):
         uefi=Path(os.environ['K70_UEFI_SOURCE'])

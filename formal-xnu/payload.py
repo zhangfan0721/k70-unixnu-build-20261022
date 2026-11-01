@@ -151,6 +151,8 @@ def build(args):
     uefi=args.uefi.resolve();board=args.board.resolve();kernel=args.kernel.resolve()
     symbols=args.symbols.read_text()
     for required in ['_k70_formal_after_vm','_k70_formal_thread_turn','_boot_progress_stage',
+                     '_k70_formal_bootstrap','_k70_formal_early_exception','_k70_formal_trap',
+                     '_k70_formal_c_entry',
                      '_armcpu_gic_ready','_armcpu_timer_interrupts']:
         if not any(line.split()[-1:]==[required] for line in symbols.splitlines()):
             raise ValueError('Missing diagnostic/platform symbol: '+required)

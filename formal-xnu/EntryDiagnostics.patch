@@ -1,0 +1,133 @@
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -32,6 +32,7 @@
+ #include <arm64/proc_reg.h>
+ #include <pexpert/arm64/board_config.h>
+ #include <mach_assert.h>
++#include "k70_formal_entry.s"
+ #include <machine/asm.h>
+ #if defined(APPLE_ARM64_ARCH_FAMILY)
+ #include <arm64/tunables/tunables.s>
+@@ -237,40 +238,40 @@
+ 	.global	EXT(LowExceptionVectorBase)
+ LEXT(LowExceptionVectorBase)
+ 	/* EL1 SP 0 */
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
+ 	/* EL1 SP1 */
+ 	.align	7
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
+ 	/* EL0 64 */
+ 	.align	7
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
+ 	/* EL0 32 */
+ 	.align	7
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
+-	.align	7
+-	b		.
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
++	.align	7
++	b		EXT(k70_formal_early_exception)
+ 	.align 12, 0
+ 
+ #if defined(KERNEL_INTEGRITY_KTRR) || defined(KERNEL_INTEGRITY_CTRR)
+@@ -464,6 +465,14 @@
+ 	.globl EXT(start_first_cpu)
+ LEXT(start_first_cpu)
+ 
++    // Own low vectors before any implementation-defined register access.
++    mov x20, x0
++    adrp x9, EXT(LowExceptionVectorBase)@page
++    add x9, x9, EXT(LowExceptionVectorBase)@pageoff
++    msr VBAR_EL1, x9
++    isb
++    K70_MARK x20, 0x00ff00ff, 0
++
+ 	// Unlock the core for debugging
+ 	msr		OSLAR_EL1, xzr
+ 	msr		DAIFSet, #(DAIFSC_ALL)				// Disable all interrupts
+@@ -624,6 +633,13 @@
+ 	b Lbootstrap_tables_exhausted
+ Lbootstrap_tables_ready:
+ 	/* Ensure TTEs are visible */
++    K70_PREPARE_DISPLAY
++    cbz w0, Lk70_map_refused
++    K70_MARK x20, 0x0000bfff, 1
++    b Lk70_map_marked
++Lk70_map_refused:
++    K70_MARK x20, 0x00ffbf00, 1
++Lk70_map_marked:
+ 	dsb		ish
+ 
+ 
+@@ -752,6 +768,10 @@
+ #endif /* __ARM_KERNEL_PROTECT__ */
+ 	adrp	x0, EXT(ExceptionVectorsBase)@page			// Load exception vectors base address
+ 	add		x0, x0, EXT(ExceptionVectorsBase)@pageoff
++    cbnz x21, Lk70_vectors_selected
++    adrp x0, EXT(LowExceptionVectorBase)@page
++    add x0, x0, EXT(LowExceptionVectorBase)@pageoff
++Lk70_vectors_selected:
+ 	add		x0, x0, x22									// Convert exception vector address to KVA
+ 	sub		x0, x0, x23
+ 1:
+@@ -765,6 +785,7 @@
+ 	MOV64   x0, SCTLR_EL1_DEFAULT
+ 	MSR_SCTLR_EL1_X0
+ 	isb		sy
++	K70_MARK x20, 0x00ffffff, 2
+ 
+ #if !VMAPPLE
+ 	MOV64   x1, SCTLR_EL1_DEFAULT
+@@ -894,3 +915,5 @@
+ 
+ /* vim: set ts=4: */
+ 
++
++K70_ENTRY_HELPERS
