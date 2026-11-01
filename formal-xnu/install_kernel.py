@@ -15,7 +15,21 @@ HOOK = '''    # Source-only diagnostic backend; no full-monitor/root prerequisit
     patch = bundle / "zzzz-k70-formal-diag.patch"
     if hashlib.sha256(patch.read_bytes()).hexdigest() != manifest['patch_sha256']:
         raise ValueError('Diagnostic patch identity mismatch')
+    if hashlib.sha256((bundle / "macho_asm.py").read_bytes()).hexdigest() != manifest['asm_normalizer_sha256']:
+        raise ValueError('Assembler normalizer identity mismatch')
     shutil.copy2(patch, local / patch.name)
+    shutil.copy2(bundle / "macho_asm.py", tree / "scripts/k70_macho_asm.py")
+    driver = tree / "scripts/build-arm-driver.py"
+    driver_text = driver.read_text()
+    if hashlib.sha256(driver_text.encode()).hexdigest() != '7d520749568581c3cf741e732f53d0553f66344b5cda3a473c3d12822a344d40':
+        raise ValueError('Unexpected pinned platform build driver')
+    source_anchor = 'source = ROOT / "drivers" / component / (component + ".cpp")'
+    if driver_text.count(source_anchor) != 1:
+        raise ValueError('Unexpected platform source anchor')
+    driver.write_text(driver_text.replace(source_anchor, source_anchor + '\\n'
+        'if component == "ArmCpu":\\n'
+        '    from k70_macho_asm import prepare_armcpu_source\\n'
+        '    source = prepare_armcpu_source(source, ROOT / ".cache/k70-armcpu")'))
     script = tree / "scripts/build-xnu-4k-baseline.sh"
     text = script.read_text()
     original = upstream / "scripts/build-xnu-4k-baseline.sh"
@@ -56,8 +70,10 @@ def install(device, uefi):
         '    (local / PATCH).write_bytes(patched)\n'+HOOK)
     target.mkdir()
     (target/'zzzz-k70-formal-diag.patch').write_text(patch)
+    shutil.copy2(HERE/'macho_asm.py',target/'macho_asm.py')
     manifest={'source_device':actual,'patch_sha256':hashlib.sha256(patch.encode()).hexdigest(),
               'observer_source':'peter8889/UniXNU-ishtar@89a54c0132b180212a4e8bf2fddf04c78347a2dd',
+              'asm_normalizer_sha256':hashlib.sha256((target/'macho_asm.py').read_bytes()).hexdigest(),
               'scope':'source-only boot observer; no root, crypto, storage or GIC implementation changes',
               'hardware_tested':False}
     (target/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')

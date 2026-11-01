@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+from macho_asm import normalize_inline_asm
 
 HERE = Path(__file__).resolve().parent
 FORMAL_MODULES = (
@@ -124,7 +125,7 @@ def observer_source():
     text = text.replace('void\nbp_impl_', 'static void\nbp_impl_')
     text = text.replace('bp_out_dec(&out, g_state.irqs);',
         'bp_out_dec(&out, __atomic_load_n(&g_state.irqs, __ATOMIC_RELAXED));')
-    return '#include <kern/boot_progress.h>\n' + text + wrappers
+    return normalize_inline_asm('#include <kern/boot_progress.h>\n' + text + wrappers)
 
 
 def added_file(path, text):
@@ -176,7 +177,7 @@ def kernel_patch(font):
  \t */
 '''
     patch += (HERE/'EntryDiagnostics.patch').read_text()
-    source = observer_source() + '\n' + (HERE/'KernelAdapter.c').read_text()
+    source = observer_source() + '\n' + normalize_inline_asm((HERE/'KernelAdapter.c').read_text())
     for path, text in [('pexpert/arm/k70_formal_diag.c', source),
                        ('pexpert/arm/FramebufferGuard.h', (HERE/'FramebufferGuard.h').read_text()),
                        ('pexpert/arm/Font.h', font),

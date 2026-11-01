@@ -163,7 +163,7 @@ void k70_formal_thread_start(void)
 void k70_formal_early(void *opaque)
 {
     /* Native vectors take over once the initial C observer is available. */
-    __asm__ volatile ("msr vbar_el1, %0; isb" :: "r"(ExceptionVectorsBase) : "memory");
+    __asm__ volatile ("msr vbar_el1, %0\n\tisb" :: "r"(ExceptionVectorsBase) : "memory");
     k70_formal_milestones |= 1; /* PE_init_platform(FALSE) returned. */
     const boot_args *args = opaque;
     k70_fb_pa = args->Video.v_baseAddr;
@@ -195,7 +195,7 @@ void k70_formal_after_vm(void)
         "kernel framebuffer mapping validated after arm_vm_init" :
         "kernel framebuffer mapping unavailable after arm_vm_init");
     uint64_t ttbr0, ttbr1, sctlr;
-    __asm__ volatile ("mrs %0, ttbr0_el1; mrs %1, ttbr1_el1; mrs %2, sctlr_el1"
+    __asm__ volatile ("mrs %0, ttbr0_el1\n\tmrs %1, ttbr1_el1\n\tmrs %2, sctlr_el1"
                       : "=r"(ttbr0), "=r"(ttbr1), "=r"(sctlr));
     char line[BP_MAX_COLS + 1];
     struct bp_out out;

@@ -43,6 +43,17 @@ class IntegrationTests(unittest.TestCase):
             subprocess.run(['clang','--target=aarch64-none-elf','-std=c11','-ffreestanding',
                 '-fno-builtin','-Wall','-Wextra','-Werror','-I',str(root),'-c',str(root/'observer.c'),
                 '-o',str(root/'observer.o')],check=True)
+            subprocess.run(['clang','--target=arm64-apple-darwin','-std=c11','-ffreestanding',
+                '-fno-builtin','-O0','-Wall','-Wextra','-Werror','-I',str(root),'-c',str(root/'observer.c'),
+                '-o',str(root/'observer-macho.o')],check=True)
+            machine=subprocess.check_output(['llvm-objdump','-d',str(root/'observer-macho.o')],text=True).lower()
+            # An object compiling successfully does not prove the assembler
+            # retained instructions after an inline separator on Darwin.
+            self.assertRegex(machine,r'at\s+s1e1w')
+            self.assertRegex(machine,r'at\s+s1e1r')
+            self.assertRegex(machine,r'mrs\s+x\d+, par_el1')
+            self.assertRegex(machine,r'msr\s+par_el1, x\d+')
+            self.assertRegex(machine,r'msr\s+daif, x\d+')
             (root/'host.c').write_text(source+'''
 #include <assert.h>
 int main(void) {

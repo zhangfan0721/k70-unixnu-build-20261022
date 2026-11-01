@@ -101,6 +101,9 @@ jobs:
             out/vermeer/logs/
             out/vermeer/.config
             out/vermeer/tree/.cache/vermeer-patch-report.json
+            out/vermeer/tree/.cache/k70-armcpu/
+            out/vermeer/tree/build/armcpu/build-report.json
+            out/vermeer/tree/build/armcpu/compile-command.json
             device/tools/k70-formal-diag/
             device/configs/vermeer_platform_defconfig
           include-hidden-files: true
