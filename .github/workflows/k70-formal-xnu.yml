@@ -153,6 +153,7 @@ jobs:
       - name: Run related checks and assemble the formal firmware package
         env:
           K70_UEFI_SOURCE: ${{ github.workspace }}/uefi
+          K70_CORE_SOURCE: ${{ github.workspace }}/upstream
           K70_DTB: ${{ github.workspace }}/board/scripts/data/vermeer.dtb
         run: |
           set -euo pipefail

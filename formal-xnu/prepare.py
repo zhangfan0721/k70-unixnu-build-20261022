@@ -177,6 +177,7 @@ def kernel_patch(font):
  \t */
 '''
     patch += (HERE/'EntryDiagnostics.patch').read_text()
+    patch += (HERE/'CryptoBeforeIokit.patch').read_text()
     source = observer_source() + '\n' + normalize_inline_asm((HERE/'KernelAdapter.c').read_text())
     for path, text in [('pexpert/arm/k70_formal_diag.c', source),
                        ('pexpert/arm/FramebufferGuard.h', (HERE/'FramebufferGuard.h').read_text()),

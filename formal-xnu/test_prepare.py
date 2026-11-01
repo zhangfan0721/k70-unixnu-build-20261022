@@ -23,6 +23,25 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn('K70 FORMAL XNU', text)
         self.assertNotIn('scheduler running', text)
 
+    def test_crypto_runs_before_iokit_with_identical_provider_and_post_refusals(self):
+        core=Path(os.environ['K70_CORE_SOURCE'])
+        upstream=(core/'patches/xnu/source-corecrypto14-bootstrap.patch').read_text()
+        body=''.join(line[1:]+'\n' for line in upstream.splitlines()
+                     if line.startswith('+') and not line.startswith('+++'))
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);target=root/'osfmk/prng/prng_random.c'
+            target.parent.mkdir(parents=True);target.write_text(body)
+            subprocess.run(['git','apply','--unsafe-paths',str(HERE/'CryptoBeforeIokit.patch')],cwd=root,check=True)
+            fixed=target.read_text()
+            self.assertIn('STARTUP(SYSCTL, STARTUP_RANK_LAST, source_corecrypto14_bootstrap);',fixed)
+            # Only schedule and observations may change; the complete provider
+            # start, fips_mode refusal and failure panic remain byte-identical.
+            unchanged='\n'.join(line for line in fixed.splitlines()
+                if 'boot_progress' not in line)+'\n'
+            unchanged=unchanged.replace('STARTUP(SYSCTL, STARTUP_RANK_LAST,',
+                'STARTUP(EARLY_BOOT, STARTUP_RANK_FIRST,')
+            self.assertEqual(unchanged,body)
+
     def test_late_patch_uses_existing_hooks_and_separate_backend(self):
         patch = self.prepare.kernel_patch('#define GLYPH_FONT {0}\n')
         self.assertIn('+++ b/pexpert/arm/k70_formal_diag.c', patch)
