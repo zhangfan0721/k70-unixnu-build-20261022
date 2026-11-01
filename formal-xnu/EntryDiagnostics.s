@@ -20,10 +20,10 @@
     and x10, x10, #255
     cmp x10, #32
     b.ne Lk70_skip\@
-    // Eight scan lines per band, in the top 24 rows; bounded stores only.
-    mov x10, #(5760*8)
-    mov x11, #\band
-    madd x9, x10, x11, x9
+    // Repaint the loader-sized top 200 rows, beyond the curved bezel.
+    // band remains a callsite ID; all stages use this same bounded area.
+    mov x10, #0x9400
+    movk x10, #0x11, lsl #16   // 5760 * 200 = 1152000 bytes
     // After the MMU is on, a refused map must not turn a marker into a fault.
     // Validate every touched page as writable and identity-mapped; restore PAR.
     mrs x13, SCTLR_EL1

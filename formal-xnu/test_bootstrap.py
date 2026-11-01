@@ -32,8 +32,8 @@ class BootstrapTests(unittest.TestCase):
 _entry_test:
     K70_PREPARE_DISPLAY
     K70_MARK x20, 0x00ff00ff, 0
-    K70_MARK x20, 0x0000bfff, 1
-    K70_MARK x20, 0x00ffffff, 2
+    K70_MARK x20, 0x00ffffff, 1
+    K70_MARK x20, 0x00ffff00, 2
     ret
 K70_ENTRY_HELPERS
 ''')

@@ -74,7 +74,7 @@ def observer_source():
 \t}
 \tbp_build();
 \tbp_flush();''')
-    text = text.replace(' XNU BOOT PROGRESS  min-1 ', ' K70 FORMAL XNU  diagnostic-2 ')
+    text = text.replace(' XNU BOOT PROGRESS  min-1 ', ' K70 FORMAL XNU  diagnostic-3 ')
     text = replace_once(text, 'static const uint64_t bp_font',
                         'volatile uint32_t k70_formal_milestones;\nstatic const uint64_t bp_font')
     text = replace_once(text, '\tbp_out_puts(&out, " IRQ=");',
@@ -240,16 +240,25 @@ def shared_ramdisk(core):
         if hashlib.sha256((source/name).read_bytes()).hexdigest() != expected:
             raise ValueError('Upstream ramdisk driver hash mismatch: '+name)
     shutil.copytree(source,destination)
-    # The pinned loader paints green before branching into XNU. Keep its
-    # visible explanation consistent with that actual checkpoint.
+    # Keep the pinned handoff contract, with explicit MMU-off maintenance
+    # and a visible marker for each handoff boundary.
     loader=core/'drivers/DarwinBoot/DarwinBootPkg/Driver/DarwinBoot.c'
     original=loader.read_text()
     updated=replace_once(original,'means the kernel entry code ran.',
-                         'means loader handoff reached; XNU entry is not yet verified.')
+                         'means loader handoff reached; cyan=cache clean, blue=MMU off. XNU entry is magenta.')
     loader.write_text(updated)
     metadata['loader_diagnostic_change']={
         'before_sha256':hashlib.sha256(original.encode()).hexdigest(),
         'after_sha256':hashlib.sha256(updated.encode()).hexdigest()}
+    entry=loader.with_name('Entry.S')
+    before=hashlib.sha256(entry.read_bytes()).hexdigest()
+    if before != '72d63bede2d0eac7179ac4f1048a5312d97f210c8362111dafb71e289b403f56':
+        raise ValueError('Pinned DarwinBoot Entry.S changed')
+    replacement=(HERE/'LoaderEntry.S').read_bytes()
+    entry.write_bytes(replacement)
+    metadata['loader_entry_change']={
+        'before_sha256':before,'after_sha256':hashlib.sha256(replacement).hexdigest(),
+        'maintenance':'kernel window and executing handoff to PoC before MMU/cache off'}
     return metadata
 
 

@@ -186,7 +186,7 @@ id = "xnu"
 title = "K70 formal source XNU - diagnostic candidate"
 type = "xnu"
 path = "Payloads/kernel.macho"
-args = "-v serial=3 debug=0x14e kt_fixed_zones=120 armcpu-diagnostics=1"
+args = "-v serial=3 debug=0x14e kt_fixed_zones=120 armcpu-diagnostics=1 startup_debug=1"
 '''
         (stage/'EFI/UniXNU/unixnu.toml').write_text(configuration)
         volume=out/'payload-template.img'

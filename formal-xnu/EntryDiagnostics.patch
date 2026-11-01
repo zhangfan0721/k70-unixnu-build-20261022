@@ -101,7 +101,7 @@
  	/* Ensure TTEs are visible */
 +    K70_PREPARE_DISPLAY
 +    cbz w0, Lk70_map_refused
-+    K70_MARK x20, 0x0000bfff, 1
++    K70_MARK x20, 0x00ffffff, 1
 +    b Lk70_map_marked
 +Lk70_map_refused:
 +    K70_MARK x20, 0x00ffbf00, 1
@@ -124,7 +124,7 @@
  	MOV64   x0, SCTLR_EL1_DEFAULT
  	MSR_SCTLR_EL1_X0
  	isb		sy
-+	K70_MARK x20, 0x00ffffff, 2
++	K70_MARK x20, 0x00ffff00, 2
  
  #if !VMAPPLE
  	MOV64   x1, SCTLR_EL1_DEFAULT
