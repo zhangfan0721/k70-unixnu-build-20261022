@@ -77,8 +77,34 @@ def check(source, overlay):
                         generated.append(name)
                     else:
                         missing.append(name)
+    sampling_calls = []
+    if 'kpc' not in options and 'kperf' not in options:
+        for name in sorted(set(selected)):
+            if name.startswith('./'):
+                continue
+            path = overlay / name
+            if not path.is_file():
+                path = source / name
+            if not path.is_file():
+                continue
+            text = path.read_text()
+            if 'kperf_' not in text and 'kpc_' not in text:
+                continue
+            p = subprocess.run(['unifdef', '-t', '-DKPERF=0', '-DKPC=0', '-'],
+                input=text, text=True, capture_output=True)
+            if p.returncode not in (0, 1):
+                raise ValueError('Cannot preprocess disabled sampling hooks: ' + name)
+            text = re.sub(r'/\*.*?\*/', '', p.stdout, flags=re.S)
+            for line in text.splitlines():
+                line = line.split('//', 1)[0].strip()
+                if not line.startswith('extern ') and re.search(r'\b(?:kperf|kpc)_\w+\s*\(', line):
+                    sampling_calls.append({'file': name, 'line': line})
+        if sampling_calls:
+            raise ValueError('Disabled sampling implementation still referenced: ' + str(sampling_calls))
     return {'machine': 'BCM2837', 'configuration': 'DEVELOPMENT',
-        'kpc_enabled': 'kpc' in options, 'selected_source_count': len(selected),
+        'kpc_enabled': 'kpc' in options, 'kperf_enabled': 'kperf' in options,
+        'selected_source_count': len(selected), 'selected_sources': sorted(set(selected)),
+        'disabled_sampling_active_calls': sampling_calls,
         'missing': sorted(set(missing)), 'generated_inputs': sorted(set(generated)),
         'scope': 'source presence only; not compilation, ABI or boot proof'}
 

@@ -45,6 +45,15 @@ def edit(root, name, before, after):
     path.write_text(replace_once(path.read_text(), before, after))
 
 
+def guard_statement(root, name, statement, option, count):
+    path = root / name
+    text, actual = re.subn(r'(?m)^([ \t]*)' + re.escape(statement) + r'$',
+        lambda m: '#if ' + option + '\n' + m[0] + '\n#endif', path.read_text())
+    if actual != count:
+        raise ValueError('Unexpected optional sampling call sites: ' + statement)
+    path.write_text(text)
+
+
 def diagnostic_hooks(root, font):
     # Same observer, framebuffer guard, physical entry helpers and online gate
     # as accepted candidate08. Only the Darwin22 call-site contexts differ.
@@ -151,10 +160,11 @@ def integration_patch(core, source, font, staging):
     for _, patch in patches:
         names.update(re.findall(r'^--- a/(.+)$', patch, re.M))
     names.update(('config/MASTER', 'config/MASTER.arm64.bcm2837', 'osfmk/conf/files.arm64',
-                  'makedefs/MakeInc.kernel', 'osfmk/kern/Makefile', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
+                  'makedefs/MakeInc.kernel', 'osfmk/kern/Makefile', 'osfmk/kern/ast.c', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
-                  'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c'))
+                  'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
+                  'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
@@ -172,7 +182,22 @@ def integration_patch(core, source, font, staging):
     p = staging / 'config/MASTER.arm64.bcm2837'
     p.write_text(replace_once(p.read_text(), '[ arm64 config_pmap_ppl ', '[ arm64 config_pmap_ppl nos_arm_asm nos_arm_pmap ').replace(' sched_hygiene_debug', ''))
     edit(staging, 'config/MASTER.arm64.bcm2837', 'mach_kdp config_serial_kdp kperf kpc',
-         'mach_kdp config_serial_kdp kperf')
+         'mach_kdp config_serial_kdp')
+    # Public22's optional kperf module directly requires the absent ARM KPC.
+    # Disable that unsupported pair; keep other AST and scheduler work intact.
+    edit(staging, 'osfmk/kern/ast.c', '#include <kperf/kperf_kpc.h>',
+         '#if KPERF\n#include <kperf/kperf_kpc.h>\n#endif')
+    edit(staging, 'osfmk/kern/ast.c',
+         '\tif (reasons & AST_KPERF) {\n\t\tthread_ast_clear(thread, AST_KPERF);\n\t\tkperf_kpc_thread_ast(thread);\n\t}',
+         '#if KPERF\n\tif (reasons & AST_KPERF) {\n\t\tthread_ast_clear(thread, AST_KPERF);\n\t\tkperf_kpc_thread_ast(thread);\n\t}\n#endif')
+    guard_statement(staging, 'bsd/kern/kern_ktrace.c', 'kperf_reset();', 'KPERF', 3)
+    guard_statement(staging, 'bsd/kern/kern_ktrace.c', 'kperf_disable_sampling();', 'KPERF', 1)
+    guard_statement(staging, 'osfmk/arm64/pcb.c', 'kpc_off_cpu(old);', 'KPC', 2)
+    guard_statement(staging, 'osfmk/kern/sched_prim.c',
+                    'kperf_running_setup(processor, processor->last_dispatch);', 'KPERF', 1)
+    edit(staging, 'bsd/kern/kern_ktrace.c',
+         'ktrace_configure(uint32_t config_mask)\n{\n\tktrace_assert_lock_held();\n\tassert(config_mask != 0);',
+         'ktrace_configure(uint32_t config_mask)\n{\n\tktrace_assert_lock_held();\n\tassert(config_mask != 0);\n#if !KPERF\n\tif (config_mask & KTRACE_KPERF) { return ENOTSUP; }\n#endif')
     p = staging / 'osfmk/conf/files.arm64'
     p.write_text(''.join(line.rstrip('\n') + (' apple_amcc' if re.match(r'osfmk/arm64/amcc_rorgn_.* optional ', line) else '') + '\n' for line in p.read_text().splitlines(True)))
     edit(staging, 'makedefs/MakeInc.kernel', '$(TARGET)/$(KERNEL_FILE_NAME).unstripped: $(addprefix',

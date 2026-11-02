@@ -41,7 +41,7 @@ def main():
     (args.out / 'patch-report.json').write_text(json.dumps(report, indent=2) + '\n')
     presence = check_source_inputs(args.source, args.out / 'patched')
     (args.out / 'source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
-    if presence['missing'] or presence['kpc_enabled']:
+    if presence['missing'] or presence['kpc_enabled'] or presence['kperf_enabled']:
         raise ValueError('Selected source configuration includes unavailable inputs: ' + str(presence))
     scripts = args.out / 'tree/scripts'
     scripts.mkdir(parents=True)

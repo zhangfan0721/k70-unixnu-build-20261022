@@ -123,7 +123,7 @@ def main():
     (ctx.tree / '.cache/iphone16-patch-report.json').write_text(json.dumps(report, indent=2) + '\n')
     presence = check_source_inputs(ctx.tree / 'refer/xnu', ctx.tree / '.cache/iphone16-patch-source')
     (ctx.tree / '.cache/iphone16-source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
-    if presence['missing'] or presence['kpc_enabled']:
+    if presence['missing'] or presence['kpc_enabled'] or presence['kperf_enabled']:
         raise ValueError('Selected configuration requires unavailable source inputs: ' + str(presence))
     kernel.build(ctx, modules)
     source = ctx.tree / KERNEL
