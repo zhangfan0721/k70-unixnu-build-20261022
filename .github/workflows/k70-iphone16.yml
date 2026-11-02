@@ -95,6 +95,7 @@ jobs:
             out16/vermeer16/logs/
             out16/vermeer16/.config
             out16/vermeer16/tree/.cache/iphone16-patch-report.json
+            out16/vermeer16/tree/.cache/iphone16-source-presence.json
             out16/vermeer16/tree/.cache/iphone16-patches/
             out16/vermeer16/tree/.cache/k70-armcpu/
             out16/vermeer16/tree/build/armcpu/*.json

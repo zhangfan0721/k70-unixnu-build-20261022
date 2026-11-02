@@ -11,6 +11,7 @@ import struct
 import subprocess
 import sys
 import tomllib
+from check_sources import check as check_source_inputs
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('iphone16_prepare', HERE / 'prepare.py')
@@ -120,11 +121,15 @@ def main():
         raise ValueError('Resolved XNU source differs from requested Darwin22 pin')
     report = adapter.prepare(core, device, ctx.tree, font)
     (ctx.tree / '.cache/iphone16-patch-report.json').write_text(json.dumps(report, indent=2) + '\n')
+    presence = check_source_inputs(ctx.tree / 'refer/xnu', ctx.tree / '.cache/iphone16-patch-source')
+    (ctx.tree / '.cache/iphone16-source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
+    if presence['missing'] or presence['kpc_enabled']:
+        raise ValueError('Selected configuration requires unavailable source inputs: ' + str(presence))
     kernel.build(ctx, modules)
     source = ctx.tree / KERNEL
     report = verify_kernel(source) | {'unixnu': adapter.CORE, 'xnu': adapter.XNU,
         'source_device': adapter.DEVICE, 'feeds': feeds, 'configuration': parsed,
-        'page_bytes': 4096, 'prelinked': False}
+        'page_bytes': 4096, 'prelinked': False, 'source_presence': presence}
     output = ctx.work / 'kernel'
     output.mkdir()
     target = output / 'kernel.development.vermeer16.macho'

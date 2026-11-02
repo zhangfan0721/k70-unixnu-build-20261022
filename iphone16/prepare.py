@@ -171,6 +171,8 @@ def integration_patch(core, source, font, staging):
     edit(staging, 'config/MASTER', 'options   NOS_ARM_ASM', 'options   CONFIG_APPLE_AMCC\t\t\t# <apple_amcc>\n\noptions   NOS_ARM_ASM')
     p = staging / 'config/MASTER.arm64.bcm2837'
     p.write_text(replace_once(p.read_text(), '[ arm64 config_pmap_ppl ', '[ arm64 config_pmap_ppl nos_arm_asm nos_arm_pmap ').replace(' sched_hygiene_debug', ''))
+    edit(staging, 'config/MASTER.arm64.bcm2837', 'mach_kdp config_serial_kdp kperf kpc',
+         'mach_kdp config_serial_kdp kperf')
     p = staging / 'osfmk/conf/files.arm64'
     p.write_text(''.join(line.rstrip('\n') + (' apple_amcc' if re.match(r'osfmk/arm64/amcc_rorgn_.* optional ', line) else '') + '\n' for line in p.read_text().splitlines(True)))
     edit(staging, 'makedefs/MakeInc.kernel', '$(TARGET)/$(KERNEL_FILE_NAME).unstripped: $(addprefix',

@@ -7,6 +7,7 @@ import re
 import shutil
 import struct
 import subprocess
+from check_sources import check as check_source_inputs
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('iphone16_prepare', HERE / 'prepare.py')
@@ -38,6 +39,10 @@ def main():
     patch, report = adapter.integration_patch(args.core, args.source, args.font, args.out / 'patched')
     (args.out / 'integration.patch').write_text(patch)
     (args.out / 'patch-report.json').write_text(json.dumps(report, indent=2) + '\n')
+    presence = check_source_inputs(args.source, args.out / 'patched')
+    (args.out / 'source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
+    if presence['missing'] or presence['kpc_enabled']:
+        raise ValueError('Selected source configuration includes unavailable inputs: ' + str(presence))
     scripts = args.out / 'tree/scripts'
     scripts.mkdir(parents=True)
     for name in ('build-xnu-4k-baseline.sh', 'build-corecrypto-14.py', 'build-libpthread-kernel.py', 'build-firehose.sh'):
@@ -94,6 +99,7 @@ K70_ENTRY_HELPERS
     report = {'fixed_xnu_commit': adapter.XNU, 'patch_sha256': report['patch_sha256'],
         'arm64_ios16_observer_and_entry_assembled': True, 'observer_translation_and_daif_instructions_retained': True,
         'generated_recipe_syntax_checked': True, 'actual_xnu_component_header_exports_checked': True,
+        'selected_config_source_presence_checked': True,
         'full_kernel_compiled': False,
         'hardware_tested': False, 'original_component_abi_verified': False}
     (args.out / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
