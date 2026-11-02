@@ -5,9 +5,10 @@
   "source_kernel": {"tag": "xnu-8796.141.3", "commit": "1b191cb58250d0705d8a51287127505aa4bc0789", "darwin": "22.6.0", "exact_20H392_binary_abi_verified": false},
   "baseline08": "769b6e67c8a00e97841569dabd9a5a57959443c4",
   "generic_build_patch_source": "aTechGeekDev/ios-apollo@5c1329c2410e0cedd010f92cc5f779e02589fca6",
+  "no_pmu_backend": {"source": "aTechGeekDev/ios-apollo@5c1329c2410e0cedd010f92cc5f779e02589fca6:0008-sweet-fill-closed-lib-gaps-kpc-stub.patch", "compiled_reference_run": 41216279299, "reference_target": "MacOSX; not an iOS build qualification", "sha256": "3d024d8d896c4127d6e36c4daa8cb8ff048b5faf04522b127450b0471b87f9b6", "sampling_configuration": "retain Apple KPC=1 and KPERF=1", "hardware_pmu_supported": false, "scope": "unchanged kpc.c only; no page protection, AMCC or monitor stubs imported"},
   "selected_community_patches": ["0001-new-clang-drop-removed-auto-var-init-flag.patch", "0002-new-clang-backport-UIO_STACKBUF.patch", "0167-apollo-iorpc-kernelcontent-xcode16.patch"],
   "iig_compatibility_note": "Xcode16 generated IORPC kernelContent backport changes a kernel structure; original DriverKit/kext interaction must be checked against the actual original kernelcache before prelinking.",
   "inherited": ["native ArmDTPlatform/ArmCpu and GIC/timer policy", "candidate08 guarded diagnostic renderer and entry helpers", "complete source-provider crypto POST", "real matching libpthread514"],
-  "excluded": ["community security-policy patch series", "SWEET/SM8250 board constants", "HFS identity spoofing", "userdata/partition installation flows", "phone operations", "bulk iPadOS root preparation"],
+  "excluded": ["community security-policy patch series", "SWEET/SM7150 board constants", "HFS identity spoofing", "userdata/partition installation flows", "phone operations", "bulk iPadOS root preparation"],
   "compile_success_is_boot_proof": false
 }

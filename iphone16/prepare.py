@@ -45,15 +45,6 @@ def edit(root, name, before, after):
     path.write_text(replace_once(path.read_text(), before, after))
 
 
-def guard_statement(root, name, statement, option, count):
-    path = root / name
-    text, actual = re.subn(r'(?m)^([ \t]*)' + re.escape(statement) + r'$',
-        lambda m: '#if ' + option + '\n' + m[0] + '\n#endif', path.read_text())
-    if actual != count:
-        raise ValueError('Unexpected optional sampling call sites: ' + statement)
-    path.write_text(text)
-
-
 def diagnostic_hooks(root, font):
     # Same observer, framebuffer guard, physical entry helpers and online gate
     # as accepted candidate08. Only the Darwin22 call-site contexts differ.
@@ -91,6 +82,10 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
             raise ValueError('Unexpected existing diagnostic source: ' + name)
         path.write_text(text)
     edit(root, 'osfmk/kern/Makefile', '\tbacktrace.h \\\n', '\tbacktrace.h \\\n\tboot_progress.h \\\n')
+    diag = root / 'pexpert/arm/k70_formal_diag.c'
+    diag.write_text(replace_once(diag.read_text(),
+        'PE_init_platform(FALSE) returned; native XNU C',
+        'PE_init_platform returned; KPC/KPERF on; hardware PMU unsupported'))
     name = 'pexpert/arm/pe_serial.c'
     p = root / name
     p.write_text('#include "k70_formal_diag.c"\n' + p.read_text())
@@ -181,25 +176,13 @@ def integration_patch(core, source, font, staging):
     edit(staging, 'config/MASTER', 'options   NOS_ARM_ASM', 'options   CONFIG_APPLE_AMCC\t\t\t# <apple_amcc>\n\noptions   NOS_ARM_ASM')
     p = staging / 'config/MASTER.arm64.bcm2837'
     p.write_text(replace_once(p.read_text(), '[ arm64 config_pmap_ppl ', '[ arm64 config_pmap_ppl nos_arm_asm nos_arm_pmap ').replace(' sched_hygiene_debug', ''))
-    edit(staging, 'config/MASTER.arm64.bcm2837', 'mach_kdp config_serial_kdp kperf kpc',
-         'mach_kdp config_serial_kdp')
-    # Public22's optional kperf module directly requires the absent ARM KPC.
-    # Disable that unsupported pair; keep other AST and scheduler work intact.
-    edit(staging, 'osfmk/kern/ast.c', '#include <kperf/kperf_kpc.h>',
-         '#if KPERF\n#include <kperf/kperf_kpc.h>\n#endif')
-    edit(staging, 'osfmk/kern/ast.c',
-         '\tif (reasons & AST_KPERF) {\n\t\tthread_ast_clear(thread, AST_KPERF);\n\t\tkperf_kpc_thread_ast(thread);\n\t}',
-         '#if KPERF\n\tif (reasons & AST_KPERF) {\n\t\tthread_ast_clear(thread, AST_KPERF);\n\t\tkperf_kpc_thread_ast(thread);\n\t}\n#endif')
-    guard_statement(staging, 'bsd/kern/kern_ktrace.c', 'kperf_reset();', 'KPERF', 3)
-    guard_statement(staging, 'bsd/kern/kern_ktrace.c', 'kperf_disable_sampling();', 'KPERF', 1)
-    guard_statement(staging, 'osfmk/arm64/pcb.c', 'kpc_off_cpu(old);', 'KPC', 2)
-    guard_statement(staging, 'osfmk/kern/sched_prim.c',
-                    'kperf_running_setup(processor, processor->last_dispatch);', 'KPERF', 1)
-    guard_statement(staging, 'osfmk/kern/processor.c',
-                    '[RUNNING_TIMER_KPERF] = kperf_timer_expire,', 'KPERF', 1)
-    edit(staging, 'bsd/kern/kern_ktrace.c',
-         'ktrace_configure(uint32_t config_mask)\n{\n\tktrace_assert_lock_held();\n\tassert(config_mask != 0);',
-         'ktrace_configure(uint32_t config_mask)\n{\n\tktrace_assert_lock_held();\n\tassert(config_mask != 0);\n#if !KPERF\n\tif (config_mask & KTRACE_KPERF) { return ENOTSUP; }\n#endif')
+    backend = HERE / 'upstream/NoPmuKpc.c'
+    if hashlib.sha256(backend.read_bytes()).hexdigest() != '3d024d8d896c4127d6e36c4daa8cb8ff048b5faf04522b127450b0471b87f9b6':
+        raise ValueError('Unreviewed no-PMU backend')
+    target = staging / 'osfmk/arm64/kpc.c'
+    if target.exists():
+        raise ValueError('Refusing to replace an existing KPC implementation')
+    target.write_bytes(backend.read_bytes())
     p = staging / 'osfmk/conf/files.arm64'
     p.write_text(''.join(line.rstrip('\n') + (' apple_amcc' if re.match(r'osfmk/arm64/amcc_rorgn_.* optional ', line) else '') + '\n' for line in p.read_text().splitlines(True)))
     edit(staging, 'makedefs/MakeInc.kernel', '$(TARGET)/$(KERNEL_FILE_NAME).unstripped: $(addprefix',

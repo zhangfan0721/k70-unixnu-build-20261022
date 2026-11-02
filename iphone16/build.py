@@ -123,9 +123,23 @@ def main():
     (ctx.tree / '.cache/iphone16-patch-report.json').write_text(json.dumps(report, indent=2) + '\n')
     presence = check_source_inputs(ctx.tree / 'refer/xnu', ctx.tree / '.cache/iphone16-patch-source')
     (ctx.tree / '.cache/iphone16-source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
-    if presence['missing'] or presence['kpc_enabled'] or presence['kperf_enabled']:
+    if presence['missing'] or not presence['kpc_enabled'] or not presence['kperf_enabled']:
         raise ValueError('Selected configuration requires unavailable source inputs: ' + str(presence))
-    kernel.build(ctx, modules)
+    flags = {}
+    try:
+        kernel.build(ctx, modules)
+    finally:
+        # Preserve the actual generated target flags even if compilation fails.
+        objroot = ctx.tree / 'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837'
+        for name in ('.CFLAGS', '.LDFLAGS'):
+            path = objroot / name
+            if path.is_file():
+                flags[name] = path.read_text().rstrip('\0\n')
+        (ctx.work / 'actual-target-flags.json').write_text(json.dumps(flags, indent=2) + '\n')
+    if set(flags) != {'.CFLAGS', '.LDFLAGS'} or any(
+            '-miphoneos-version-min=16.0' not in value or '-DXNU_TARGET_OS_OSX' in value
+            for value in flags.values()) or '-DXNU_TARGET_OS_IOS' not in flags['.CFLAGS']:
+        raise ValueError('Actual compile/link flags do not identify the iOS16 target')
     source = ctx.tree / KERNEL
     report = verify_kernel(source) | {'unixnu': adapter.CORE, 'xnu': adapter.XNU,
         'source_device': adapter.DEVICE, 'feeds': feeds, 'configuration': parsed,

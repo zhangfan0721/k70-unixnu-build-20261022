@@ -94,6 +94,7 @@ jobs:
             evidence/
             out16/vermeer16/logs/
             out16/vermeer16/.config
+            out16/vermeer16/actual-target-flags.json
             out16/vermeer16/tree/.cache/iphone16-patch-report.json
             out16/vermeer16/tree/.cache/iphone16-source-presence.json
             out16/vermeer16/tree/.cache/iphone16-patches/

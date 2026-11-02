@@ -77,35 +77,17 @@ def check(source, overlay):
                         generated.append(name)
                     else:
                         missing.append(name)
-    sampling_calls = []
-    if 'kpc' not in options and 'kperf' not in options:
-        for name in sorted(set(selected)):
-            if name.startswith('./'):
-                continue
-            path = overlay / name
-            if not path.is_file():
-                path = source / name
-            if not path.is_file():
-                continue
-            text = path.read_text()
-            if 'kperf_' not in text and 'kpc_' not in text:
-                continue
-            p = subprocess.run(['unifdef', '-t', '-DKPERF=0', '-DKPC=0', '-'],
-                input=text, text=True, capture_output=True)
-            if p.returncode not in (0, 1):
-                raise ValueError('Cannot preprocess disabled sampling hooks: ' + name)
-            text = re.sub(r'/\*.*?\*/', '', p.stdout, flags=re.S)
-            for line in text.splitlines():
-                line = line.split('//', 1)[0].strip()
-                line = re.sub(r'"(?:\\.|[^"\\])*"', '""', line)
-                if not line.startswith('extern ') and re.search(r'\b(?:kperf|kpc)_\w+\b', line):
-                    sampling_calls.append({'file': name, 'line': line})
-        if sampling_calls:
-            raise ValueError('Disabled sampling symbol still referenced: ' + str(sampling_calls))
+    backend = overlay / 'osfmk/arm64/kpc.c'
+    if not backend.is_file():
+        backend = source / 'osfmk/arm64/kpc.c'
+    import hashlib
+    backend_sha = hashlib.sha256(backend.read_bytes()).hexdigest() if backend.is_file() else None
+    if not {'kpc', 'kperf'} <= options or backend_sha != '3d024d8d896c4127d6e36c4daa8cb8ff048b5faf04522b127450b0471b87f9b6':
+        raise ValueError('Expected retained KPC/KPERF with the qualified no-PMU backend')
     return {'machine': 'BCM2837', 'configuration': 'DEVELOPMENT',
         'kpc_enabled': 'kpc' in options, 'kperf_enabled': 'kperf' in options,
         'selected_source_count': len(selected), 'selected_sources': sorted(set(selected)),
-        'disabled_sampling_active_references': sampling_calls,
+        'hardware_pmu_supported': False, 'no_pmu_backend_sha256': backend_sha,
         'missing': sorted(set(missing)), 'generated_inputs': sorted(set(generated)),
         'scope': 'source presence only; not compilation, ABI or boot proof'}
 

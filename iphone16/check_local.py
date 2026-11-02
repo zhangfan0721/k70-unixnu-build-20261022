@@ -41,10 +41,17 @@ def main():
     (args.out / 'patch-report.json').write_text(json.dumps(report, indent=2) + '\n')
     presence = check_source_inputs(args.source, args.out / 'patched')
     (args.out / 'source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
-    if presence['missing'] or presence['kpc_enabled'] or presence['kperf_enabled']:
+    if presence['missing'] or not presence['kpc_enabled'] or not presence['kperf_enabled']:
         raise ValueError('Selected source configuration includes unavailable inputs: ' + str(presence))
-    # Compile the actual enum/array/assertion for both configurations. This
-    # catches callback pointer initializers that a call-only scan cannot see.
+    # Restore the original sampling call sites as a group, not more guards for
+    # a disabled configuration that the actual iOS target does not use.
+    restored = ('osfmk/kern/ast.c', 'osfmk/arm64/pcb.c',
+                'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
+                'bsd/kern/kern_ktrace.c')
+    for name in restored:
+        if (args.out / 'patched' / name).read_bytes() != (args.source / name).read_bytes():
+            raise ValueError('Sampling source differs from pinned Apple original: ' + name)
+    # Compile the actual enum/array/assertion for the enabled target.
     enum_text = re.search(r'enum running_timer \{.*?\n\};',
         (args.source / 'osfmk/kern/timer_call.h').read_text(), re.S)[0]
     table_text = re.search(r'static timer_call_func_t running_timer_funcs\[\] = \{.*?missing running timer function"\);',
@@ -62,11 +69,13 @@ timer_call_func_t k70_timer_table_lookup(unsigned index) {
  return running_timer_funcs[index % RUNNING_TIMER_MAX];
 }
 ''')
-    for mode in (0, 1):
+    for mode in (1,):
         obj = args.out / ('running-timer-table-' + str(mode) + '.o')
         subprocess.run(['clang', '--target=arm64-apple-ios16.0', '-std=c11', '-ffreestanding',
             '-Wall', '-Wextra', '-Werror', '-DKPERF=' + str(mode), '-c', str(table_source), '-o', str(obj)], check=True)
         deployment(obj)
+    from check_no_pmu import check as check_no_pmu
+    check_no_pmu(args.out, args.out / 'patched/osfmk/arm64/kpc.c', deployment)
     scripts = args.out / 'tree/scripts'
     scripts.mkdir(parents=True)
     for name in ('build-xnu-4k-baseline.sh', 'build-corecrypto-14.py', 'build-libpthread-kernel.py', 'build-firehose.sh'):
@@ -124,7 +133,9 @@ K70_ENTRY_HELPERS
         'arm64_ios16_observer_and_entry_assembled': True, 'observer_translation_and_daif_instructions_retained': True,
         'generated_recipe_syntax_checked': True, 'actual_xnu_component_header_exports_checked': True,
         'selected_config_source_presence_checked': True,
-        'actual_timer_enum_table_ios16_both_options_checked': True,
+        'actual_timer_enum_table_ios16_kperf_enabled_checked': True,
+        'original_sampling_call_sites_restored': list(restored),
+        'no_pmu_contract_and_ios16_object_checked': True,
         'full_kernel_compiled': False,
         'hardware_tested': False, 'original_component_abi_verified': False}
     (args.out / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
