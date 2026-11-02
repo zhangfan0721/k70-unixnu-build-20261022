@@ -155,7 +155,7 @@ def integration_patch(core, source, font, staging):
     for _, patch in patches:
         names.update(re.findall(r'^--- a/(.+)$', patch, re.M))
     names.update(('config/MASTER', 'config/MASTER.arm64.bcm2837', 'osfmk/conf/files.arm64',
-                  'makedefs/MakeInc.kernel', 'osfmk/kern/Makefile', 'osfmk/kern/ast.c', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
+                  'makedefs/MakeInc.kernel', 'makedefs/MakeInc.rule', 'osfmk/kern/Makefile', 'osfmk/kern/ast.c', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
                   'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
@@ -187,6 +187,14 @@ def integration_patch(core, source, font, staging):
     p.write_text(''.join(line.rstrip('\n') + (' apple_amcc' if re.match(r'osfmk/arm64/amcc_rorgn_.* optional ', line) else '') + '\n' for line in p.read_text().splitlines(True)))
     edit(staging, 'makedefs/MakeInc.kernel', '$(TARGET)/$(KERNEL_FILE_NAME).unstripped: $(addprefix',
          '$(TARGET)/$(KERNEL_FILE_NAME).unstripped: $(XNU_EXTERNAL_KERNEL_ARCHIVES)\n\n$(TARGET)/$(KERNEL_FILE_NAME).unstripped: $(addprefix')
+    # Backport the real compiler record emission used by XNU23. The archive
+    # builders must inherit the exact generated C/C++ ABI, not guessed flags.
+    rules = staging / 'makedefs/MakeInc.rule'
+    text = rules.read_text()
+    if text.count('-MF $(@:o=d) -MP') != 3:
+        raise ValueError('Unexpected XNU22 C/C++/assembly record rules')
+    rules.write_text(text.replace('-MF $(@:o=d) -MP',
+        '-MF $(@:o=d) -MJ $(@:o=o.json) -MP'))
     name = 'osfmk/arm64/start.s'
     edit(staging, name, '#include <arm64/tunables/tunables.s>', '#if defined(APPLE_ARM64_ARCH_FAMILY)\n#include <arm64/tunables/tunables.s>\n#endif')
     edit(staging, name, '\tmrs x12, MIDR_EL1\n\n\tAPPLY_TUNABLES x12, x13, x14',

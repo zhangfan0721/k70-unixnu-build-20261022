@@ -43,6 +43,9 @@ def main():
     (args.out / 'source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
     if presence['missing'] or not presence['kpc_enabled'] or not presence['kperf_enabled']:
         raise ValueError('Selected source configuration includes unavailable inputs: ' + str(presence))
+    from check_records import check as check_records
+    check_records(args.out / 'patched/makedefs/MakeInc.rule', args.source_device,
+                  args.core, args.out / 'compile-record-check')
     # Restore the original sampling call sites as a group, not more guards for
     # a disabled configuration that the actual iOS target does not use.
     restored = ('osfmk/kern/ast.c', 'osfmk/arm64/pcb.c',
@@ -136,6 +139,7 @@ K70_ENTRY_HELPERS
         'actual_timer_enum_table_ios16_kperf_enabled_checked': True,
         'original_sampling_call_sites_restored': list(restored),
         'no_pmu_contract_and_ios16_object_checked': True,
+        'real_compile_records_and_driver_consumer_checked': True,
         'full_kernel_compiled': False,
         'hardware_tested': False, 'original_component_abi_verified': False}
     (args.out / 'result.json').write_text(json.dumps(report, indent=2) + '\n')

@@ -95,6 +95,9 @@ jobs:
             out16/vermeer16/logs/
             out16/vermeer16/.config
             out16/vermeer16/actual-target-flags.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/startup.o.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/prng_random.o.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOPlatformExpert.cpo.json
             out16/vermeer16/tree/.cache/iphone16-patch-report.json
             out16/vermeer16/tree/.cache/iphone16-source-presence.json
             out16/vermeer16/tree/.cache/iphone16-patches/
