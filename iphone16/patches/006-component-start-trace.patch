@@ -1,13 +1,13 @@
 --- a/libkern/c++/OSKext.cpp
 +++ b/libkern/c++/OSKext.cpp
-@@ -73,6 +73,7 @@
- 
- #include <libkern/OSKextLibPrivate.h>
- #include <libkern/c++/OSKext.h>
+@@ -33,6 +33,7 @@
+ #include <kern/clock.h>
+ #include <kern/host.h>
+ #include <kern/kext_alloc.h>
 +#include <kern/boot_progress.h>
- #include <libkern/c++/OSLib.h>
- 
- #include <IOKit/IOLib.h>
+ #include <firehose/tracepoint_private.h>
+ #include <firehose/chunk_private.h>
+ #include <os/firehose_buffer_private.h>
 @@ -8281,9 +8282,14 @@
  
  	// Drop a log message so logd can grab the needed information to decode this kext
@@ -23,3 +23,4 @@
  	}
  
  	flags.starting = 0;
+
