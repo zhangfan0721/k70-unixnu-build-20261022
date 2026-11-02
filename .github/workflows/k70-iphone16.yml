@@ -1,0 +1,108 @@
+name: K70 Darwin22 integration gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/k70-formal-xnu]
+    paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k70-iphone16-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+
+jobs:
+  kernel:
+    runs-on: macos-15
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: integration, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with:
+          repository: mansar1337/UniXNU-vermeer
+          ref: d4dbb3683023a17bb468b9774f52c87f3060e739
+          path: device
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+          path: upstream
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          persist-credentials: false
+          sparse-checkout: Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Check the bounded target and record identities
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python integration/iphone16/build.py --core upstream --source-device device --font uefi/Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h --check
+          git -C upstream submodule status --recursive > evidence/submodules.txt
+          if grep -E '^[+U-]' evidence/submodules.txt; then exit 1; fi
+          git -C integration rev-parse HEAD > evidence/integration-commit.txt
+      - name: Install source build tools
+        run: |
+          set -euo pipefail
+          brew install cmake ninja unifdef llvm
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
+          { sw_vers; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version; clang --version; python --version; } > evidence/toolchain.txt
+      - name: Fetch pinned Apple header listings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cache=out16/vermeer16/tree/.cache/sources
+          mkdir -p "$cache"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-8796.141.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit/crypto?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-crypto-8796.141.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/EXTERNAL_HEADERS/TrustCache?ref=xnu-8796.141.3' > "$cache/xnu-trustcache-8796.141.3.json"
+      - name: Build matching Darwin22 with K70 CPU GIC and diagnostics
+        run: |
+          set -euo pipefail
+          python -u integration/iphone16/build.py --core upstream --source-device device --font uefi/Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h --out out16 --jobs 4 2>&1 | tee evidence/kernel-console.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k70-iphone16-kernel-${{ github.run_id }}
+          path: out16/vermeer16/kernel/
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k70-iphone16-evidence-${{ github.run_id }}
+          path: |
+            evidence/
+            out16/vermeer16/logs/
+            out16/vermeer16/.config
+            out16/vermeer16/tree/.cache/iphone16-patch-report.json
+            out16/vermeer16/tree/.cache/iphone16-patches/
+            out16/vermeer16/tree/.cache/k70-armcpu/
+            out16/vermeer16/tree/build/armcpu/*.json
+            out16/vermeer16/tree/build/armcpu/*.log
+            out16/vermeer16/tree/build/armdt-platform/*.json
+            out16/vermeer16/tree/build/armdt-platform/*.log
+            out16/vermeer16/tree/build/libpthread-kernel/*.json
+            out16/vermeer16/tree/build/libpthread-kernel/*.log
+            out16/vermeer16/tree/build/corecrypto14/*.json
+            out16/vermeer16/tree/build/corecrypto14/*.log
+          include-hidden-files: true
+          retention-days: 30

@@ -1,0 +1,16 @@
+[board]
+name = "vermeer16"
+soc = "SM8550"
+description = "K70 Darwin22 integration gate; original iPhone component ABI and hardware boot unverified"
+
+[kernel]
+defconfig = "vermeer16_defconfig"
+archives = [
+  "build-libpthread-kernel.py",
+  "build-corecrypto-14.py",
+  "build-corecrypto-14.py --namespace",
+  "build-arm-driver.py ArmDTPlatform",
+  "build-arm-driver.py ArmCpu",
+]
+
+# No storage, userdata, firmware, prelink or automatic phone operations.
