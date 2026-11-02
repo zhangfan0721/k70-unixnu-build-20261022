@@ -1,0 +1,67 @@
+name: K70 bounded legacy IIG probe
+on:
+  push:
+    branches: [codex/k70-formal-xnu]
+    paths: [compat-probe/**, .github/workflows/k70-iig-compat.yml]
+permissions:
+  contents: read
+  actions: read
+env:
+  DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+  PYTHONDONTWRITEBYTECODE: '1'
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+jobs:
+  iig:
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: integration, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+          path: upstream
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: mansar1337/UniXNU-vermeer
+          ref: d4dbb3683023a17bb468b9774f52c87f3060e739
+          path: device
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          sparse-checkout: Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Tools and real reference record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          brew install cmake ninja unifdef
+          echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
+          gh api repos/zhangfan0721/k70-unixnu-build-20261022/actions/artifacts/13156239778/zip > reference.zip
+          echo '249022aae159f6267895cd35936b4d116d529cc46caef1506420c1986aad6250  reference.zip' | shasum -a 256 -c -
+          cache=out-probe/vermeer16/tree/.cache/sources
+          mkdir -p "$cache"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-8796.141.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit/crypto?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-crypto-8796.141.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/EXTERNAL_HEADERS/TrustCache?ref=xnu-8796.141.3' > "$cache/xnu-trustcache-8796.141.3.json"
+          mkdir -p tool-evidence
+          { sw_vers; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version; xcrun --find iig; } > tool-evidence/toolchain.txt
+      - name: Actual XNU22 IIG generation and selected compilation
+        run: python -u integration/compat-probe/iig.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k70-iig-compat-${{ github.run_id }}
+          path: |
+            iig-evidence/
+            tool-evidence/
+          retention-days: 30
