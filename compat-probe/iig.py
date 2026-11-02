@@ -44,6 +44,12 @@ env.update(XNU_BUILD_TARGET='installhdrs', XNU_BOOTSTRAP='1', XNU_BOOT_PROGRESS=
 with (EVIDENCE / 'headers.log').open('w') as stream:
     result = subprocess.run(['bash', str(ctx.tree / 'scripts/build-xnu-4k-baseline.sh')],
                             cwd=ctx.tree, env=env, stdout=stream, stderr=subprocess.STDOUT)
+# installhdrs deliberately does not run the real per-component config tool.
+# Generate its feature headers before consuming a kernel compilation command.
+config_env = dict(env, XNU_BUILD_TARGET='config')
+with (EVIDENCE / 'config.log').open('w') as stream:
+    subprocess.run(['bash', str(ctx.tree / 'scripts/build-xnu-4k-baseline.sh')],
+                   cwd=ctx.tree, env=config_env, stdout=stream, stderr=subprocess.STDOUT)
 generated = list((ctx.tree / 'build/xnu').rglob('IOService.iig.cpp'))
 if not generated:
     raise ValueError('No real IOService IIG output; inspect headers.log')
@@ -65,7 +71,8 @@ record = json.loads(raw.decode().strip().rstrip(','))
 (EVIDENCE / 'reference-compile-record.json').write_bytes(raw)
 old_tree = record['directory'].split('/build/xnu/ios-obj/')[0]
 directory = Path(record['directory'].replace(old_tree, str(ctx.tree)))
-directory.mkdir(parents=True, exist_ok=True)
+if not (directory / 'meta_features.h').is_file():
+    raise ValueError('Real XNU configuration did not generate the selected feature headers')
 compiler = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--find', 'clang++'], text=True).strip()
 command, removed = [compiler], []
 arguments = record['arguments']
