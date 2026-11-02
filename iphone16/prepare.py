@@ -85,7 +85,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     diag = root / 'pexpert/arm/k70_formal_diag.c'
     diag.write_text(replace_once(diag.read_text(),
         'PE_init_platform(FALSE) returned; native XNU C',
-        'PE_init_platform returned; KPC/KPERF on; hardware PMU unsupported'))
+        'iOS16 ROOTCHAIN: original HFS / md0; hardware PMU unsupported').replace(
+        ' K70 FORMAL XNU  diagnostic-3 ', ' K70 iOS16 ROOTCHAIN  HFS/md0 '))
     name = 'pexpert/arm/pe_serial.c'
     p = root / name
     p.write_text('#include "k70_formal_diag.c"\n' + p.read_text())

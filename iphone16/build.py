@@ -59,7 +59,8 @@ def verify_kernel(path):
     for name in ('_source_corecrypto14_bootstrap', '_source_pthread_bootstrap',
                  '_armdt_platform_configured', '_armcpu_registered', '_armcpu_gic_ready',
                  '_armcpu_timer_interrupts', '_k70_formal_cpu_online', '_k70_formal_thread_turn',
-                 '_k70_formal_bootstrap', '_k70_formal_early_exception', '_vfs_getvfs_with_vfsops'):
+                 '_k70_formal_bootstrap', '_k70_formal_early_exception', '_vfs_getvfs_with_vfsops',
+                 '_kalloc_sparse_prelink_index_version'):
         if name.encode() + b'\0' not in data:
             raise ValueError('Missing real integration symbol: ' + name)
     return {'sha256': digest(path), 'bytes': len(data), 'platform': build[0],
