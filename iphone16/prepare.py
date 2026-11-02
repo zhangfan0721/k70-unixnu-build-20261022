@@ -81,6 +81,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
         if path.exists():
             raise ValueError('Unexpected existing diagnostic source: ' + name)
         path.write_text(text)
+    edit(root, 'osfmk/kern/Makefile', '\tbacktrace.h \\\n', '\tbacktrace.h \\\n\tboot_progress.h \\\n')
     name = 'pexpert/arm/pe_serial.c'
     p = root / name
     p.write_text('#include "k70_formal_diag.c"\n' + p.read_text())
@@ -150,7 +151,7 @@ def integration_patch(core, source, font, staging):
     for _, patch in patches:
         names.update(re.findall(r'^--- a/(.+)$', patch, re.M))
     names.update(('config/MASTER', 'config/MASTER.arm64.bcm2837', 'osfmk/conf/files.arm64',
-                  'makedefs/MakeInc.kernel', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
+                  'makedefs/MakeInc.kernel', 'osfmk/kern/Makefile', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
                   'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c'))

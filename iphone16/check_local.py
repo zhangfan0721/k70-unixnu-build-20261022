@@ -49,11 +49,23 @@ def main():
         text = path.read_text()
         if any(v in text for v in ('ios17.0', 'min=17.0', 'TARGET=17.0', ',17.0', '0x110000', '.unstripped.noctf')):
             raise ValueError('Unretargeted deployment: ' + path.name)
+    # Evaluate the real XNU22 Makefile's export list. Cross-component consumers
+    # see EXPORT_HDRS, not an extra -I path into the osfmk source directory.
+    query = args.out / 'header-query.mk'
+    query.write_text('query:\n\t@echo $(EXPORT_MI_LIST)\n')
+    names = subprocess.check_output(['make', '-s', '-f', str(args.out / 'patched/osfmk/kern/Makefile'),
+        '-f', str(query), 'query', 'MakeInc_cmd=/dev/null', 'MakeInc_def=/dev/null',
+        'MakeInc_rule=/dev/null', 'MakeInc_dir=/dev/null'], text=True).split()
+    if 'boot_progress.h' not in names:
+        raise ValueError('Diagnostic header missing from actual component exports')
+    exported = args.out / 'EXPORT_HDRS/osfmk/kern'
+    exported.mkdir(parents=True)
+    shutil.copy2(args.out / 'patched/osfmk/kern/boot_progress.h', exported / 'boot_progress.h')
     obj = args.out / 'observer.o'
     src = args.out / 'observer.c'
     src.write_text(adapter.observer_source())
     subprocess.run(['clang', '--target=arm64-apple-ios16.0', '-std=c11', '-ffreestanding',
-        '-fno-builtin', '-O0', '-Wall', '-Wextra', '-Werror', '-I', str(args.out / 'patched/osfmk'),
+        '-fno-builtin', '-O0', '-Wall', '-Wextra', '-Werror', '-I', str(exported.parent),
         '-I', str(args.out / 'patched/pexpert/arm'), '-c', str(src), '-o', str(obj)], check=True)
     deployment(obj)
     disassembly = subprocess.check_output(['llvm-objdump', '-d', str(obj)], text=True).lower()
@@ -81,7 +93,8 @@ K70_ENTRY_HELPERS
     (args.out / 'entry-disassembly.txt').write_text(subprocess.check_output(['llvm-objdump', '-d', str(obj)], text=True))
     report = {'fixed_xnu_commit': adapter.XNU, 'patch_sha256': report['patch_sha256'],
         'arm64_ios16_observer_and_entry_assembled': True, 'observer_translation_and_daif_instructions_retained': True,
-        'generated_recipe_syntax_checked': True, 'full_kernel_compiled': False,
+        'generated_recipe_syntax_checked': True, 'actual_xnu_component_header_exports_checked': True,
+        'full_kernel_compiled': False,
         'hardware_tested': False, 'original_component_abi_verified': False}
     (args.out / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))
