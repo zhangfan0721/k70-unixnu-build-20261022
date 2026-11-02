@@ -46,6 +46,8 @@ def main():
     from check_records import check as check_records
     check_records(args.out / 'patched/makedefs/MakeInc.rule', args.source_device,
                   args.core, args.out / 'compile-record-check')
+    from check_vfsops import check as check_vfsops
+    vfsops = check_vfsops(args.source, args.out / 'patched', args.out, deployment)
     # Restore the original sampling call sites as a group, not more guards for
     # a disabled configuration that the actual iOS target does not use.
     restored = ('osfmk/kern/ast.c', 'osfmk/arm64/pcb.c',
@@ -140,6 +142,7 @@ K70_ENTRY_HELPERS
         'original_sampling_call_sites_restored': list(restored),
         'no_pmu_contract_and_ios16_object_checked': True,
         'real_compile_records_and_driver_consumer_checked': True,
+        'vfsops_contract': vfsops,
         'full_kernel_compiled': False,
         'hardware_tested': False, 'original_component_abi_verified': False}
     (args.out / 'result.json').write_text(json.dumps(report, indent=2) + '\n')

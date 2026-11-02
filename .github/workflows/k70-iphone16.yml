@@ -15,13 +15,13 @@ concurrency:
 
 env:
   PYTHONDONTWRITEBYTECODE: '1'
-  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
   HOMEBREW_NO_AUTO_UPDATE: '1'
   HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
 jobs:
   kernel:
-    runs-on: macos-15-intel
+    runs-on: macos-14
     timeout-minutes: 150
     defaults:
       run:
@@ -65,7 +65,7 @@ jobs:
           brew install cmake ninja unifdef llvm
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
-          { sw_vers; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version; clang --version; python --version; } > evidence/toolchain.txt
+          { sw_vers; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version; xcrun --sdk iphoneos iig --version; clang --version; python --version; } > evidence/toolchain.txt
       - name: Fetch pinned Apple header listings
         env:
           GH_TOKEN: ${{ github.token }}
@@ -98,6 +98,7 @@ jobs:
             out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/startup.o.json
             out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/prng_random.o.json
             out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOPlatformExpert.cpo.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOService*.json
             out16/vermeer16/tree/.cache/iphone16-patch-report.json
             out16/vermeer16/tree/.cache/iphone16-source-presence.json
             out16/vermeer16/tree/.cache/iphone16-patches/

@@ -18,6 +18,7 @@ spec = importlib.util.spec_from_file_location('iphone16_prepare', HERE / 'prepar
 adapter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(adapter)
 KERNEL = 'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped'
+IIG_VERSION = 'DriverKit-286'
 
 
 def digest(path):
@@ -58,13 +59,53 @@ def verify_kernel(path):
     for name in ('_source_corecrypto14_bootstrap', '_source_pthread_bootstrap',
                  '_armdt_platform_configured', '_armcpu_registered', '_armcpu_gic_ready',
                  '_armcpu_timer_interrupts', '_k70_formal_cpu_online', '_k70_formal_thread_turn',
-                 '_k70_formal_bootstrap', '_k70_formal_early_exception'):
+                 '_k70_formal_bootstrap', '_k70_formal_early_exception', '_vfs_getvfs_with_vfsops'):
         if name.encode() + b'\0' not in data:
             raise ValueError('Missing real integration symbol: ' + name)
     return {'sha256': digest(path), 'bytes': len(data), 'platform': build[0],
             'minimum': hex(build[1]), 'sdk': hex(build[2]), 'segments': segments,
             'original_component_abi_verified': False, 'hardware_boot_tested': False,
             'root_mounted': False, 'userspace_started': False}
+
+
+def verify_iorpc(tree, output):
+    original = tree / 'refer/xnu/iokit/IOKit/IORPC.h'
+    header = tree / '.cache/xnu-work/iokit/IOKit/IORPC.h'
+    if header.read_bytes() != original.read_bytes():
+        raise ValueError('IORPC header differs from the original fixed XNU22 ABI')
+    objroot = tree / 'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837'
+    source = objroot / 'iokit/DriverKit/IOService.iig.cpp'
+    text = source.read_text()
+    if 'kernelContent' in text or 'IORPCMessageFromMach' not in text:
+        raise ValueError('Generator did not preserve legacy IORPC message handling')
+    records = []
+    for path in (objroot / 'iokit/DEVELOPMENT').glob('IOService*.json'):
+        record = json.loads(path.read_text().strip().rstrip(','))
+        if record.get('file') and (Path(record['directory']) / record['file']).resolve() == source.resolve():
+            records.append(record)
+    if len(records) != 1:
+        raise ValueError('Expected one actual IOService generated-code compile record')
+    record = records[0]
+    fixture = output / 'iorpc-layout.cpp'
+    fixture.write_text('#include <IOKit/IORPC.h>\nstatic_assert(sizeof(IORPC) == 24);\n'
+                       'static_assert(__builtin_offsetof(IORPC, sendSize) == 16);\n'
+                       'static_assert(__builtin_offsetof(IORPC, replySize) == 20);\n')
+    command, index = [], 0
+    while index < len(record['arguments']):
+        value = record['arguments'][index]
+        if value == record['file']:
+            command.append(str(fixture))
+        elif value == '-o':
+            command.extend(['-o', str(output / 'iorpc-layout.o')])
+            index += 1
+        else:
+            command.append(value)
+        index += 1
+    (output / 'iorpc-layout-command.json').write_text(json.dumps(command, indent=2) + '\n')
+    subprocess.run(command, cwd=record['directory'], check=True)
+    return {'original_header_sha256': digest(header), 'generated_ioservice_sha256': digest(source),
+            'layout_bytes_asserted': 24, 'legacy_message_handling': True,
+            'original_component_runtime_tested': False}
 
 
 def check(core, device, font):
@@ -110,6 +151,9 @@ def main():
         raise ValueError('Full build requires macOS/Xcode and positive jobs')
     for tool in ('clang', 'mig', 'iig'):
         subprocess.run(['xcrun', '--sdk', 'iphoneos', '--find', tool], check=True)
+    iig_version = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', 'iig', '--version'], text=True).strip()
+    if iig_version != IIG_VERSION:
+        raise ValueError('Use the qualified legacy IIG generator: ' + iig_version)
     options = cli.parser().parse_args(['build', 'kernel', '-D', str(HERE / 'device'),
         '--out', str(args.out.resolve()), '-j', str(args.jobs)])
     ctx = config.Context(options)
@@ -146,6 +190,8 @@ def main():
         'page_bytes': 4096, 'prelinked': False, 'source_presence': presence}
     output = ctx.work / 'kernel'
     output.mkdir()
+    report['iorpc'] = verify_iorpc(ctx.tree, output)
+    report['iig_version'] = iig_version
     target = output / 'kernel.development.vermeer16.macho'
     shutil.copy2(source, target)
     seal = source.with_suffix(source.suffix + '.crypto-hmac.json')

@@ -6,8 +6,9 @@
   "baseline08": "769b6e67c8a00e97841569dabd9a5a57959443c4",
   "generic_build_patch_source": "aTechGeekDev/ios-apollo@5c1329c2410e0cedd010f92cc5f779e02589fca6",
   "no_pmu_backend": {"source": "aTechGeekDev/ios-apollo@5c1329c2410e0cedd010f92cc5f779e02589fca6:0008-sweet-fill-closed-lib-gaps-kpc-stub.patch", "compiled_reference_run": 41216279299, "reference_target": "MacOSX; not an iOS build qualification", "sha256": "3d024d8d896c4127d6e36c4daa8cb8ff048b5faf04522b127450b0471b87f9b6", "sampling_configuration": "retain Apple KPC=1 and KPERF=1", "hardware_pmu_supported": false, "scope": "unchanged kpc.c only; no page protection, AMCC or monitor stubs imported"},
-  "selected_community_patches": ["0001-new-clang-drop-removed-auto-var-init-flag.patch", "0002-new-clang-backport-UIO_STACKBUF.patch", "0167-apollo-iorpc-kernelcontent-xcode16.patch"],
-  "iig_compatibility_note": "Xcode16 generated IORPC kernelContent backport changes a kernel structure; original DriverKit/kext interaction must be checked against the actual original kernelcache before prelinking.",
+  "selected_community_patches": ["0001-new-clang-drop-removed-auto-var-init-flag.patch", "0002-new-clang-backport-UIO_STACKBUF.patch"],
+  "iig_compatibility_note": "Use confirmed Xcode15.4 DriverKit-286 generator with unchanged Apple XNU22 IORPC header. Real IOService generated code and 24-byte ABI assertions compiled in run41484969208. No kernelContent backport or generated-code rewriting.",
+  "apfs_interface_backport": {"source": "apple-oss-distributions/xnu@d8b80295118ef25ac3a784134bcf95cd8e88109f", "tag": "xnu-10063.141.1", "files": ["bsd/vfs/vfs_subr.c", "bsd/sys/mount.h", "config/BSDKernel.exports"], "symbol": "_vfs_getvfs_with_vfsops", "scope": "official real lookup and vfsops check; preserves unreferenced/unmounting-return contract; no filesystem or policy changes"},
   "inherited": ["native ArmDTPlatform/ArmCpu and GIC/timer policy", "candidate08 guarded diagnostic renderer and entry helpers", "complete source-provider crypto POST", "real matching libpthread514"],
   "excluded": ["community security-policy patch series", "SWEET/SM7150 board constants", "HFS identity spoofing", "userdata/partition installation flows", "phone operations", "bulk iPadOS root preparation"],
   "compile_success_is_boot_proof": false
