@@ -16,8 +16,11 @@ class MachoAssemblyTests(unittest.TestCase):
         original=(Path(os.environ['K70_CORE_SOURCE'])/'drivers/ArmCpu/ArmCpu.cpp').read_text()
         fixed=module.instrument_armcpu(original)
         restored=fixed.replace('extern "C" void k70_formal_cpu_trace(const char *, uint64_t);','')
+        restored=restored.replace('extern "C" void k70_formal_cpu_online(void);','').replace('k70_formal_cpu_online();','')
         restored=re.sub(r'k70_formal_cpu_trace\("[^"\n]+", [^;\n]+\);','',restored)
         self.assertEqual(re.sub(r'\s+','',restored),re.sub(r'\s+','',original))
+        self.assertEqual(fixed.count('k70_formal_cpu_online();'),1)
+        self.assertIn('k70_formal_cpu_trace("start passed", 1); k70_formal_cpu_online(); return true;',fixed)
         begin=fixed.index('bool ArmCpu::prepareGic (void)')
         end=fixed.index('\nvoid ArmCpu::enableGic',begin)
         body=fixed[begin:end]

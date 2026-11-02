@@ -125,6 +125,17 @@ extern volatile uint32_t armcpu_gic_boot[8];
 extern volatile uint32_t armdt_platform_configured, armdt_platform_cpu_count;
 extern volatile uint32_t armcpu_gic_stride, armcpu_gic_typer_probe[2];
 volatile uint64_t k70_formal_thread_turn;
+static volatile unsigned k70_worker_started;
+static volatile unsigned k70_cpu_online_ready;
+
+static int k70_formal_claim_worker(void)
+{
+    if (!__atomic_load_n(&k70_cpu_online_ready, __ATOMIC_ACQUIRE) ||
+        !armcpu_registered || !armcpu_gic_ready) { return 0; }
+    unsigned expected = 0;
+    return __atomic_compare_exchange_n(&k70_worker_started, &expected, 1, 0,
+        __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+}
 
 /* Late snapshot before root-device waiting, after asynchronous matching has
  * had another opportunity to run. Reads existing RAM counters only. */
@@ -188,9 +199,10 @@ void k70_formal_thread_start(void)
         boot_progress_stage(line);
     }
     if (!armcpu_gic_ready) {
-        boot_progress_stage("diagnostic thread not started: native GIC is not ready");
+        boot_progress_stage("diagnostic thread deferred until boot CPU is online");
         return;
     }
+    if (!k70_formal_claim_worker()) { return; }
     thread_t worker = THREAD_NULL;
     kern_return_t status = kernel_thread_start(k70_formal_worker, 0, &worker);
     if (status == KERN_SUCCESS) {
@@ -199,6 +211,14 @@ void k70_formal_thread_start(void)
     } else {
         boot_progress_stage("diagnostic thread creation failed");
     }
+}
+
+/* Invoked once the real boot CPU start path has completed IRQ/timer setup.
+ * The early screen hook may run first; the atomic claim permits one worker. */
+void k70_formal_cpu_online(void)
+{
+    __atomic_store_n(&k70_cpu_online_ready, 1, __ATOMIC_RELEASE);
+    k70_formal_thread_start();
 }
 
 void k70_formal_early(void *opaque)

@@ -16,7 +16,8 @@ def normalize_inline_asm(text):
 def instrument_armcpu(text):
     # Formal BUILD COPY only. Every original condition, register access and
     # return value remains intact; traces perform no new MMIO accesses.
-    declaration='extern "C" void k70_formal_cpu_trace(const char *, uint64_t);\n'
+    declaration=('extern "C" void k70_formal_cpu_trace(const char *, uint64_t);\n'
+                 'extern "C" void k70_formal_cpu_online(void);\n')
     anchor='extern "C" void rtclock_intr (unsigned int);'
     if text.count(anchor)!=1:raise ValueError('CPU trace declaration anchor changed')
     text=text.replace(anchor,declaration+anchor)
@@ -49,6 +50,11 @@ def instrument_armcpu(text):
     if text.count(anchor)!=1:raise ValueError('GIC wait timeout anchor changed')
     text=text.replace(anchor,anchor+
         '      k70_formal_cpu_trace("FAIL waitClear timeout", (static_cast<uint64_t>(offset) << 32) | mask);\n')
+    # Only the boot CPU's successful end-of-start path, after IRQ/timer setup.
+    anchor='  drainPending ();\n  k70_formal_cpu_trace("start passed", 1); return true;'
+    if text.count(anchor)!=1:raise ValueError('Boot CPU online anchor changed')
+    text=text.replace(anchor,anchor.replace('return true;',
+        'k70_formal_cpu_online(); return true;'))
     return text
 
 
