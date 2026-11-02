@@ -164,7 +164,7 @@ def integration_patch(core, source, font, staging):
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
                   'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
-                  'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c'))
+                  'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
@@ -195,6 +195,8 @@ def integration_patch(core, source, font, staging):
     guard_statement(staging, 'osfmk/arm64/pcb.c', 'kpc_off_cpu(old);', 'KPC', 2)
     guard_statement(staging, 'osfmk/kern/sched_prim.c',
                     'kperf_running_setup(processor, processor->last_dispatch);', 'KPERF', 1)
+    guard_statement(staging, 'osfmk/kern/processor.c',
+                    '[RUNNING_TIMER_KPERF] = kperf_timer_expire,', 'KPERF', 1)
     edit(staging, 'bsd/kern/kern_ktrace.c',
          'ktrace_configure(uint32_t config_mask)\n{\n\tktrace_assert_lock_held();\n\tassert(config_mask != 0);',
          'ktrace_configure(uint32_t config_mask)\n{\n\tktrace_assert_lock_held();\n\tassert(config_mask != 0);\n#if !KPERF\n\tif (config_mask & KTRACE_KPERF) { return ENOTSUP; }\n#endif')

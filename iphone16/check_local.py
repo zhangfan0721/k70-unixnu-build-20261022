@@ -43,6 +43,30 @@ def main():
     (args.out / 'source-presence.json').write_text(json.dumps(presence, indent=2) + '\n')
     if presence['missing'] or presence['kpc_enabled'] or presence['kperf_enabled']:
         raise ValueError('Selected source configuration includes unavailable inputs: ' + str(presence))
+    # Compile the actual enum/array/assertion for both configurations. This
+    # catches callback pointer initializers that a call-only scan cannot see.
+    enum_text = re.search(r'enum running_timer \{.*?\n\};',
+        (args.source / 'osfmk/kern/timer_call.h').read_text(), re.S)[0]
+    table_text = re.search(r'static timer_call_func_t running_timer_funcs\[\] = \{.*?missing running timer function"\);',
+        (args.out / 'patched/osfmk/kern/processor.c').read_text(), re.S)[0]
+    table_source = args.out / 'running-timer-table.c'
+    table_source.write_text('''typedef void (*timer_call_func_t)(void *, void *);
+extern void thread_quantum_expire(void *, void *);
+extern void kperf_timer_expire(void *, void *);
+#define static_assert _Static_assert
+''' + enum_text + '\n' + table_text + '''
+unsigned k70_timer_table_count(void) {
+ return sizeof(running_timer_funcs) / sizeof(running_timer_funcs[0]);
+}
+timer_call_func_t k70_timer_table_lookup(unsigned index) {
+ return running_timer_funcs[index % RUNNING_TIMER_MAX];
+}
+''')
+    for mode in (0, 1):
+        obj = args.out / ('running-timer-table-' + str(mode) + '.o')
+        subprocess.run(['clang', '--target=arm64-apple-ios16.0', '-std=c11', '-ffreestanding',
+            '-Wall', '-Wextra', '-Werror', '-DKPERF=' + str(mode), '-c', str(table_source), '-o', str(obj)], check=True)
+        deployment(obj)
     scripts = args.out / 'tree/scripts'
     scripts.mkdir(parents=True)
     for name in ('build-xnu-4k-baseline.sh', 'build-corecrypto-14.py', 'build-libpthread-kernel.py', 'build-firehose.sh'):
@@ -100,6 +124,7 @@ K70_ENTRY_HELPERS
         'arm64_ios16_observer_and_entry_assembled': True, 'observer_translation_and_daif_instructions_retained': True,
         'generated_recipe_syntax_checked': True, 'actual_xnu_component_header_exports_checked': True,
         'selected_config_source_presence_checked': True,
+        'actual_timer_enum_table_ios16_both_options_checked': True,
         'full_kernel_compiled': False,
         'hardware_tested': False, 'original_component_abi_verified': False}
     (args.out / 'result.json').write_text(json.dumps(report, indent=2) + '\n')

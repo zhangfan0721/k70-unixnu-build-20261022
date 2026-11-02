@@ -97,14 +97,15 @@ def check(source, overlay):
             text = re.sub(r'/\*.*?\*/', '', p.stdout, flags=re.S)
             for line in text.splitlines():
                 line = line.split('//', 1)[0].strip()
-                if not line.startswith('extern ') and re.search(r'\b(?:kperf|kpc)_\w+\s*\(', line):
+                line = re.sub(r'"(?:\\.|[^"\\])*"', '""', line)
+                if not line.startswith('extern ') and re.search(r'\b(?:kperf|kpc)_\w+\b', line):
                     sampling_calls.append({'file': name, 'line': line})
         if sampling_calls:
-            raise ValueError('Disabled sampling implementation still referenced: ' + str(sampling_calls))
+            raise ValueError('Disabled sampling symbol still referenced: ' + str(sampling_calls))
     return {'machine': 'BCM2837', 'configuration': 'DEVELOPMENT',
         'kpc_enabled': 'kpc' in options, 'kperf_enabled': 'kperf' in options,
         'selected_source_count': len(selected), 'selected_sources': sorted(set(selected)),
-        'disabled_sampling_active_calls': sampling_calls,
+        'disabled_sampling_active_references': sampling_calls,
         'missing': sorted(set(missing)), 'generated_inputs': sorted(set(generated)),
         'scope': 'source presence only; not compilation, ABI or boot proof'}
 
