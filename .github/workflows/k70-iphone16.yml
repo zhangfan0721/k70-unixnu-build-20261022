@@ -108,7 +108,7 @@ jobs:
             out16/vermeer16/tree/build/armdt-platform/*.log
             out16/vermeer16/tree/build/libpthread-kernel/*.json
             out16/vermeer16/tree/build/libpthread-kernel/*.log
-            out16/vermeer16/tree/build/corecrypto14/*.json
-            out16/vermeer16/tree/build/corecrypto14/*.log
+            out16/vermeer16/tree/build/corecrypto-2023/*.json
+            out16/vermeer16/tree/build/corecrypto-2023/*.log
           include-hidden-files: true
           retention-days: 30

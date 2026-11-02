@@ -16,15 +16,21 @@ def check(rule, device, core, out):
     out.mkdir()
     text = rule.read_text()
     definitions = '\n'.join(re.findall(r'^[CPS]_RULE_1[AB]=.*$', text, re.M))
+    cflags = re.search(r'^CFLAGS\s*=.*?(?=\n\n)',
+                       rule.with_name('MakeInc.def').read_text(), re.M | re.S)[0]
     targets = ('startup.o', 'IOPlatformExpert.cpo', 'entry.o')
-    (out / 'startup.c').write_text('unsigned record_c(unsigned x) { return x * 3 + 1; }\n')
+    (out / 'startup.c').write_text('''#if XNU_SOURCE_CORECRYPTO14 != 1
+#error Real source-provider build flag lost
+#endif
+unsigned record_c(unsigned x) { return x * 3 + 1; }
+''')
     (out / 'IOPlatformExpert.cpp').write_text('extern "C" unsigned record_cpp(unsigned x) { return x * 5 + 1; }\n')
     (out / 'entry.s').write_text('.text\n.globl _record_asm\n_record_asm:\n add x0, x0, #7\n ret\n')
     (out / 'Makefile').write_text('''KCC=clang --target=arm64-apple-ios16.0
 KC++ = clang++ --target=arm64-apple-ios16.0
 S_KCC=clang --target=arm64-apple-ios16.0
-CFLAGS=-ffreestanding
-''' + definitions + '''
+CFLAGS_GEN=-ffreestanding
+''' + cflags + '\n' + definitions + '''
 all: startup.o IOPlatformExpert.cpo entry.o
 startup.o: startup.c
 	$(C_RULE_1A) $(C_RULE_1B) -o $@
@@ -33,7 +39,8 @@ IOPlatformExpert.cpo: IOPlatformExpert.cpp
 entry.o: entry.s
 	$(S_RULE_1A) $(S_RULE_1B) -o $@
 ''')
-    subprocess.run(['make', '-j3'], cwd=out, check=True)
+    subprocess.run(['make', '-j3', 'CFLAGS_EXTRA=-DXNU_SOURCE_CORECRYPTO14=1 -DXNU_NATIVE_PAN=0'],
+                   cwd=out, check=True)
     records = {}
     for name in targets:
         path = out / (name + '.json')
@@ -47,6 +54,8 @@ entry.o: entry.s
             raise ValueError('Invalid real compile record')
         if not (out / name).is_file():
             raise ValueError('Record produced without its compiled object')
+        if name != 'entry.o' and 'XNU_SOURCE_CORECRYPTO14=1' not in ' '.join(record['arguments']):
+            raise ValueError('Provider definition lost in actual C/C++ compiler record')
         records[name] = record
     # Invoke the pinned driver builder unchanged. It consumes the compiler's
     # actual C++ record and attempts the real ArmDTPlatform source, not a stub.

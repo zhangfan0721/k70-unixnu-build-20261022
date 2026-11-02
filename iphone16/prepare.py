@@ -155,7 +155,7 @@ def integration_patch(core, source, font, staging):
     for _, patch in patches:
         names.update(re.findall(r'^--- a/(.+)$', patch, re.M))
     names.update(('config/MASTER', 'config/MASTER.arm64.bcm2837', 'osfmk/conf/files.arm64',
-                  'makedefs/MakeInc.kernel', 'makedefs/MakeInc.rule', 'osfmk/kern/Makefile', 'osfmk/kern/ast.c', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
+                  'makedefs/MakeInc.kernel', 'makedefs/MakeInc.rule', 'makedefs/MakeInc.def', 'osfmk/kern/Makefile', 'osfmk/kern/ast.c', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
                   'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
@@ -195,6 +195,10 @@ def integration_patch(core, source, font, staging):
         raise ValueError('Unexpected XNU22 C/C++/assembly record rules')
     rules.write_text(text.replace('-MF $(@:o=d) -MP',
         '-MF $(@:o=d) -MJ $(@:o=o.json) -MP'))
+    # XNU22 otherwise silently ignores the UniXNU recipe's provider/board
+    # defines. Match the newer build interface without changing their values.
+    edit(staging, 'makedefs/MakeInc.def', 'CFLAGS\t= $(CFLAGS_GEN) \\\n',
+         'CFLAGS\t= $(CFLAGS_GEN) $(CFLAGS_EXTRA) \\\n')
     name = 'osfmk/arm64/start.s'
     edit(staging, name, '#include <arm64/tunables/tunables.s>', '#if defined(APPLE_ARM64_ARCH_FAMILY)\n#include <arm64/tunables/tunables.s>\n#endif')
     edit(staging, name, '\tmrs x12, MIDR_EL1\n\n\tAPPLY_TUNABLES x12, x13, x14',
