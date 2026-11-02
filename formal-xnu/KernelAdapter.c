@@ -96,13 +96,52 @@ static uint64_t k70_fb_pa;
 static unsigned k70_fb_width, k70_fb_height, k70_fb_stride, k70_fb_depth;
 static uintptr_t k70_fb_va;
 void k70_formal_early(void *opaque);
+static const char *k70_cpu_first_refusal;
+static uint64_t k70_cpu_refusal_value;
+
+/* Called by the formal ArmCpu BUILD COPY. Uses the existing nonblocking
+ * renderer; no MMIO, allocation, sleeping, or scheduler policy changes. */
+void k70_formal_cpu_trace(const char *stage, uint64_t value)
+{
+    if (stage[0] == 'F' && !k70_cpu_first_refusal) {
+        k70_cpu_first_refusal = stage;
+        k70_cpu_refusal_value = value;
+    }
+    char line[BP_MAX_COLS + 1];
+    struct bp_out out;
+    bp_out_begin(&out, line);
+    bp_out_puts(&out, "CPU: ");
+    bp_out_puts(&out, stage);
+    bp_out_puts(&out, " value=0x");
+    bp_out_hex(&out, value, 16);
+    boot_progress_stage(line);
+}
 void k70_formal_after_vm(void);
 void k70_formal_thread_start(void);
 extern volatile uint32_t armcpu_gic_ready;
 extern volatile uint64_t armcpu_timer_interrupts;
 extern volatile uint32_t armcpu_registered;
 extern volatile uint32_t armcpu_gic_boot[8];
+extern volatile uint32_t armdt_platform_configured, armdt_platform_cpu_count;
+extern volatile uint32_t armcpu_gic_stride, armcpu_gic_typer_probe[2];
 volatile uint64_t k70_formal_thread_turn;
+
+/* Late snapshot before root-device waiting, after asynchronous matching has
+ * had another opportunity to run. Reads existing RAM counters only. */
+void k70_formal_cpu_summary(void)
+{
+    k70_formal_cpu_trace("late platform configured", armdt_platform_configured);
+    k70_formal_cpu_trace("late CPU nubs", armdt_platform_cpu_count);
+    k70_formal_cpu_trace("late CPU registered", armcpu_registered);
+    k70_formal_cpu_trace("late GIC ready", armcpu_gic_ready);
+    k70_formal_cpu_trace("late timer interrupts", armcpu_timer_interrupts);
+    k70_formal_cpu_trace("late GIC stride", armcpu_gic_stride);
+    k70_formal_cpu_trace("late redistributor offset", armcpu_gic_typer_probe[0]);
+    k70_formal_cpu_trace("late redistributor TYPER low", armcpu_gic_typer_probe[1]);
+    k70_formal_cpu_trace(k70_cpu_first_refusal ? k70_cpu_first_refusal :
+        "no CPU refusal captured", k70_cpu_refusal_value);
+    boot_progress_stage("root-device lookup next; no system root configured in this candidate");
+}
 
 static void k70_formal_worker(void *argument, wait_result_t result)
 {

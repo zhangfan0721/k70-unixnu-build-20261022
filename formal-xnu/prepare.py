@@ -176,6 +176,13 @@ def kernel_patch(font):
  \t *\tInitialize the shared region module.
  \t */
 '''
+    patch += '''--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -1132,1 +1132,3 @@
++\textern void k70_formal_cpu_summary(void);
++\tk70_formal_cpu_summary();
+ \terr = IOFindBSDRoot(rootdevice, sizeof(rootdevice), &rootdev, &flags);
+'''
     patch += (HERE/'EntryDiagnostics.patch').read_text()
     patch += (HERE/'CryptoBeforeIokit.patch').read_text()
     source = observer_source() + '\n' + normalize_inline_asm((HERE/'KernelAdapter.c').read_text())

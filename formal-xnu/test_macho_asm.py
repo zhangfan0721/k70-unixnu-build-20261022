@@ -1,4 +1,6 @@
 import importlib.util
+import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -10,6 +12,43 @@ module=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(module)
 
 
 class MachoAssemblyTests(unittest.TestCase):
+    def test_cpu_traces_preserve_all_original_tokens_and_short_circuit_refusals(self):
+        original=(Path(os.environ['K70_CORE_SOURCE'])/'drivers/ArmCpu/ArmCpu.cpp').read_text()
+        fixed=module.instrument_armcpu(original)
+        restored=fixed.replace('extern "C" void k70_formal_cpu_trace(const char *, uint64_t);','')
+        restored=re.sub(r'k70_formal_cpu_trace\("[^"\n]+", [^;\n]+\);','',restored)
+        self.assertEqual(re.sub(r'\s+','',restored),re.sub(r'\s+','',original))
+        begin=fixed.index('bool ArmCpu::prepareGic (void)')
+        end=fixed.index('\nvoid ArmCpu::enableGic',begin)
+        body=fixed[begin:end]
+        stub='''typedef unsigned long long uint64_t;
+extern "C" void k70_formal_cpu_trace(const char *, uint64_t) {}
+static unsigned mask, calls, gGicShared;
+class ArmCpu { public:
+ bool mapGic() {calls|=1;return mask&1;}
+ bool initDistributor() {calls|=2;return mask&2;}
+ bool wakeRedistributor(bool) {calls|=4;return mask&4;}
+ bool prepareGic();
+};
+'''+body+'''
+int main() {
+ ArmCpu cpu;
+ for(mask=0;mask<8;mask++) {
+  calls=gGicShared=0;
+  if(cpu.prepareGic() != (mask==7)) return 1;
+  unsigned expected=1|((mask&1)?2:0)|(((mask&3)==3)?4:0);
+  if(calls!=expected || gGicShared!=(mask==7)) return 2;
+ }
+ return 0;
+}
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);source=root/'cpu.cpp';source.write_text(stub)
+            subprocess.run(['clang++','-Wall','-Wextra','-Werror',str(source),'-o',str(root/'host')],check=True)
+            subprocess.run([str(root/'host')],check=True)
+            subprocess.run(['clang++','--target=arm64-apple-darwin','-ffreestanding',
+                '-Wall','-Wextra','-Werror','-c',str(source),'-o',str(root/'cpu.o')],check=True)
+
     def test_counter_and_barriers_survive_darwin_assembly(self):
         text='''#include <stdint.h>
 uint64_t counter(void) {
