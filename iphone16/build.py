@@ -74,18 +74,20 @@ def verify_iorpc(tree, output):
     if header.read_bytes() != original.read_bytes():
         raise ValueError('IORPC header differs from the original fixed XNU22 ABI')
     objroot = tree / 'build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837'
-    source = objroot / 'iokit/DriverKit/IOService.iig.cpp'
-    text = source.read_text()
-    if 'kernelContent' in text or 'IORPCMessageFromMach' not in text:
-        raise ValueError('Generator did not preserve legacy IORPC message handling')
     records = []
     for path in (objroot / 'iokit/DEVELOPMENT').glob('IOService*.json'):
         record = json.loads(path.read_text().strip().rstrip(','))
-        if record.get('file') and (Path(record['directory']) / record['file']).resolve() == source.resolve():
+        if Path(record.get('file', '')).name == 'IOService.iig.cpp':
             records.append(record)
     if len(records) != 1:
         raise ValueError('Expected one actual IOService generated-code compile record')
     record = records[0]
+    # Configuration builds generate another DriverKit tree below DEVELOPMENT;
+    # the compiler record, not the installhdrs output path, is authoritative.
+    source = (Path(record['directory']) / record['file']).resolve()
+    text = source.read_text()
+    if 'kernelContent' in text or 'IORPCMessageFromMach' not in text:
+        raise ValueError('Generator did not preserve legacy IORPC message handling')
     fixture = output / 'iorpc-layout.cpp'
     fixture.write_text('#include <IOKit/IORPC.h>\nstatic_assert(sizeof(IORPC) == 24);\n'
                        'static_assert(__builtin_offsetof(IORPC, sendSize) == 16);\n'
