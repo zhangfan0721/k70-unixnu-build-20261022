@@ -4,6 +4,7 @@
  */
 #ifndef K70_STORAGE_ROOT_H
 #define K70_STORAGE_ROOT_H
+#include <libkern/c++/OSSharedPtr.h>
 extern "C" bool IORamDiskBSDRoot(void);
 extern "C" void k70_formal_cpu_trace(const char *,uint64_t);
 
