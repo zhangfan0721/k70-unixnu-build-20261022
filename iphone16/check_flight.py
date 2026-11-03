@@ -28,7 +28,7 @@ extern uintptr_t thread_get_kernel_stack(thread_t);
     (fixture/'kern/K70Flight.h').write_bytes((HERE/'K70Flight.h').read_bytes())
     obj=args.out/'flight-ios16.o'
     subprocess.run(['clang','--target=arm64-apple-ios16.0','-mkernel','-std=c11','-O2','-ffreestanding',
-                    '-fno-builtin','-Wall','-Wextra','-Werror',
+                    '-fno-builtin','-ftrivial-auto-var-init=zero','-Wall','-Wextra','-Werror',
                     '-I'+str(fixture),*includes,'-c',str(HERE/'K70FlightKernel.c'),'-o',str(obj)],check=True)
     undefined=subprocess.check_output(['llvm-nm','-u',str(obj)],text=True)
     allowed={'_current_thread','_kernel_stack_size','_thread_get_kernel_stack','_ml_get_max_cpu_number','_bzero','_memcpy','_memset',

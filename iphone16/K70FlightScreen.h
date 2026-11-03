@@ -45,7 +45,9 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
  uint64_t offset=(uint64_t)s->top*s->stride;
  if(!k70_framebuffer_valid(s->va+offset,s->pa+offset,s->width,KF_ROWS*14*s->scale,s->stride,32,probe,ctx))return 0;
  for(unsigned row=0;row<KF_ROWS;row++) {
-  struct kf_line l;l.used=0;l.data[0]=0;
+  /* The single-CPU reentry guard owns this fixed buffer. Avoid the kernel's
+   * automatic stack-zeroing pass emitting SIMD stores for an 80-byte array. */
+  static struct kf_line l;l.used=0;l.data[0]=0;
   if(row==0)kf_text(&l,"K70 CAPTURE V1 READY - independent of normal log lock");
   else if(row==1){kf_text(&l,r->kind==KF_PANIC?"PANIC ":r->kind==KF_WAIT?"WAIT ":"NO TERMINAL EVENT ");kf_text(&l,"AT=");kf_hex(&l,r->terminal_call);kf_text(&l," CURRENT=");kf_hex(&l,r->call);kf_text(&l,r->active?" ACTIVE":" INACTIVE");}
   else if(row==2){kf_text(&l,"THREAD=");kf_hex(&l,r->thread);kf_text(&l," TARGET=");kf_hex(&l,r->target);}
