@@ -23,10 +23,11 @@ struct Halt{};
 [[noreturn]] void panic(const char*,...){throw Halt{};}
 extern "C" void boot_progress_stage(const char*){}
 extern "C" void k70_formal_cpu_trace(const char*,uint64_t v){results.push_back(v);}
-struct Symbol {const char*name;};
-struct Owned {Symbol value;bool good;const Symbol*get()const{return good?&value:nullptr;}explicit operator bool()const{return good;}};
-struct OSSymbol {static Owned withCStringNoCopy(const char*n){return {{n},symbol_ok};}};
-struct OSMetaClass {static const OSMetaClass*getMetaClassWithName(const Symbol*s){classes.push_back(s->name);static OSMetaClass real;return class_ok?&real:nullptr;}};
+static unsigned symbol_creates,symbol_releases;
+constexpr int OSNoRetain=1;
+struct OSSymbol {const char*name;static const OSSymbol*withCStringNoCopy(const char*n){static OSSymbol s;s.name=n;if(!symbol_ok)return nullptr;symbol_creates++;return &s;}};
+template<class T>struct OSSharedPtr{T*p;OSSharedPtr(T*v,int ownership):p(v){assert(ownership==OSNoRetain);}~OSSharedPtr(){if(p)symbol_releases++;}T*get()const{return p;}explicit operator bool()const{return p!=nullptr;}};
+struct OSMetaClass {static const OSMetaClass*getMetaClassWithName(const OSSymbol*s){classes.push_back(s->name);static OSMetaClass real;return class_ok?&real:nullptr;}};
 struct OSKext {static OSReturn loadKextWithIdentifier(const char*n,bool defer,bool delay,int start,int match){
  assert(!defer && !delay && start==0 && match==0);loads.push_back(n);return loads.size()==fail_load?123:0;}};
 '''+f'#include "{header}"\n'+r'''
@@ -45,6 +46,7 @@ int main(){
  assert(results.back()==0); /* Record failed class lookup; original root assertions remain. */
  loads.clear();classes.clear();results.clear();symbol_ok=false;
  k70_ramdisk_storage_prepare(true);assert(classes.empty() && results.back()==0);
+ assert(symbol_creates==symbol_releases);
 }
 ''')
     exe=a.out/'storage-contract'
@@ -52,7 +54,8 @@ int main(){
     subprocess.run([str(exe)],check=True)
     report={'actual_helper_exercised':True,'non_ram_root_unchanged':True,
             'normal_api_order_and_options_checked':True,'both_load_failure_boundaries_checked':True,
-            'missing_classes_reported_without_fabrication':True,'real_component_runtime_tested':False}
+            'missing_classes_reported_without_fabrication':True,'raw_factory_ownership_balanced':True,
+            'real_component_runtime_tested':False}
     (a.out/'result.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report))
 
 if __name__=='__main__':main()

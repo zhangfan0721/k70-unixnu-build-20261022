@@ -18,7 +18,7 @@ static void k70_storage_load(const char *identifier)
 
 static void k70_storage_probe_class(const char *name)
 {
- auto key=OSSymbol::withCStringNoCopy(name);
+ OSSharedPtr<const OSSymbol> key(OSSymbol::withCStringNoCopy(name),OSNoRetain);
  const OSMetaClass *registered=key?OSMetaClass::getMetaClassWithName(key.get()):nullptr;
  boot_progress_stage(name);
  k70_formal_cpu_trace("RAM root real class registered",registered!=nullptr);
