@@ -106,7 +106,9 @@ timer_call_func_t k70_timer_table_lookup(unsigned index) {
     shutil.copy2(args.out / 'patched/osfmk/kern/boot_progress.h', exported / 'boot_progress.h')
     obj = args.out / 'observer.o'
     src = args.out / 'observer.c'
-    src.write_text(adapter.observer_source())
+    generated_observer = (args.out / 'patched/pexpert/arm/k70_formal_diag.c').read_text()
+    adapter_start = generated_observer.index('/* SPDX-License-Identifier: BSD-2-Clause-Patent\n * Source-kernel adapter')
+    src.write_text(generated_observer[:adapter_start])
     subprocess.run(['clang', '--target=arm64-apple-ios16.0', '-std=c11', '-ffreestanding',
         '-fno-builtin', '-O0', '-Wall', '-Wextra', '-Werror', '-I', str(exported.parent),
         '-I', str(args.out / 'patched/pexpert/arm'), '-c', str(src), '-o', str(obj)], check=True)

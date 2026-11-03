@@ -87,6 +87,31 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
         'PE_init_platform(FALSE) returned; native XNU C',
         'iOS16 ROOTCHAIN: original HFS / md0; hardware PMU unsupported').replace(
         ' K70 FORMAL XNU  diagnostic-3 ', ' K70 iOS16 ROOTCHAIN  HFS/md0 '))
+    text = diag.read_text()
+    text = replace_once(text, 'extern volatile uint32_t armcpu_gic_ready;',
+        'extern volatile uint32_t k70_cpu_start_phase;\n'
+        'volatile uint64_t k70_first_irq_pc, k70_first_irq_cpsr, k70_first_irq_sp;\n'
+        'static volatile unsigned k70_first_irq_claim;\nextern volatile uint32_t armcpu_gic_ready;')
+    # Declarations precede boot_progress_irq as well as the late summary.
+    declarations_start = text.index('extern volatile uint32_t k70_cpu_start_phase;')
+    declarations_end = text.index('extern volatile uint32_t armcpu_gic_ready;', declarations_start)
+    declarations = text[declarations_start:declarations_end]
+    text = text[:declarations_start] + text[declarations_end:]
+    text = declarations + text
+    text = replace_once(text, '\t__atomic_add_fetch(&g_state.irqs, 1, __ATOMIC_RELAXED);',
+        '\tunsigned unclaimed = 0;\n'
+        '\tif (__atomic_compare_exchange_n(&k70_first_irq_claim, &unclaimed, 1, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {\n'
+        '\t\tk70_first_irq_pc = pc; k70_first_irq_cpsr = cpsr; k70_first_irq_sp = sp;\n\t}\n'
+        '\t__atomic_add_fetch(&g_state.irqs, 1, __ATOMIC_RELAXED);')
+    text = replace_once(text, '    boot_progress_stage("root-device lookup next; no system root configured in this candidate");',
+        '    k70_formal_cpu_trace("late CPU start phase", k70_cpu_start_phase);\n'
+        '    k70_formal_cpu_trace("first IRQ PC", k70_first_irq_pc);\n'
+        '    k70_formal_cpu_trace("first IRQ CPSR", k70_first_irq_cpsr);\n'
+        '    k70_formal_cpu_trace("first IRQ SP", k70_first_irq_sp);\n'
+        '    boot_progress_stage("root lookup next; rd=md0 requested, mount unverified");')
+    # uint64_t is supplied by the observer's own headers before declarations.
+    text = '#include <stdint.h>\n' + text
+    diag.write_text(text)
     name = 'pexpert/arm/pe_serial.c'
     p = root / name
     p.write_text('#include "k70_formal_diag.c"\n' + p.read_text())
@@ -131,6 +156,14 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\tboot_progress_stage("vfs_mountroot enter");\n\t\tif (0 == (err = vfs_mountroot())) {\n\t\t\tboot_progress_stage("vfs_mountroot mounted; authentication pending");')
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
          'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
+    name = 'iokit/bsddev/IOKitBSDInit.cpp'
+    path = root / name
+    path.write_text('extern "C" {\n#include <kern/boot_progress.h>\n}\n' + path.read_text())
+    edit(root, name, '\t// stall here for anyone matching on the IOBSD resource to finish (filesystems)',
+         '\tboot_progress_stage("IOFindBSDRoot enter; IOBSD wait next");\n'
+         '\t// stall here for anyone matching on the IOBSD resource to finish (filesystems)')
+    edit(root, name, '\tif (mountAttempts++) {',
+         '\tboot_progress_stage("IOBSD wait returned; RAMDisk lookup next");\n\tif (mountAttempts++) {')
     edit(root, 'osfmk/arm64/sleh.c', '\tsleh_interrupt_handler_prologue(state, DBG_INTR_TYPE_OTHER);',
          '\tsleh_interrupt_handler_prologue(state, DBG_INTR_TYPE_OTHER);\n\tboot_progress_irq(get_saved_state_pc(state), get_saved_state_cpsr(state), get_saved_state_sp(state));')
     # The accepted entry patch applies after the guarded Apple tunables and
@@ -160,6 +193,7 @@ def integration_patch(core, source, font, staging):
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
                   'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
+                  'iokit/bsddev/IOKitBSDInit.cpp',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c'))
     originals = {}
     for name in sorted(names):
@@ -239,12 +273,13 @@ def retarget_scripts(core, device, tree):
             text = text.replace('.unstripped.noctf', '.unstripped')
         p.write_text(text)
     shutil.copy2(FORMAL / 'macho_asm.py', tree / 'scripts/k70_macho_asm.py')
+    shutil.copy2(HERE / 'cpu_start_trace.py', tree / 'scripts/iphone16_cpu_start_trace.py')
     # Original device recipe is read through git, independent of local edits.
     original = subprocess.check_output(['git', '-C', str(device), 'show', DEVICE + ':scripts/build-arm-driver.py'], text=True)
     if hashlib.sha256(original.encode()).hexdigest() != '7d520749568581c3cf741e732f53d0553f66344b5cda3a473c3d12822a344d40':
         raise ValueError('Unexpected original CPU archive builder')
     anchor = 'source = ROOT / "drivers" / component / (component + ".cpp")'
-    original = replace_once(original, anchor, anchor + '\nif component == "ArmCpu":\n    from k70_macho_asm import prepare_armcpu_source\n    source = prepare_armcpu_source(source, ROOT / ".cache/k70-armcpu")')
+    original = replace_once(original, anchor, anchor + '\nif component == "ArmCpu":\n    from k70_macho_asm import prepare_armcpu_source\n    from iphone16_cpu_start_trace import prepare as prepare_start_trace\n    source = prepare_start_trace(prepare_armcpu_source(source, ROOT / ".cache/k70-armcpu"))')
     (tree / 'scripts/build-arm-driver.py').write_text(original.replace('0x110000', '0x100000').replace('iOS 17', 'iOS 16'))
 
 
