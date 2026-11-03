@@ -54,7 +54,15 @@ def main():
                 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
                 'bsd/kern/kern_ktrace.c')
     for name in restored:
-        if (args.out / 'patched' / name).read_bytes() != (args.source / name).read_bytes():
+        patched_sampling = (args.out / 'patched' / name).read_text()
+        if name == 'osfmk/kern/sched_prim.c':
+            patched_sampling = patched_sampling.replace('#include <kern/K70Flight.h>\n', '', 1)
+            hook = ('\tk70_flight_wait((uintptr_t)self, (uintptr_t)self->wait_event, self->state,\n'
+                    '\t    (uintptr_t)__builtin_return_address(0), (uintptr_t)__builtin_frame_address(0));\n')
+            if patched_sampling.count(hook) != 1:
+                raise ValueError('Unexpected scheduler evidence hook')
+            patched_sampling = patched_sampling.replace(hook, '', 1)
+        if patched_sampling != (args.source / name).read_text():
             raise ValueError('Sampling source differs from pinned Apple original: ' + name)
     # Compile the actual enum/array/assertion for the enabled target.
     enum_text = re.search(r'enum running_timer \{.*?\n\};',
@@ -104,11 +112,12 @@ timer_call_func_t k70_timer_table_lookup(unsigned index) {
     exported = args.out / 'EXPORT_HDRS/osfmk/kern'
     exported.mkdir(parents=True)
     shutil.copy2(args.out / 'patched/osfmk/kern/boot_progress.h', exported / 'boot_progress.h')
+    shutil.copy2(args.out / 'patched/osfmk/kern/K70Flight.h', exported / 'K70Flight.h')
     obj = args.out / 'observer.o'
     src = args.out / 'observer.c'
     generated_observer = (args.out / 'patched/pexpert/arm/k70_formal_diag.c').read_text()
     adapter_start = generated_observer.index('/* SPDX-License-Identifier: BSD-2-Clause-Patent\n * Source-kernel adapter')
-    src.write_text(generated_observer[:adapter_start])
+    src.write_text(generated_observer[:adapter_start].replace('#include "K70FlightKernel.c"', '#include <kern/K70Flight.h>'))
     subprocess.run(['clang', '--target=arm64-apple-ios16.0', '-std=c11', '-ffreestanding',
         '-fno-builtin', '-O0', '-Wall', '-Wextra', '-Werror', '-I', str(exported.parent),
         '-I', str(args.out / 'patched/pexpert/arm'), '-c', str(src), '-o', str(obj)], check=True)

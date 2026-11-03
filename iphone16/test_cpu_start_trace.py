@@ -30,6 +30,8 @@ static unsigned stop;
 struct Stop {};
 void call(unsigned phase) { assert(k70_cpu_start_phase == phase); calls.push_back(phase); if(stop==phase) throw Stop{}; }
 void k70_cpu_phase(unsigned phase) { __atomic_store_n(&k70_cpu_start_phase, phase, __ATOMIC_RELEASE); }
+void k70_flight_begin(){}
+void k70_flight_allocation(uintptr_t){}
 unsigned ml_get_max_cpu_number() {return 0;}
 constexpr int kIOReturnSuccess=0;
 void panic(const char*) {assert(false);}

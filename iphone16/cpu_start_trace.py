@@ -47,7 +47,11 @@ def instrument(text):
         recovered = recovered.replace(f'  k70_cpu_phase({phase});\n', '')
     if recovered != original:
         raise ValueError('CPU observation changed existing control flow')
-    declaration = '''extern "C" { volatile uint32_t k70_cpu_start_phase = 0; }
+    body=body.replace('  k70_cpu_phase(10);','  k70_flight_begin();\n  k70_cpu_phase(10);')
+    body=body.replace('  k70_cpu_phase(11);','  k70_flight_allocation((uintptr_t)controller);\n  k70_cpu_phase(11);')
+    body=body.replace('k70_formal_cpu_online(); return true;','k70_formal_cpu_online(); k70_flight_end(); return true;')
+    declaration = '''#include <kern/K70Flight.h>
+extern "C" { volatile uint32_t k70_cpu_start_phase = 0; }
 static void k70_cpu_phase(uint32_t phase)
 {
   __atomic_store_n(&k70_cpu_start_phase, phase, __ATOMIC_RELEASE);

@@ -60,6 +60,8 @@ def verify_kernel(path):
                  '_armdt_platform_configured', '_armcpu_registered', '_armcpu_gic_ready',
                  '_armcpu_timer_interrupts', '_k70_formal_cpu_online', '_k70_formal_thread_turn',
                  '_k70_cpu_start_phase', '_k70_first_irq_pc', '_k70_first_irq_cpsr', '_k70_first_irq_sp',
+                 '_k70_flight_panic', '_k70_flight_wait', '_k70_flight_begin',
+                 '_k70_flight_enter', '_k70_flight_leave', '_k70_flight_bind',
                  '_k70_formal_bootstrap', '_k70_formal_early_exception', '_vfs_getvfs_with_vfsops',
                  '_kalloc_sparse_prelink_index_version'):
         if name.encode() + b'\0' not in data:
