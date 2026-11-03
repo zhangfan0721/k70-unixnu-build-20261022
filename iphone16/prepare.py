@@ -178,6 +178,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     install_flight(root)
     from storage_bootstrap import install as install_storage
     install_storage(root)
+    from kext_logging import install as install_kext_logging
+    install_kext_logging(root)
 
 
 def integration_patch(core, source, font, staging):
