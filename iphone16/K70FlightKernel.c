@@ -52,7 +52,7 @@ void k70_flight_bind(uintptr_t va,unsigned w,unsigned h,unsigned stride,unsigned
 void k70_flight_begin(void) {
  if(!k70_flight_screen.bound)return;
  uint64_t mask=kf_mask();thread_t self=current_thread();
- if(!k70_flight_inside){k70_flight_inside=1;kf_begin(&k70_flight_state,(uintptr_t)self,self->kernel_stack,kernel_stack_size);kf_paint();k70_flight_inside=0;}
+ if(!k70_flight_inside){k70_flight_inside=1;kf_begin(&k70_flight_state,(uintptr_t)self,thread_get_kernel_stack(self),kernel_stack_size);kf_paint();k70_flight_inside=0;}
  kf_restore(mask);
 }
 void k70_flight_end(void) {uint64_t mask=kf_mask();k70_flight_state.active=0;kf_restore(mask);}
@@ -78,7 +78,8 @@ void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
  kf_restore(mask);
 }
 void k70_flight_wait(uintptr_t thread,uintptr_t event,uint64_t state,uintptr_t caller,uintptr_t fp) {
- if(!(state&TH_WAIT) || !k70_flight_state.active || thread!=k70_flight_state.target)return;
+ /* The scheduler call site checks its private TH_WAIT flag before calling. */
+ if(!k70_flight_state.active || thread!=k70_flight_state.target)return;
  uint64_t mask=kf_mask();
  if(!k70_flight_inside){k70_flight_inside=1;kf_terminal(&k70_flight_state,KF_WAIT,thread,event,caller,state,fp,kf_kernel_pair,0);kf_paint();k70_flight_inside=0;}
  kf_restore(mask);

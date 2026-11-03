@@ -57,7 +57,7 @@ def main():
         patched_sampling = (args.out / 'patched' / name).read_text()
         if name == 'osfmk/kern/sched_prim.c':
             patched_sampling = patched_sampling.replace('#include <kern/K70Flight.h>\n', '', 1)
-            hook = ('\tk70_flight_wait((uintptr_t)self, (uintptr_t)self->wait_event, self->state,\n'
+            hook = ('\tif (self->state & TH_WAIT) k70_flight_wait((uintptr_t)self, (uintptr_t)self->wait_event, self->state,\n'
                     '\t    (uintptr_t)__builtin_return_address(0), (uintptr_t)__builtin_frame_address(0));\n')
             if patched_sampling.count(hook) != 1:
                 raise ValueError('Unexpected scheduler evidence hook')

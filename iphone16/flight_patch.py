@@ -56,6 +56,6 @@ def install(root):
     body=text[start:end]
     body=replace(body,'\tthread_t        self = current_thread();',
         '\tthread_t        self = current_thread();\n'
-        '\tk70_flight_wait((uintptr_t)self, (uintptr_t)self->wait_event, self->state,\n'
+        '\tif (self->state & TH_WAIT) k70_flight_wait((uintptr_t)self, (uintptr_t)self->wait_event, self->state,\n'
         '\t    (uintptr_t)__builtin_return_address(0), (uintptr_t)__builtin_frame_address(0));')
     path.write_text(text[:start]+body+text[end:])

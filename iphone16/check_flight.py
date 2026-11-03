@@ -17,10 +17,10 @@ def main():
     host=subprocess.check_output([str(binary)],cwd=args.out,text=True)
     fixture=args.out/'headers';(fixture/'kern').mkdir(parents=True);(fixture/'machine').mkdir()
     (fixture/'kern/thread.h').write_text('''#include <stdint.h>
-typedef struct {uintptr_t kernel_stack;uint64_t wait_event;unsigned state;} *thread_t;
+typedef struct thread *thread_t;
 extern uintptr_t kernel_stack_size;
 extern thread_t current_thread(void);
-#define TH_WAIT 1
+extern uintptr_t thread_get_kernel_stack(thread_t);
 ''')
     (fixture/'machine/machine_routines.h').write_text('extern int ml_get_max_cpu_number(void);\n')
     # The target object validates instructions and undefined dependencies;
@@ -31,7 +31,7 @@ extern thread_t current_thread(void);
                     '-fno-builtin','-Wall','-Wextra','-Werror',
                     '-I'+str(fixture),*includes,'-c',str(HERE/'K70FlightKernel.c'),'-o',str(obj)],check=True)
     undefined=subprocess.check_output(['llvm-nm','-u',str(obj)],text=True)
-    allowed={'_current_thread','_kernel_stack_size','_ml_get_max_cpu_number','_bzero','_memcpy','_memset',
+    allowed={'_current_thread','_kernel_stack_size','_thread_get_kernel_stack','_ml_get_max_cpu_number','_bzero','_memcpy','_memset',
              '___stack_chk_guard','___stack_chk_fail'}
     actual={line.split()[-1] for line in undefined.splitlines() if line.split()}
     if actual-allowed:raise ValueError('Unexpected recorder dependency: '+str(actual-allowed))
