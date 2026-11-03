@@ -176,6 +176,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     edit(root, 'bsd/kern/source_pthread_bootstrap.c', '519.120.4', '514.100.2')
     from flight_patch import install as install_flight
     install_flight(root)
+    from storage_bootstrap import install as install_storage
+    install_storage(root)
 
 
 def integration_patch(core, source, font, staging):
@@ -196,7 +198,7 @@ def integration_patch(core, source, font, staging):
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
                   'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
                   'iokit/bsddev/IOKitBSDInit.cpp',
-                  'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c',
+                  'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c'))
     originals = {}
     for name in sorted(names):

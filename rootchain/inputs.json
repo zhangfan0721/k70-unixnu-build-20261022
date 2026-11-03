@@ -1,5 +1,5 @@
 {
-  "scope": "Prepare root03 early panic and exact CPU-init wait evidence; no runtime fix claim",
+  "scope": "RAM-root storage group via normal OSKext initialization; runtime and md0 mount unverified",
   "native_kernel_commit": "0226c487bef801160c90e2c7da44fa8b385d6fbd",
   "native_kernel_run": 41584860892,
   "preserved_root01_source": "6f02f290c83c2eda3602f6dcd191454cc420bb32",
@@ -12,6 +12,7 @@
   "source_crypto_seal": "UniXNU/UniXNU@b6ae99c17194e6a18fd819d3148e69fe405e91fc:scripts/seal-source-crypto-kernel.py",
   "original_system": "iPhone10,3/iPhone10,6 iOS16.7.16 20H392; official BuildManifest SHA384-verified members",
   "components": [
+    "com.apple.iokit.IOStorageFamily",
     "com.apple.filesystems.hfs.kext"
   ],
   "prelink_slide": "0x08000000",
@@ -29,5 +30,10 @@
   "runtime_qualified": false,
   "upload_policy": "source only; original system binaries, prelinked images and personalized candidates stay local",
   "preserved_root02_source": "be9739cce6994fb9de227929e8e2886b24d9cfc0",
-  "capture_hardware_qualified": false
+  "capture_hardware_qualified": false,
+  "capture_hardware_evidence": {
+    "early_panic_and_independent_screen": true,
+    "target_wait": false,
+    "backtrace": false
+  }
 }

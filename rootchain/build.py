@@ -138,6 +138,14 @@ def pack(args):
         raise ValueError('Refusing to overwrite a candidate')
     kernel, root, trust = [getattr(args, name).resolve() for name in ('kernel', 'root', 'trust')]
     prelink = json.loads(args.prelink_report.read_text())
+    storage_proof = json.loads(args.storage_proof.read_text())
+    required_components = set(json.loads((HERE / 'inputs.json').read_text())['components'])
+    if set(prelink['components']) != required_components or \
+            storage_proof['candidate_sha256'] != sha(kernel) or \
+            not storage_proof['rebased_constructor_and_start_pointers_checked'] or \
+            not storage_proof['original_execution_bytes_preserved'] or \
+            not storage_proof['sparse_header_index_checked']:
+        raise ValueError('Require the complete matched RAM-root storage group and real input proof')
     seal = json.loads(args.hmac.read_text())
     root_report = json.loads(args.root_report.read_text())
     loader_proof = json.loads(args.loader_proof.read_text())
@@ -279,7 +287,7 @@ if __name__ == '__main__':
         root.add_argument('--' + name, type=Path, required=True)
     payload = sub.add_parser('pack')
     for name in ('kernel', 'root', 'trust', 'prelink-report', 'hmac', 'firmware', 'uefi', 'board',
-                 'root-report', 'loader-proof', 'out'):
+                 'root-report', 'loader-proof', 'storage-proof', 'out'):
         payload.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
     action = {'root': root_image, 'pack': pack, 'trust': trust_bundle}[args.command]
