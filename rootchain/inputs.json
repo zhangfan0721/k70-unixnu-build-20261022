@@ -1,7 +1,10 @@
 {
-  "scope": "root04 matched IOStorageFamily/HFS normal initialization and md0 mount experiment; runtime unverified",
-  "native_kernel_commit": "6a8f77a2f281c69e98149a8a207eb16aa9fc1670",
-  "native_kernel_run": 41600428991,
+  "scope": "root06 legacy PRELINK_INFO placement repair; matched IOStorageFamily/HFS and md0 path, runtime unverified",
+  "native_kernel_commit": "aa7868f83af47c1c46a64ade0d61c526f6625474",
+  "native_kernel_run": 41618643526,
+  "prelink_layout_adapter": "rootchain/emit_storage_prelink.py",
+  "preserved_root04_source": "6ae9bdc5b61bf45dfa03be0e83612c0c95d301e2",
+  "preserved_root05_source": "aa7868f83af47c1c46a64ade0d61c526f6625474",
   "preserved_root01_source": "6f02f290c83c2eda3602f6dcd191454cc420bb32",
   "accepted_static_baseline": "91436f3066c1bb28d5550d6eaf4eeac58e4cf61d",
   "accepted_hardware_baseline08": "769b6e67c8a00e97841569dabd9a5a57959443c4",

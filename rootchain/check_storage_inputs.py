@@ -29,6 +29,10 @@ def main():
     assert set(report['components'])==set(EXPECTED) and not report['codeless_components']
     assert set(report['kernel_interfaces'])==KPI and not report['early_security_initializers']
     segments=macho(candidate)['segments'];original_segments=macho(old)['segments']
+    info=next(s for s in segments if s['name']=='__PRELINK_INFO')
+    # Legacy arm_vm_init derives static slide bounds from this end address.
+    # Check actual output geometry, not just the producer's report.
+    assert all(s['va']+s['size']<=info['va'] for s in segments if s['size'] and s is not info), 'PRELINK_INFO must follow all static segments'
     def metadata(data,segments):
         info=next(s for s in segments if s['name']=='__PRELINK_INFO')
         at=backed_offset(segments,info['va'],info['filesize'],len(data))
@@ -79,6 +83,7 @@ def main():
     result={'original_sha256':digest(old),'native_sha256':digest(native),'candidate_sha256':digest(candidate),
             'dependency_closure':sorted(selected),'modules':proof,'rebased_constructor_and_start_pointers_checked':True,
             'original_execution_bytes_preserved':True,'sparse_header_index_checked':True,
+            'legacy_static_slide_extent_covers_all_segments':True,
             'pointer_counts':report['pointer_counts'],'hardware_storage_backends_added':False,
             'complete_cpp_abi_qualified':False,'runtime_initialization_verified':False,'md0_mount_verified':False}
     (a.out/'result.json').write_text(json.dumps(result,indent=2)+'\n')

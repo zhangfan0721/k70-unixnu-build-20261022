@@ -144,7 +144,8 @@ def pack(args):
             storage_proof['candidate_sha256'] != sha(kernel) or \
             not storage_proof['rebased_constructor_and_start_pointers_checked'] or \
             not storage_proof['original_execution_bytes_preserved'] or \
-            not storage_proof['sparse_header_index_checked']:
+            not storage_proof['sparse_header_index_checked'] or \
+            not storage_proof.get('legacy_static_slide_extent_covers_all_segments', False):
         raise ValueError('Require the complete matched RAM-root storage group and real input proof')
     seal = json.loads(args.hmac.read_text())
     root_report = json.loads(args.root_report.read_text())
@@ -265,6 +266,7 @@ args = "-v serial=3 debug=0x14e kt_fixed_zones=120 armcpu-diagnostics=1 startup_
             'splash_reserved_base': '0xb8000000', 'splash_overlap': False,
             'assembly_source_sha256': sha(Path(__file__)),
             'native_kernel_sha256': prelink['native_sha256'], 'prelink_slide': prelink['slide'],
+            'legacy_static_slide_extent_covers_all_segments': True,
             'root_dependency_closure_complete': root_report['dependency_closure_complete'],
             'actual_loader_parsers_passed': loader_proof['real_parsers_passed'],
             'hardware_tested': False, 'userspace_verified': False, 'ui_verified': False,
