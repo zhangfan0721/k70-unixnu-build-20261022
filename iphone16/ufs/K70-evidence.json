@@ -62,7 +62,7 @@
     "repository": "UniXNU/ShengUfs",
     "commit": "af785c1777161a62931425c2faaa536ce0bebd5b",
     "path": "SmmuTakeover.h",
-    "blob": "23506dd4243f67a59465143e0fa4bba2dc2a23d4",
+    "blob": "c30f5a91666369ea78e33d0dfa0959e72bc2d98d",
     "scope": "pure planning/configuration wrapped by stricter K70 ownership, stopped queue and per-write checks"
   },
   "physical_passthrough": {

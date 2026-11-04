@@ -125,4 +125,3 @@ static const char *configureUfsSmmu(const UfsSmmuPlan &p, uint16_t stream, Read 
     return "SMMU stream mapping readback";
   return nullptr;
 }
-
