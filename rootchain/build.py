@@ -154,8 +154,9 @@ def pack(args):
         raise ValueError('Prelink/source-HMAC identity mismatch')
     ufs_path = getattr(args, 'ufs_proof', None)
     ufs = json.loads(ufs_path.read_text()) if ufs_path else None
-    if ufs and (ufs['kernel_sha256'] != sha(kernel) or not ufs['bounded_readonly_transport'] or
-                not ufs['actual_iokit_ios16_record'] or not ufs['linked_normal_bsd_entry']):
+    if ufs_path and (not isinstance(ufs, dict) or ufs.get('kernel_sha256') != sha(kernel) or
+                    not ufs.get('bounded_readonly_transport') or
+                    not ufs.get('actual_iokit_ios16_record') or not ufs.get('linked_normal_bsd_entry')):
         raise ValueError('UFS qualification proof does not bind this actual kernel')
     if root_report['root_sha256'] != sha(root) or loader_proof['kernel_sha256'] != sha(kernel) or \
             loader_proof['trust_sha256'] != sha(trust) or not loader_proof['real_parsers_passed']:
