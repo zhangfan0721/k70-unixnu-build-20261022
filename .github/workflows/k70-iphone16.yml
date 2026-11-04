@@ -85,15 +85,8 @@ jobs:
       - name: Exercise the bounded UFS command and route policy
         run: |
           set -euo pipefail
-          python -B integration/iphone16/ufs/generate.py ufs-source
-          git -C integration diff --exit-code
-          clang++ -std=c++17 -DHOST_TEST -Wall -Wextra -Werror integration/iphone16/ufs/test_policy.cpp -o evidence/ufs-policy-test
-          evidence/ufs-policy-test
-          clang++ -std=c++17 -Wall -Wextra -Werror integration/iphone16/ufs/test_commands.cpp -o evidence/ufs-command-test
-          evidence/ufs-command-test
-          clang++ -std=c++17 -Wall -Wextra -Werror integration/iphone16/ufs/test_smmu.cpp -o evidence/ufs-smmu-test
-          evidence/ufs-smmu-test
-          python -B integration/iphone16/ufs/check_inputs.py
+          python -B integration/iphone16/ufs/preflight.py --upstream ufs-source --out evidence/ufs-preflight-path --cxx "$(command -v clang++)"
+          python -B integration/iphone16/ufs/preflight.py --upstream ufs-source --out evidence/ufs-preflight-apple --cxx "$(xcrun --sdk macosx --find clang++)"
       - name: Build matching Darwin22 with K70 CPU GIC and diagnostics
         run: |
           set -euo pipefail

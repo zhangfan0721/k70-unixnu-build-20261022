@@ -18,7 +18,14 @@ def generate(source):
     main=read('NativeUfs.cpp','bdf3df5c457acd2c46de29e8bac3380366bf466e')
     commands=read('RootCommands.h','996304d7d22b74c0f2fcaad2d14676f480bc19c1')
     for name,blob in {'RootQueue.h':'989b956715100291de60c711d45d866904656a22','TransferPoll.h':'2f56e30a824eac1961076faee0907de54b8bac44','RootDiagnostics.h':'f8188dc225812b2a0c5a5e2f306344ab91b93144','RootTransportLayout.h':'a6245c6825ec3405e84afe2743d8b852d75fec82','GccUfs.h':'5d11663a81c7caca9cd27173805eadecde74fc1d','SmmuTakeover.h':'c30f5a91666369ea78e33d0dfa0959e72bc2d98d','LICENSE':'52a23a0ee6084ff047e0cef045efb8eb19518192'}.items():
-        (HERE/name).write_text(read(name,blob))
+        value=read(name,blob)
+        if name=='SmmuTakeover.h':
+            # Preserve the fixed input; mark only its optional fallback entry.
+            # K70 deliberately calls the single-bank planner and rejects fallback.
+            anchor='static UfsSmmuPlan planUfsSmmu('
+            assert value.count(anchor)==1
+            value=value.replace(anchor,'[[maybe_unused]] '+anchor,1)
+        (HERE/name).write_text(value)
     queue=(HERE/'RootQueue.h').read_text()
     queue=queue.replace('static bool hostStopQueue', '''static bool hostQueueIdleStopped(void) {
   return (read32(gHost.hc,0x34)&1) && (read32(gHost.hc,0x30)&15)==15 &&

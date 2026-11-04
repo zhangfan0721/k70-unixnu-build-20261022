@@ -80,7 +80,7 @@ static UfsSmmuPlan planUfsSmmuBank(uint16_t stream, uint64_t dma, uint64_t bytes
 // (no other valid stream maps it, translation off). Any other refusal (a conflicting mapping of our own stream, no free group, unsupported geometry)
 // is final and is reported as the first attempt saw it.
 template <class Read>
-static UfsSmmuPlan planUfsSmmu(uint16_t stream, uint64_t dma, uint64_t bytes, Read read)
+[[maybe_unused]] static UfsSmmuPlan planUfsSmmu(uint16_t stream, uint64_t dma, uint64_t bytes, Read read)
 {
   enum {kBankAttempts = 8};
   UfsSmmuPlan first = planUfsSmmuBank(stream, dma, bytes, read, 0);
