@@ -9,7 +9,11 @@ static uint64_t goodPar(uint64_t address) {
     return ((pa+address-va)&0x000ffffffffff000ULL)|(0x04ULL<<56)|(2U<<7)|(1U<<9);
 }
 int main() {
-    assert(k70ReadTranslation(va)==1); // No host translation attestation.
+    // ARM hosts run at EL0: never execute the kernel's privileged probe here.
+    // Its ARM64 instruction sequence is covered by the compile-only fixture.
+#if !defined(__aarch64__)
+    assert(k70ReadTranslation(va)==1);
+#endif
     unsigned probes=0,reads=0;uint64_t lastProbe=0;
     auto translate=[&](uint64_t address) {++probes;lastProbe=address;return goodPar(address);};
     auto read=[&](unsigned offset) {assert(lastProbe==va+offset);++reads;return offset^0x55aaU;};
