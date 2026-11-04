@@ -178,6 +178,11 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     install_flight(root)
     from storage_bootstrap import install as install_storage
     install_storage(root)
+    import importlib.util
+    ufs_spec = importlib.util.spec_from_file_location('k70_ufs_install', HERE / 'ufs/install.py')
+    ufs_install = importlib.util.module_from_spec(ufs_spec)
+    ufs_spec.loader.exec_module(ufs_install)
+    ufs_install.install(root)
     from kext_logging import install as install_kext_logging
     install_kext_logging(root)
     from userspace_bootstrap import install as install_userspace

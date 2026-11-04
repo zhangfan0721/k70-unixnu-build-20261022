@@ -51,6 +51,12 @@ jobs:
           sparse-checkout: Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/ShengUfs
+          ref: af785c1777161a62931425c2faaa536ce0bebd5b
+          path: ufs-source
+          persist-credentials: false
       - name: Check the bounded target and record identities
         run: |
           set -euo pipefail
@@ -76,6 +82,16 @@ jobs:
           gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-8796.141.3.json"
           gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit/crypto?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-crypto-8796.141.3.json"
           gh api 'repos/apple-oss-distributions/xnu/contents/EXTERNAL_HEADERS/TrustCache?ref=xnu-8796.141.3' > "$cache/xnu-trustcache-8796.141.3.json"
+      - name: Exercise the bounded UFS command and route policy
+        run: |
+          set -euo pipefail
+          python -B integration/iphone16/ufs/generate.py ufs-source
+          git -C integration diff --exit-code
+          clang++ -std=c++17 -DHOST_TEST -Wall -Wextra -Werror integration/iphone16/ufs/test_policy.cpp -o evidence/ufs-policy-test
+          evidence/ufs-policy-test
+          clang++ -std=c++17 -Wall -Wextra -Werror integration/iphone16/ufs/test_commands.cpp -o evidence/ufs-command-test
+          evidence/ufs-command-test
+          python -B integration/iphone16/ufs/check_inputs.py
       - name: Build matching Darwin22 with K70 CPU GIC and diagnostics
         run: |
           set -euo pipefail
@@ -98,6 +114,7 @@ jobs:
             out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/startup.o.json
             out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/prng_random.o.json
             out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOPlatformExpert.cpo.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOKitBSDInit.cpo.json
             out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOService*.json
             out16/vermeer16/tree/.cache/iphone16-patch-report.json
             out16/vermeer16/tree/.cache/iphone16-source-presence.json

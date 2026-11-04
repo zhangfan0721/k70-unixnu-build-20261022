@@ -63,6 +63,7 @@ def verify_kernel(path):
                  '_k70_flight_panic', '_k70_flight_wait', '_k70_flight_begin',
                  '_k70_flight_enter', '_k70_flight_leave', '_k70_flight_bind',
                  '_k70_formal_bootstrap', '_k70_formal_early_exception', '_vfs_getvfs_with_vfsops',
+                 '_k70_ufs_readonly_qualify',
                  '_kalloc_sparse_prelink_index_version'):
         if name.encode() + b'\0' not in data:
             raise ValueError('Missing real integration symbol: ' + name)
