@@ -11,6 +11,7 @@ extern "C" {
 }
 #include "ReadOnlyPolicy.h"
 #include "K70Route.h"
+#include "K70Smmu.h"
 #include "GccUfs.h"
 namespace {
 #include "RootDiagnostics.h"
@@ -33,6 +34,7 @@ static uintptr_t mapPhys (uint64_t phys, uint64_t length, OSSharedPtr<IOMemoryMa
 }
 namespace {
 #include "RootTransportLayout.h"
+#include "K70Dma.h"
 
 struct UfsHost {
   OSSharedPtr<IOMemoryMap> hcMap, smmuMap;
@@ -160,17 +162,28 @@ static bool hostBringUp (const char **why)
   }
   bzero (gHost.virt, kDmaBytes);
   cacheCivac (gHost.virt, kDmaBytes);
-  gRootDiagnostic.stage = "existing K70 SMMU route";
-  gHost.smmu=mapPhys(0x15000000ULL,0x90000,gHost.smmuMap);
-  unsigned cb=0;
-  if(!gHost.smmu || !k70CheckUfsRoute([](unsigned o){return read32(gHost.smmu,o);},
-       [](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);},&cb)) {
-    *why="K70 firmware UFS route not qualified";return false;
-  }
-  gHost.cb=gHost.smmu+0x80000+4096*cb;
+  gRootDiagnostic.stage = "K70 SMMU read-only plan";
+  gHost.smmu=mapPhys(0x15000000ULL,0xd0000,gHost.smmuMap);
+  if(!gHost.smmu){*why="K70 SMMU map";return false;}
+  auto smmuRead=[](unsigned o){return read32(gHost.smmu,o);};
+  auto trace=[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);};
+  K70SmmuPlan plan=k70PlanUfsSmmu(gHost.phys,kDmaBytes,smmuRead,trace);
+  if(plan.error){*why=plan.error;return false;}
   uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
-  if(gHost.phys>=limit || kDmaBytes>limit-gHost.phys) {*why="K70 DMA width";return false;}
+  if(!k70DmaAllocation(gHost.phys,contiguous,limit)) {*why="K70 DMA width/layout";return false;}
+  gRootDiagnostic.stage="K70 UFS queue preflight";
+  const unsigned hcOffsets[]={0x30U,0x34U,0x58U,0x60U,0x78U,0x80U};
+  for(unsigned o: hcOffsets)
+    trace("UFS HC offset/value",(uint64_t(o)<<32)|read32(gHost.hc,o));
   if(!hostStopQueue(why))return false;
+  gRootDiagnostic.stage="K70 bounded SMMU configuration";
+  const char *error=k70ConfigureUfsSmmu(plan,smmuRead,[](unsigned o,uint32_t v){
+      __asm__ volatile("dsb sy" ::: "memory");
+      write32(gHost.smmu,o,v);
+      __asm__ volatile("dsb sy" ::: "memory");
+    },[](){return hostQueueIdleStopped();},trace);
+  if(error){gHost.poisoned=true;*why=error;return false;}
+  gHost.cb=gHost.smmu+0x80000+4096*plan.upstream.bank;
   if (!hostStartQueue (why)) return false;
   gRootDiagnostic.stage = "NOP OUT";
   // NOP OUT proves the transport before touching the SCSI layer.

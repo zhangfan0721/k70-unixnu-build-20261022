@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "board": "Redmi K70/vermeer",
+  "source": {
+    "repository": "MiCode/kernel_devicetree",
+    "commit": "70784878a0ed127508c70e2df5f56ea4b16c7a33",
+    "files": [
+      {
+        "path": "qcom/kalama.dtsi",
+        "blob": "2a577fb295e0483aec63681352991940e3744afe",
+        "lines": [
+          1914,
+          1916,
+          2025
+        ],
+        "facts": "UFS controller 0x1d84000 size0x3000; iommus apps_smmu SID0x60 mask0"
+      },
+      {
+        "path": "qcom/msm-arm-smmu-kalama.dtsi",
+        "blob": "c096bc2021388e9c3dfc315e34312515b236bbc3",
+        "lines": [
+          73,
+          75,
+          80
+        ],
+        "facts": "apps-SMMU 0x15000000 size0x100000; handoff SID0x1c00 mask2"
+      },
+      {
+        "path": "qcom/vermeer-sm8550-overlay.dts",
+        "blob": "9bb218d4a9f935bca9ecea5aff130467357b8e86"
+      },
+      {
+        "path": "qcom/vermeer-sm8550.dtsi",
+        "blob": "00c2c4b909f2594eac21192fb434e25cf5e62151"
+      },
+      {
+        "path": "qcom/xiaomi-sm8550-common.dtsi",
+        "blob": "815b8d68635449cb5542d8f6ad1bfdcef2662e23",
+        "lines": [
+          103
+        ]
+      }
+    ]
+  },
+  "hardware_baseline": {
+    "candidate": "UFS02",
+    "kernel_commit": "10ad1eacf98467474d69dd6a0b03572eb8df5eb9",
+    "CR0": "0x2d406",
+    "ID0": "0x4c017e69",
+    "ID1": "0x60000046",
+    "ID2": "0x5111",
+    "display_slot": 3,
+    "SMR": "0x80021c00",
+    "S2CR": 3,
+    "SID60_matches": 0,
+    "context69_observed": false,
+    "SMMU_write_behavior_verified": false
+  },
+  "ownership_contract": "Candidate must inspect context69 at runtime BEFORE any SMMU write. No valid reference, SCTLR/TTBR0/TTBR1/TCR/FSR zero; CBAR reset0 or exact firmware-cleanup0x100ff; CBA2R0/1. Unknown/live state refuses. This is conditional nonsecure ownership evidence, not proof of invisible firmware ownership.",
+  "firmware_cleanup": "Kailua PlatformInitialize -> ArmSmmuDetach. ArmSmmuFreeContextBank clears TTBR0/TTBR1/TCR/FSR, may set CBAR type1 VMID255 (0x100ff). Existing firmware unchanged; no pre-SEC snapshot proves initial UFS route existed.",
+  "reuse": {
+    "repository": "UniXNU/ShengUfs",
+    "commit": "af785c1777161a62931425c2faaa536ce0bebd5b",
+    "path": "SmmuTakeover.h",
+    "blob": "23506dd4243f67a59465143e0fa4bba2dc2a23d4",
+    "scope": "pure planning/configuration wrapped by stricter K70 ownership, stopped queue and per-write checks"
+  },
+  "physical_passthrough": {
+    "hardware_dma_isolation": false,
+    "reason": "Existing XNU UFS transport emits physical UTRD/UCD/PRDT addresses. Its known upstream implementation uses a disabled-translation context. No qualified iOS16 UFS IOVA allocator/map/unmap/TLBI/lifetime integration is present. UEFI/GPU page-table probes do not establish that integration.",
+    "limits": "All software addresses/lengths are validated. Physical pass-through still permits DMA beyond the allocation if controller state/descriptors are wrong; software checks are not SMMU isolation."
+  },
+  "register_contract": {
+    "mapped_base": "0x15000000",
+    "mapped_size": "0xd0000",
+    "within_K70_DT_window": true,
+    "bank": 69,
+    "slot": "one invalid SMR, selected by pinned planner; UFS02 snapshot gives104; never overwrite a valid entry",
+    "permitted_offsets": [
+      "0xc5000 SCTLR=0",
+      "0x1914 CBA2R=1",
+      "0x1114 CBAR=0x10000",
+      "0xc00+4*slot S2CR=69",
+      "0x800+4*slot SMR=0x80000060"
+    ],
+    "other_routes_preserved": true,
+    "global_CR0_write": false,
+    "storage_media_write": false
+  },
+  "failure": "No retries. Refuse before writes when plan/queue/snapshot fails. Partial configuration/readback error quarantines transport and retains DMA; no queue start, rollback or further commands. Manual reboot required for another candidate, separately authorized."
+}

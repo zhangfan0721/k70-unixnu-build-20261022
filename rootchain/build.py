@@ -284,6 +284,9 @@ args = "-v serial=3 debug=0x14e kt_fixed_zones=120 armcpu-diagnostics=1 startup_
                 storage_writes_allowed=False,ufs_root_published=False,
                 ufs_read_contract={'lun':0,'block_bytes':4096,'ranges':[[0,6],[61842427,5]]},
                 ufs_hardware_read_verified=False,ufs_proof_sha256=sha(args.ufs_proof))
+            metadata.update(SMMU_configuration_writes=ufs['scope']['smmu_configuration_writes'],
+                hardware_dma_isolation=ufs['scope'].get('hardware_dma_isolation',False),
+                SMMU_write_scope=ufs['scope'].get('smmu_write_scope','none'))
         (out / 'manifest.json').write_text(json.dumps(metadata, indent=2) + '\n')
         (out / 'unixnu.toml').write_text(configuration)
         shutil.copy2(adt, out / 'kernel.macho.adt')

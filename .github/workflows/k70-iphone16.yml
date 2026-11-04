@@ -91,6 +91,8 @@ jobs:
           evidence/ufs-policy-test
           clang++ -std=c++17 -Wall -Wextra -Werror integration/iphone16/ufs/test_commands.cpp -o evidence/ufs-command-test
           evidence/ufs-command-test
+          clang++ -std=c++17 -Wall -Wextra -Werror integration/iphone16/ufs/test_smmu.cpp -o evidence/ufs-smmu-test
+          evidence/ufs-smmu-test
           python -B integration/iphone16/ufs/check_inputs.py
       - name: Build matching Darwin22 with K70 CPU GIC and diagnostics
         run: |

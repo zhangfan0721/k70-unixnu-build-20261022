@@ -17,13 +17,39 @@ def generate(source):
         return data.decode()
     main=read('NativeUfs.cpp','bdf3df5c457acd2c46de29e8bac3380366bf466e')
     commands=read('RootCommands.h','996304d7d22b74c0f2fcaad2d14676f480bc19c1')
-    for name,blob in {'RootQueue.h':'989b956715100291de60c711d45d866904656a22','TransferPoll.h':'2f56e30a824eac1961076faee0907de54b8bac44','RootDiagnostics.h':'f8188dc225812b2a0c5a5e2f306344ab91b93144','RootTransportLayout.h':'a6245c6825ec3405e84afe2743d8b852d75fec82','GccUfs.h':'5d11663a81c7caca9cd27173805eadecde74fc1d','LICENSE':'52a23a0ee6084ff047e0cef045efb8eb19518192'}.items():
+    for name,blob in {'RootQueue.h':'989b956715100291de60c711d45d866904656a22','TransferPoll.h':'2f56e30a824eac1961076faee0907de54b8bac44','RootDiagnostics.h':'f8188dc225812b2a0c5a5e2f306344ab91b93144','RootTransportLayout.h':'a6245c6825ec3405e84afe2743d8b852d75fec82','GccUfs.h':'5d11663a81c7caca9cd27173805eadecde74fc1d','SmmuTakeover.h':'23506dd4243f67a59465143e0fa4bba2dc2a23d4','LICENSE':'52a23a0ee6084ff047e0cef045efb8eb19518192'}.items():
         (HERE/name).write_text(read(name,blob))
+    queue=(HERE/'RootQueue.h').read_text()
+    queue=queue.replace('static bool hostStopQueue', '''static bool hostQueueIdleStopped(void) {
+  return (read32(gHost.hc,0x34)&1) && (read32(gHost.hc,0x30)&15)==15 &&
+         !read32(gHost.hc,0x58) && !read32(gHost.hc,0x78) &&
+         !(read32(gHost.hc,0x60)&1) && !(read32(gHost.hc,0x80)&1) &&
+         !(read32(gHost.hc,0x20)&kUfsFatalStatus);
+}
+static bool hostStopQueue''',1)
+    queue=queue.replace('  hostWrite (0x24, 0);','''  if(read32(gHost.hc,0x80)&1) {
+    *why="firmware task list still enabled";return false;
+  }
+  hostWrite (0x24, 0);''',1)
+    queue=queue.replace('  hostWrite (0x50,', '''  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
+  if(!hostQueueIdleStopped() || !k70DmaAllocation(gHost.phys,kDmaBytes,limit)) {
+    *why="queue/DMA changed before start";return false;
+  }
+  hostWrite (0x50,''',1)
+    queue=queue.replace('    *why = "request list address";', '    gHost.poisoned=true;\n    *why = "request list address";')
+    queue=queue.replace('    *why = "request list ready";', '    gHost.poisoned=true;\n    *why = "request list ready";')
+    (HERE/'RootQueue.h').write_text(queue)
     commands=commands[:commands.index('// ---- Persistent store and log windows')]
     anchor='(dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;'
     assert commands.count(anchor)==1
     commands=commands.replace(anchor,anchor+'\n  if (!K70UfsPolicy::command(lun,cdb,cdbLength,direction,dataBytes)) return kIOReturnNotPermitted;')
     commands=commands.replace('  *ocs = 15;','  *ocs = 15;\n  if (direction == 1) return kIOReturnNotPermitted;',1)
+    commands=commands.replace('  cacheCivac (gHost.virt, kDataOffset + dataBytes);','''  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
+  if(!k70DmaDescriptors(gHost.phys,limit,direction,dataBytes,words,
+      reinterpret_cast<const uint32_t *>(gHost.virt+kUcdOffset+kPrdtOffset))) {
+    gHost.poisoned=true;gHost.ready=false;return kIOReturnBadArgument;
+  }
+  cacheCivac (gHost.virt, kDataOffset + dataBytes);''',1)
     commands=commands.replace('Callers other than hostWrite4k never pass direction 1.',
         'Direction 1 is forbidden by the candidate policy and submit gate.')
     (HERE/'ReadOnlyCommands.inc').write_text(commands.rstrip()+'\n')
@@ -31,18 +57,30 @@ def generate(source):
     body=main[main.index('namespace {\n#include "RootTransportLayout.h"'):main.index('namespace {\nstatic uint32_t be32w')]
     body=body.replace('#include "RootCommands.h"','#include "ReadOnlyCommands.inc"')
     a=body.index('  uint32_t report[3]');b=body.index('  if (!hostStartQueue',a)
-    body=body[:a]+'''  gRootDiagnostic.stage = "existing K70 SMMU route";
-  gHost.smmu=mapPhys(0x15000000ULL,0x90000,gHost.smmuMap);
-  unsigned cb=0;
-  if(!gHost.smmu || !k70CheckUfsRoute([](unsigned o){return read32(gHost.smmu,o);},
-       [](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);},&cb)) {
-    *why="K70 firmware UFS route not qualified";return false;
-  }
-  gHost.cb=gHost.smmu+0x80000+4096*cb;
+    body=body[:a]+'''  gRootDiagnostic.stage = "K70 SMMU read-only plan";
+  gHost.smmu=mapPhys(0x15000000ULL,0xd0000,gHost.smmuMap);
+  if(!gHost.smmu){*why="K70 SMMU map";return false;}
+  auto smmuRead=[](unsigned o){return read32(gHost.smmu,o);};
+  auto trace=[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);};
+  K70SmmuPlan plan=k70PlanUfsSmmu(gHost.phys,kDmaBytes,smmuRead,trace);
+  if(plan.error){*why=plan.error;return false;}
   uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
-  if(gHost.phys>=limit || kDmaBytes>limit-gHost.phys) {*why="K70 DMA width";return false;}
+  if(!k70DmaAllocation(gHost.phys,contiguous,limit)) {*why="K70 DMA width/layout";return false;}
+  gRootDiagnostic.stage="K70 UFS queue preflight";
+  const unsigned hcOffsets[]={0x30U,0x34U,0x58U,0x60U,0x78U,0x80U};
+  for(unsigned o: hcOffsets)
+    trace("UFS HC offset/value",(uint64_t(o)<<32)|read32(gHost.hc,o));
   if(!hostStopQueue(why))return false;
+  gRootDiagnostic.stage="K70 bounded SMMU configuration";
+  const char *error=k70ConfigureUfsSmmu(plan,smmuRead,[](unsigned o,uint32_t v){
+      __asm__ volatile("dsb sy" ::: "memory");
+      write32(gHost.smmu,o,v);
+      __asm__ volatile("dsb sy" ::: "memory");
+    },[](){return hostQueueIdleStopped();},trace);
+  if(error){gHost.poisoned=true;*why=error;return false;}
+  gHost.cb=gHost.smmu+0x80000+4096*plan.upstream.bank;
 '''+body[b:]
+    body=body.replace('#include "RootTransportLayout.h"','#include "RootTransportLayout.h"\n#include "K70Dma.h"',1)
     a=body.index('  if ((power & 0xff)');b=body.index('  gRootDiagnostic.stage = "LUN ready"',a)
     body=body[:a]+'''  if ((power & 0xff) != 0x11) {
     *why="device not already ACTIVE; no power command issued";return false;
@@ -73,6 +111,7 @@ extern "C" {
 }
 #include "ReadOnlyPolicy.h"
 #include "K70Route.h"
+#include "K70Smmu.h"
 #include "GccUfs.h"
 namespace {
 #include "RootDiagnostics.h"

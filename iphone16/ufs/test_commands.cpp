@@ -62,6 +62,7 @@ static void reset(Fault f=Fault::None)
 {
   fault=f; device.fill(0); registers.fill(0); now=0; writes=releases=0; released=false;
   registers[0x34/4]=1; registers[0x30/4]=15; registers[0x60/4]=1;
+  registers[0]=0x01000000;
   ufs_test_reset(io,0x8cb5e9000);
 }
 static void assertQuarantined()
@@ -120,7 +121,7 @@ int main()
   assert(ufs_test_read(0,211008,1,out.data())!=0 && writes==0);
   assert(ufs_test_read(0,2570304,1,out.data())!=0 && writes==0);
   assert(ufs_test_read(0,5716032,1,out.data())!=0 && writes==0);
-  for (unsigned offset: {0x58U,0x78U}) {
+  for (unsigned offset: {0x58U,0x78U,0x80U}) {
     reset(); registers[offset/4]=1;
     assert(!ufs_test_stop_queue() && writes==0);
   }

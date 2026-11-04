@@ -11,6 +11,12 @@ static bool hostWaitRegister (unsigned offset, uint32_t mask, uint32_t value)
   return false;
 }
 
+static bool hostQueueIdleStopped(void) {
+  return (read32(gHost.hc,0x34)&1) && (read32(gHost.hc,0x30)&15)==15 &&
+         !read32(gHost.hc,0x58) && !read32(gHost.hc,0x78) &&
+         !(read32(gHost.hc,0x60)&1) && !(read32(gHost.hc,0x80)&1) &&
+         !(read32(gHost.hc,0x20)&kUfsFatalStatus);
+}
 static bool hostStopQueue (const char **why)
 {
   // Confirm the firmware has no active transfer/task before changing its
@@ -30,6 +36,9 @@ static bool hostStopQueue (const char **why)
     *why = "firmware controller error";
     return false;
   }
+  if(read32(gHost.hc,0x80)&1) {
+    *why="firmware task list still enabled";return false;
+  }
   hostWrite (0x24, 0);
   hostWrite (0x60, 0);
   if (!hostWaitRegister (0x60, 1, 0)) {
@@ -42,11 +51,16 @@ static bool hostStopQueue (const char **why)
 
 static bool hostStartQueue (const char **why)
 {
+  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
+  if(!hostQueueIdleStopped() || !k70DmaAllocation(gHost.phys,kDmaBytes,limit)) {
+    *why="queue/DMA changed before start";return false;
+  }
   hostWrite (0x50, static_cast<uint32_t> (gHost.phys));
   hostWrite (0x54, static_cast<uint32_t> (gHost.phys >> 32));
   if (read32 (gHost.hc, 0x50) != uint32_t (gHost.phys) ||
       read32 (gHost.hc, 0x54) != uint32_t (gHost.phys >> 32)) {
     recordTransport (kIOReturnIOError, 15);
+    gHost.poisoned=true;
     *why = "request list address";
     return false;
   }
@@ -55,6 +69,7 @@ static bool hostStartQueue (const char **why)
   hostWrite (0x60, 1);
   if (!hostWaitRegister (0x60, 1, 1) || !hostWaitRegister (0x30, 3, 3)) {
     recordTransport (kIOReturnTimeout, 15);
+    gHost.poisoned=true;
     *why = "request list ready";
     return false;
   }

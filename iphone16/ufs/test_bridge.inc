@@ -12,6 +12,7 @@ constexpr IOReturn kIOReturnSuccess=0, kIOReturnError=0xe00002bc,
   kIOReturnBadArgument=0xe00002c2, kIOReturnIOError=0xe00002ca,
   kIOReturnBusy=0xe00002d5, kIOReturnTimeout=0xe00002d6, kIOReturnNotReady=0xe00002d8, kIOReturnNotPermitted=0xe00002e2;
 #include "RootTransportLayout.h"
+#include "K70Dma.h"
 constexpr unsigned kMicrosecondScale=1;
 constexpr unsigned kMillisecondScale=1000;
 static UfsRootDiagnostics gRootDiagnostic;

@@ -76,6 +76,11 @@ static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t tim
     prd[2] = 0;
     prd[3] = dataBytes - 1;
   }
+  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
+  if(!k70DmaDescriptors(gHost.phys,limit,direction,dataBytes,words,
+      reinterpret_cast<const uint32_t *>(gHost.virt+kUcdOffset+kPrdtOffset))) {
+    gHost.poisoned=true;gHost.ready=false;return kIOReturnBadArgument;
+  }
   cacheCivac (gHost.virt, kDataOffset + dataBytes);
   hostWrite (0x20, 1);  // Acknowledge completion only; preserve error evidence.
   HardwareTransferPort port;

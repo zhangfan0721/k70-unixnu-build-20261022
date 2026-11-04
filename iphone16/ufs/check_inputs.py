@@ -19,11 +19,15 @@ def check():
     if 'hostScsi (0xd0' in code:raise ValueError('Unexpected power-state command')
     offsets=set(int(x,16) for x in re.findall(r'hostWrite\s*\(\s*(0x[0-9a-f]+)',code))
     if offsets!={0x20,0x24,0x50,0x54,0x58,0x60}:raise ValueError('Controller write-set changed')
-    # The ONLY physical store primitive is host-controller MMIO, never SMMU/GCC.
+    # Two physical store targets: HC plus the bounded SMMU callback. GCC and
+    # storage-media write implementations remain excluded.
     stores=re.findall(r'write32\s*\(([^;]+)\);',code)
-    if stores!=['gHost.hc, offset, value']:raise ValueError('Physical store target changed: '+str(stores))
+    if stores!=['gHost.hc, offset, value','gHost.smmu,o,v']:raise ValueError('Physical store target changed: '+str(stores))
+    if 'k70ConfigureUfsSmmu(plan,smmuRead' not in code or 'k70DmaDescriptors(' not in commands:
+        raise ValueError('Missing bounded SMMU/DMA submission path')
     return {'scope':'LUN0 fixed GPT blocks only','storage_writes':False,
-            'smmu_configuration_writes':False,'persistent_log':False,
+            'smmu_configuration_writes':True,'smmu_write_scope':'one new SID0x60 route; five register targets; no CR0 or other routes',
+            'hardware_dma_isolation':False,'persistent_log':False,
             'root_authentication_changed':False,'hardware_tested':False,
             'files':{n:hashlib.sha256(p.read_bytes()).hexdigest() for n,p in sorted(files.items())}}
 if __name__=='__main__':print(json.dumps(check(),indent=2))
