@@ -20,13 +20,33 @@ extern "C" unsigned k70_ufs_policy_test() {
  return errors;
 }
 static unsigned regs[0x90000/4];
+static unsigned rejection,validSlots,matches,extendedReads;
+static unsigned long long lastPair;
+static bool same(const char *a,const char *b){while(*a&&*a==*b){++a;++b;}return *a==*b;}
 extern "C" unsigned k70_ufs_route_test() {
  regs[0x20/4]=0x4c017e69;regs[0x24/4]=0x60000046;regs[0x28/4]=0x5111;
  // Deliberately use another exclusive slot/bank to catch nuwa constants.
  regs[(0x800+4*7)/4]=0x80000060;regs[(0xc00+4*7)/4]=4;
  regs[(0x1000+4*4)/4]=0x1f000;regs[(0x1800+4*4)/4]=1;
- auto read=[](unsigned n){return regs[n/4];};auto trace=[](const char *,unsigned){};
+ auto read=[](unsigned n){if(n>=0x800)++extendedReads;return regs[n/4];};
+ auto trace=[](const char *s,unsigned long long v){
+  if(same(s,"UFS route reject"))rejection=unsigned(v);
+  if(same(s,"UFS valid slots"))validSlots=unsigned(v);
+  if(same(s,"UFS SID60 matches"))matches=unsigned(v);
+  if(same(s,"UFS SMR/S2CR"))lastPair=v;
+ };
  unsigned cb=~0U;expect(k70CheckUfsRoute(read,trace,&cb)&&cb==4);
+ expect(validSlots==1&&matches==1&&lastPair==0x8000006000000004ULL);
+ unsigned modes[]={1,8,9};
+ for(unsigned mode: modes) {
+  regs[0]=mode;expect(!k70CheckUfsRoute(read,trace,&cb));
+  expect(rejection==2&&validSlots==1&&matches==1);
+ }
+ regs[0]=0;regs[(0x800+4*7)/4]=0;
+ expect(!k70CheckUfsRoute(read,trace,&cb));expect(rejection==4&&matches==0);
+ regs[(0x800+4*7)/4]=0x80000060;
+ regs[0x20/4]^=1;extendedReads=0;expect(!k70CheckUfsRoute(read,trace,&cb));
+ expect(rejection==1&&extendedReads==0);regs[0x20/4]^=1;
  regs[0x84000/4]=1;expect(!k70CheckUfsRoute(read,trace,&cb));regs[0x84000/4]=0;
  regs[(0x800+4*8)/4]=0x80000061;regs[(0xc00+4*8)/4]=4;
  expect(!k70CheckUfsRoute(read,trace,&cb));regs[(0x800+4*8)/4]=0;

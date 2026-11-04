@@ -35,7 +35,7 @@ def generate(source):
   gHost.smmu=mapPhys(0x15000000ULL,0x90000,gHost.smmuMap);
   unsigned cb=0;
   if(!gHost.smmu || !k70CheckUfsRoute([](unsigned o){return read32(gHost.smmu,o);},
-       [](const char *s,unsigned v){k70_formal_cpu_trace(s,v);},&cb)) {
+       [](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);},&cb)) {
     *why="K70 firmware UFS route not qualified";return false;
   }
   gHost.cb=gHost.smmu+0x80000+4096*cb;
