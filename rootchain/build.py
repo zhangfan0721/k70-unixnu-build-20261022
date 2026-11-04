@@ -152,6 +152,11 @@ def pack(args):
     loader_proof = json.loads(args.loader_proof.read_text())
     if prelink['candidate_sha256'] != sha(kernel) or seal['kernel_sha256'] != sha(kernel):
         raise ValueError('Prelink/source-HMAC identity mismatch')
+    ufs_path = getattr(args, 'ufs_proof', None)
+    ufs = json.loads(ufs_path.read_text()) if ufs_path else None
+    if ufs and (ufs['kernel_sha256'] != sha(kernel) or not ufs['bounded_readonly_transport'] or
+                not ufs['actual_iokit_ios16_record'] or not ufs['linked_normal_bsd_entry']):
+        raise ValueError('UFS qualification proof does not bind this actual kernel')
     if root_report['root_sha256'] != sha(root) or loader_proof['kernel_sha256'] != sha(kernel) or \
             loader_proof['trust_sha256'] != sha(trust) or not loader_proof['real_parsers_passed']:
         raise ValueError('Root/actual-loader proof identity mismatch')
@@ -271,7 +276,13 @@ args = "-v serial=3 debug=0x14e kt_fixed_zones=120 armcpu-diagnostics=1 startup_
             'actual_loader_parsers_passed': loader_proof['real_parsers_passed'],
             'hardware_tested': False, 'userspace_verified': False, 'ui_verified': False,
             'local_only': True, 'scope': 'new16 kernel/HFS initialization/md0 mount/init exec diagnostics',
-            'security_policy_modified': False, 'physical_storage_drivers_added': False}
+            'security_policy_modified': False, 'physical_storage_drivers_added': bool(ufs)}
+        if ufs:
+            metadata.update(scope='iOS16 bounded read-only UFS capacity/GPT/SHA qualification; existing HFS/md0 carrier',
+                kernel_source_commit=ufs['kernel_source_commit'],ufs_readonly_qualification=True,
+                storage_writes_allowed=False,ufs_root_published=False,
+                ufs_read_contract={'lun':0,'block_bytes':4096,'ranges':[[0,6],[61842427,5]]},
+                ufs_hardware_read_verified=False,ufs_proof_sha256=sha(args.ufs_proof))
         (out / 'manifest.json').write_text(json.dumps(metadata, indent=2) + '\n')
         (out / 'unixnu.toml').write_text(configuration)
         shutil.copy2(adt, out / 'kernel.macho.adt')
@@ -291,6 +302,7 @@ if __name__ == '__main__':
     for name in ('kernel', 'root', 'trust', 'prelink-report', 'hmac', 'firmware', 'uefi', 'board',
                  'root-report', 'loader-proof', 'storage-proof', 'out'):
         payload.add_argument('--' + name, type=Path, required=True)
+    payload.add_argument('--ufs-proof',type=Path)
     args = parser.parse_args()
     action = {'root': root_image, 'pack': pack, 'trust': trust_bundle}[args.command]
     print(json.dumps(action(args), indent=2))
