@@ -11,13 +11,17 @@ def main():
     a=p.parse_args();a.out.mkdir(parents=True,exist_ok=True)
     version=subprocess.check_output([a.cxx,'--version'],text=True)
     (a.out/'compiler.txt').write_text(version)
+    sdk=[]
+    if sys.platform=='darwin':
+        sdk=['-isysroot',subprocess.check_output(
+            ['xcrun','--sdk','macosx','--show-sdk-path'],text=True).strip()]
     subprocess.run([sys.executable,'-B',str(HERE/'generate.py'),str(a.upstream)],check=True)
     subprocess.run(['git','-C',str(HERE.parent.parent),'diff','--exit-code'],check=True)
     records=[]
     for name in ('policy','commands','smmu'):
         exe=(a.out/('ufs-'+name+'-test')).resolve()
         record=(a.out/(name+'.compile.json')).resolve()
-        command=[a.cxx,'-std=c++17','-Wall','-Wextra','-Wunused-template','-Werror']
+        command=[a.cxx,*sdk,'-std=c++17','-Wall','-Wextra','-Wunused-template','-Werror']
         if name=='policy':command+=['-DHOST_TEST']
         command += ['-MJ',str(record),str(HERE/('test_'+name+'.cpp')),'-o',str(exe)]
         subprocess.run(command,check=True);subprocess.run([str(exe)],check=True)
