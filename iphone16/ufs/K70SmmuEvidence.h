@@ -44,6 +44,20 @@ static inline uint64_t k70ReadTranslation(uint64_t va) {
 #endif
 }
 
+static inline uint64_t k70ReadWriteTranslation(uint64_t va) {
+#if defined(__aarch64__)
+    uint64_t par,mask,saved;
+    __asm__ volatile (
+        "mrs %0, daif\n\tmsr daifset, #15\n\tmrs %1, par_el1\n\t"
+        "at s1e1w, %3\n\tisb\n\tmrs %2, par_el1\n\t"
+        "msr par_el1, %1\n\tmsr daif, %0"
+        : "=&r"(mask), "=&r"(saved), "=&r"(par) : "r"(va) : "memory");
+    return par;
+#else
+    (void)va;return 1;
+#endif
+}
+
 template<class Translate, class Read>
 static K70MapWord k70ReadMappedWord(uint64_t va, uint64_t pa, uint64_t bytes,
                                   unsigned offset, Translate translate, Read read) {

@@ -10,3 +10,6 @@ extern "C" void k70_mapping_compile(uint64_t mapped,
     });
     k70TraceSmmuEvidence(retained,trace);
 }
+extern "C" uint64_t k70_write_mapping_compile(uint64_t mapped) {
+    return k70ReadWriteTranslation(mapped);
+}

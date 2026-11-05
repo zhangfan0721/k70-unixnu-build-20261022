@@ -10,13 +10,15 @@ def verify_mapping_object(path):
     if struct.unpack_from('<I',data,12)[0]!=1:
         raise ValueError('Mapping proof is not a relocatable object')
     words=struct.unpack('<'+'I'*(len(data)//4),data[:len(data)//4*4])
+    found=set()
     for i in range(len(words)-7):
         a=words[i:i+8]
         if ((a[0]&~31)==0xd53b4220 and a[1]==0xd5034fdf and
-            (a[2]&~31)==0xd5387400 and (a[3]&~31)==0xd5087800 and
+            (a[2]&~31)==0xd5387400 and (a[3]&~31) in (0xd5087800,0xd5087820) and
             a[4]==0xd5033fdf and (a[5]&~31)==0xd5387400 and
             a[6]==(0xd5187400|(a[2]&31)) and a[7]==(0xd51b4220|(a[0]&31))):
-            return
+            found.add(a[3]&~31)
+    if found=={0xd5087800,0xd5087820}:return
     raise ValueError('ARM64 object lost the saved/restored DAIF/PAR AT S1E1R sequence')
 
 def main():

@@ -26,30 +26,30 @@ def check():
     if commands.count('if (direction == 1) return kIOReturnNotPermitted;')!=1:
         raise ValueError('Missing data-out rejection at submit boundary')
     if 'hostScsi (0xd0' in code:raise ValueError('Unexpected power-state command')
-    offsets=set(int(x,16) for x in re.findall(r'hostWrite\s*\(\s*(0x[0-9a-f]+)',code))
-    if offsets!={0x20,0x24,0x50,0x54,0x58,0x60}:raise ValueError('Controller write-set changed')
-    # The reusable HC command writer remains compiled but unreachable from
-    # hostBringUp's unconditional diagnostic stop. There is no SMMU writer.
-    stores=re.findall(r'write32\s*\(([^;]+)\);',code)
-    if stores!=['gHost.hc, offset, value']:raise ValueError('Physical store target changed: '+str(stores))
-    if {'K70Smmu.h','SmmuTakeover.h'}&compiled.keys():raise ValueError('Diagnostic includes SMMU planner/writer')
     transport=compiled['K70UfsTransport.inc']
-    bringup=transport[transport.index('static bool hostBringUp'):transport.index('\n}\n}',transport.index('static bool hostBringUp'))+2]
-    bringup=re.sub(r'/\*.*?\*/|//[^\n]*','',bringup,flags=re.S)
-    for word in ('hostStopQueue','hostStartQueue','k70Configure','k70Plan','hostWrite','write32',
-                 'IOBufferMemoryDescriptor::','IOLockAlloc','hostNop','hostQueryRead'):
-        if word in bringup:raise ValueError('Diagnostic path takes over/configures hardware: '+word)
-    if (bringup.count('read32(')!=1 or
-        'k70CollectSmmuEvidence(gSmmuEvidence,gHost.smmu,k70ReadTranslation,' not in bringup or
-        '[](unsigned o){return read32(gHost.smmu,o);}' not in bringup or
-        bringup.count('mapPhys(')!=1 or
-        'mapPhys(0x15000000ULL,0xd0000,gHost.smmuMap)' not in bringup or
-        'return true' in bringup or not bringup.rstrip().endswith('return false;\n}')):
-        raise ValueError('Missing translation-gated snapshot/unconditional diagnostic stop')
-    if 'k70DmaDescriptors(' not in commands:raise ValueError('Missing preserved DMA submission gate')
-    return {'scope':'read-only mapped SMMU evidence; unconditional stop before controller takeover','storage_writes':False,
-            'smmu_configuration_writes':False,'controller_takeover':False,
-            'smmu_write_scope':'none in compiled diagnostic path',
+    if 'ReadOnlyCommands.inc' in compiled or 'RootQueue.h' in compiled or 'Qualification.inc' in compiled:
+        raise ValueError('Qualification compiles UFS command/queue/DMA code')
+    for word in ('hostWrite','hostStopQueue','hostStartQueue','hostScsi','hostNop','write32','read32',
+                 'IOBufferMemoryDescriptor','IOLockAlloc','k70qualify'):
+        if word in transport:raise ValueError('Unexpected transport operation: '+word)
+    if transport.count('*reinterpret_cast<volatile uint32_t *>(smmu+o)=v;')!=1:
+        raise ValueError('SCTLR store boundary changed')
+    if transport.count('mapPhys(')!=2 or 'mapPhys(0x1d84000,0x3000,hcMap)' not in transport:
+        raise ValueError('Map scope changed')
+    if 'k70ReadWriteTranslation(smmu+0xc5000)' not in transport:
+        raise ValueError('Missing write permission qualification')
+    qualify=compiled['K70SctlrQualification.h']
+    for required in ('offset!=0xc5000','value!=0','wrote || rejected',
+                     'k70SmmuSnapshotSame(p,read)','},true)'):
+        if required not in qualify:raise ValueError('Missing single-write gate: '+required)
+    upstream=compiled['SmmuTakeover.h']
+    if 'if (disableOnly) return nullptr;' not in upstream:
+        raise ValueError('Missing upstream disable-only stop')
+    if 'bool pass=hostBringUp' in transport or 'k70CollectSmmuEvidence' in transport:
+        raise ValueError('Stale diagnostic entry')
+    return {'scope':'single bank69 SCTLR zero/writeback qualification; no UFS transport','storage_writes':False,
+            'smmu_configuration_writes':True,'controller_takeover':False,
+            'smmu_write_scope':'one 32-bit store PA0x150c5000 value0; no other SMMU or HC writes',
             'hardware_dma_isolation':False,'persistent_log':False,
             'root_authentication_changed':False,'hardware_tested':False,
             'compiled_files':sorted(compiled),

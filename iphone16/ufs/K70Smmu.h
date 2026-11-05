@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 #pragma once
+#pragma once
 #include "SmmuTakeover.h"
 // K70 UFS02 IDs + Xiaomi bsp-vermeer-t-oss kalama/apps-SMMU geometry.
 // One new route only. No reuse/fallback, global mode changes or other streams.
@@ -7,6 +8,7 @@ struct K70SmmuPlan {
     UfsSmmuPlan upstream;
     uint32_t cr0=0,smr[105]={},s2cr[105]={},context[9]={};
     const char *error="not planned";
+    bool sctlrQualification=false;
 };
 static unsigned k70ContextOffset(unsigned bank,unsigned index) {
     const unsigned cbOffsets[]={0,0x20,0x24,0x28,0x2c,0x30,0x58};
@@ -14,8 +16,9 @@ static unsigned k70ContextOffset(unsigned bank,unsigned index) {
            (index==7?0x1000:0x1800)+bank*4;
 }
 template<class Read,class Trace>
-static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace trace) {
-    K70SmmuPlan p;p.cr0=read(0);
+static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace trace,
+                                bool sctlrQualification=false) {
+    K70SmmuPlan p;p.sctlrQualification=sctlrQualification;p.cr0=read(0);
     trace("UFS SMMU CR0",p.cr0);
     uint32_t id0=read(0x20),id1=read(0x24),id2=read(0x28);
     trace("UFS SMMU ID0",id0);trace("UFS SMMU ID1",id1);trace("UFS SMMU ID2",id2);
@@ -55,7 +58,13 @@ static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace tr
         p.context[i]=read(offset);
         trace("UFS context offset/value",(uint64_t(offset)<<32)|p.context[i]);
     }
-    for(unsigned i=0;i<7;++i)if(p.context[i]) {
+    // Qualification accepts only the exact MAP01 residual SCTLR profile.
+    // The ordinary full-route planner retains its original zero requirement.
+    if(sctlrQualification && (p.cr0!=0x250406 || p.context[0]!=0x3fd9a71e ||
+                             p.context[7]!=0 || p.context[8]!=0)) {
+        p.error="K70 qualification handoff profile changed";return p;
+    }
+    for(unsigned i=sctlrQualification?1:0;i<7;++i)if(p.context[i]) {
         p.error="K70 context not cleared/inactive";return p;
     }
     // 0: unused reset state. 0x100ff: exact ArmSmmuFreeContextBank cleanup
@@ -76,8 +85,9 @@ static bool k70SmmuSnapshotSame(const K70SmmuPlan &p,Read read) {
     return true;
 }
 template<class Read,class Write,class Idle,class Trace>
-static const char *k70ConfigureUfsSmmu(const K70SmmuPlan &p,Read read,Write write,Idle idle,Trace trace) {
+[[maybe_unused]] static const char *k70ConfigureUfsSmmu(const K70SmmuPlan &p,Read read,Write write,Idle idle,Trace trace) {
     if(p.error)return p.error;
+    if(p.sctlrQualification)return "K70 qualification cannot configure a route";
     if(!idle() || !k70SmmuSnapshotSame(p,read))return "K70 ownership/queue changed before SMMU";
     unsigned cb=0x80000+4096*p.upstream.bank;
     unsigned allowed[]={cb,0x1800+4*p.upstream.bank,0x1000+4*p.upstream.bank,

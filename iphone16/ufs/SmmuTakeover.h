@@ -103,12 +103,13 @@ template <class Read>
 // streams sharing this bank and enabled translation; no live context is
 // disabled here. Write callbacks must complete an MMIO barrier before return.
 template <class Read, class Write>
-static const char *configureUfsSmmu(const UfsSmmuPlan &p, uint16_t stream, Read read, Write write)
+static const char *configureUfsSmmu(const UfsSmmuPlan &p, uint16_t stream, Read read, Write write, bool disableOnly=false)
 {
   if (p.error) return p.error;
   unsigned cb = (p.pages + p.bank) * 4096;
   if (!p.reuse) write(cb, 0);
   if (read(cb) != 0) return "SMMU bypass disable readback";
+  if (disableOnly) return nullptr;
   // Set VA64 before exposing a newly allocated stream. Repair an exclusive
   // existing 32-bit bypass too; do not silently reuse the faulty state.
   if (read(0x1800 + 4 * p.bank) != 1) write(0x1800 + 4 * p.bank, 1);

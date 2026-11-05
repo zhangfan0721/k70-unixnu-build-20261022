@@ -6,6 +6,7 @@
 #include <vector>
 #include <utility>
 #include "K70Smmu.h"
+#include "K70SctlrQualification.h"
 #include "RootTransportLayout.h"
 #include "K70Dma.h"
 static std::array<uint32_t,0xd0000/4> regs;
@@ -75,4 +76,31 @@ int main() {
     assert(!k70DmaDescriptors(base,1ULL<<32,2,16384,u,prd));
     assert(!k70DmaDescriptors(base,limit,2,kDataMax+4,u,prd));
     puts("K70 SMMU ownership/write/readback and DMA descriptor checks passed");
+    auto qualifyPlan=[](){return k70PlanUfsSmmu(0,4,rd,trace,true);};
+    auto qualifyReset=[](){reset();regs[0]=0x250406;regs[0xc5000/4]=0x3fd9a71e;};
+    qualifyReset();p=qualifyPlan();bool consumed=false;
+    assert(!p.error && p.sctlrQualification);
+    assert(k70ConfigureUfsSmmu(p,rd,wr,[](){return true;},trace) && writes.empty());
+    assert(!k70QualifySctlr(p,consumed,rd,wr,[](){return true;},trace));
+    assert(consumed && writes.size()==1 && writes[0]==std::make_pair(0xc5000U,0U));
+    assert(k70QualifySctlr(p,consumed,rd,wr,[](){return true;},trace) && writes.size()==1);
+    // Full-width readback fails on ANY bit, without later writes or restoration.
+    for(unsigned bit=0;bit<32;++bit) {
+        qualifyReset();p=qualifyPlan();consumed=false;
+        auto bad=[&](unsigned o,uint32_t v){writes.emplace_back(o,v);regs[o/4]=1U<<bit;};
+        assert(k70QualifySctlr(p,consumed,rd,bad,[](){return true;},trace));
+        assert(consumed && writes.size()==1);
+    }
+    qualifyReset();p=qualifyPlan();consumed=false;
+    assert(k70QualifySctlr(p,consumed,rd,wr,[](){return false;},trace) && writes.empty());
+    qualifyReset();p=qualifyPlan();consumed=false;regs[0xc5020/4]=4;
+    assert(k70QualifySctlr(p,consumed,rd,wr,[](){return true;},trace) && writes.empty());
+    for(unsigned n=0;n<9;++n) {
+        qualifyReset();regs[k70ContextOffset(69,n)/4]^=1;
+        assert(qualifyPlan().error && writes.empty());
+    }
+    qualifyReset();p=qualifyPlan();consumed=false;
+    auto drift=[&](unsigned o,uint32_t v){wr(o,v);regs[0x80c/4]^=1;};
+    assert(k70QualifySctlr(p,consumed,rd,drift,[](){return true;},trace) && writes.size()==1);
+    puts("SCTLR-only qualification: single store, strict readback, pre/post drift and retry refusal passed");
 }

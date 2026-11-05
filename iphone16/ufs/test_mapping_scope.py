@@ -23,23 +23,22 @@ class ScopeTests(unittest.TestCase):
 
     def test_actual_include_set_excludes_preserved_configuration(self):
         result=self.check_copy(lambda s:s)
-        self.assertFalse(result['smmu_configuration_writes'])
+        self.assertTrue(result['smmu_configuration_writes'])
         self.assertFalse(result['controller_takeover'])
-        self.assertNotIn('K70Smmu.h',result['compiled_files'])
+        self.assertIn('K70SctlrQualification.h',result['compiled_files'])
 
     def test_takeover_and_unprobed_reads_are_rejected(self):
         for operation in ('hostStopQueue(why);','hostStartQueue(why);',
                           'write32(gHost.smmu,0xc5000,0);',
                           'read32(gHost.smmu,0xc5000);'):
             with self.subTest(operation=operation),self.assertRaises(ValueError):
-                self.check_copy(lambda s:s.replace('  k70TraceSmmuEvidence(gSmmuEvidence,trace);',
-                    '  '+operation+'\n  k70TraceSmmuEvidence(gSmmuEvidence,trace);'))
+                self.check_copy(lambda s:s.replace('  static K70SmmuPlan p;p=k70PlanUfsSmmu(0,4,smmuRead,trace,true);',
+                    '  '+operation+'\n  static K70SmmuPlan p;p=k70PlanUfsSmmu(0,4,smmuRead,trace,true);'))
 
-    def test_configuration_header_and_success_return_are_rejected(self):
+    def test_extra_store_and_missing_write_probe_are_rejected(self):
         with self.assertRaises(ValueError):
-            self.check_copy(lambda s:s.replace('#include "K70SmmuEvidence.h"',
-                '#include "K70SmmuEvidence.h"\n#include "K70Smmu.h"'))
+            self.check_copy(lambda s:s.replace('smmu+o)=v;', 'smmu+o)=v; *reinterpret_cast<volatile uint32_t *>(smmu+o)=v;'))
         with self.assertRaises(ValueError):
-            self.check_copy(lambda s:s.replace('  return false;\n}\n}', '  return true;\n}\n}'))
+            self.check_copy(lambda s:s.replace('k70ReadWriteTranslation(smmu+0xc5000)', 'k70ReadTranslation(smmu+0xc5000)'))
 
 if __name__=='__main__':unittest.main()
