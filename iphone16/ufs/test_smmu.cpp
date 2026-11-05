@@ -5,6 +5,7 @@
 #include <array>
 #include <vector>
 #include <utility>
+#include <cstring>
 #include "K70Smmu.h"
 #include "K70SctlrQualification.h"
 #include "RootTransportLayout.h"
@@ -12,9 +13,14 @@
 static std::array<uint32_t,0xd0000/4> regs;
 static std::vector<std::pair<unsigned,uint32_t>> writes;
 static auto rd=[](unsigned o){assert(o<0xd0000 && !(o&3));return regs.at(o/4);};
-static auto trace=[](const char *,uint64_t){};
+static std::vector<std::pair<const char *,uint64_t>> traces;
+static auto trace=[](const char *s,uint64_t v){traces.emplace_back(s,v);};
+static uint64_t traced(const char *name) {
+    for(auto entry:traces)if(!std::strcmp(entry.first,name))return entry.second;
+    return ~uint64_t(0);
+}
 static void reset() {
-    regs.fill(0);writes.clear();regs[0]=0x2d406;
+    regs.fill(0);writes.clear();traces.clear();regs[0]=0x2d406;
     regs[0x20/4]=0x4c017e69;regs[0x24/4]=0x60000046;regs[0x28/4]=0x5111;
     regs[(0x800+12)/4]=0x80021c00;regs[(0xc00+12)/4]=3;
 }
@@ -27,6 +33,31 @@ int main() {
     assert(writes[0].first==0xc5000 && writes[1].first==0x1914 && writes[2].first==0x1114);
     assert(writes[3].first==0xda0 && writes[4].first==0x9a0);
     assert(regs[0]==0x2d406);
+    // A mode-change mismatch must retain the first exact register/value pair,
+    // stop before CBAR and never publish a route. Do not assume a VA64 write
+    // makes arbitrary changes acceptable.
+    for(unsigned n=0;n<9;++n) {
+        reset();p=plan();
+        auto changedView=[&](unsigned o,uint32_t v){
+            wr(o,v);
+            if(o==0x1914)regs[k70ContextOffset(69,n)/4]^=0x20;
+        };
+        assert(k70ConfigureUfsSmmu(p,rd,changedView,[](){return true;},trace));
+        assert(writes.size()==2 && regs[0x9a0/4]==0);
+        assert(traced("UFS state offset")==k70ContextOffset(69,n));
+        uint32_t expected=n==8?1:0;
+        assert(traced("UFS state expected")==expected);
+        assert(traced("UFS state actual")==uint32_t(expected^0x20));
+        assert(traced("UFS state mask")==0xffffffffU);
+        assert(traced("UFS state space")==2);
+        assert(traced("UFS state phase")==((uint64_t(2)<<32)|(n==8?0x101U:0x302U)));
+    }
+    K70StateFailure first;
+    assert(!first.check(1,7,0x58,0,0x100));
+    assert(!first.check(2,9,0xc5000,0,1));
+    assert(first.space==1 && first.phase==7 && first.offset==0x58 && first.actual==0x100);
+    assert(first.check(1,10,0x30,3,0x10f,3));
+    assert(first.offset==0x58); // Later matching reads and cleanup cannot replace it.
     // The real K70 residual must progress through ALL five writes, and the
     // callback must compare SCTLR against zero after the first write.
     reset();regs[0]=0x250406;regs[0xc5000/4]=0x3fd9a71e;p=plan();

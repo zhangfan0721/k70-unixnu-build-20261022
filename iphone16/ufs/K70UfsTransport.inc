@@ -119,7 +119,7 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;
   static UfsRootDiagnostics first;
   const char *why="capacity/GPT qualification failed";
-  boot_progress_stage("K70 UFS-TAKEOVER01");
+  boot_progress_stage("K70 UFS-TAKEOVER02");
   bool pass=hostBringUp(&why) && k70qualify();
   if(!hostControlHealthy()){pass=false;why=gAccessFailure?gAccessFailure:"MMIO access failure";}
   const char *firstReason=pass?nullptr:why;
@@ -128,19 +128,21 @@ extern "C" void k70_ufs_readonly_qualify(void) {
       recordTransport(gRootDiagnostic.result?gRootDiagnostic.result:kIOReturnError,gRootDiagnostic.ocs);
     first=gRootDiagnostic;
   }
+  K70StateFailure firstState=gStateFailure;
   gHost.ready=false;gHost.poisoned=true;
   gRootDiagnostic.stage="final own list stop";
   const char *endReason="own list stop failed";
   bool stopped=hostEnd(&endReason);
   if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
       (read32(gHost.hc,0x20)&kUfsFatalStatus))) {
-    pass=false;firstReason=endReason;first=gRootDiagnostic;
+    pass=false;firstReason=endReason;first=gRootDiagnostic;firstState=gStateFailure;
   }
   k70_formal_cpu_trace("UFS final list stopped",stopped);
   k70_formal_cpu_trace("UFS takeover qualified",pass);
   if(firstReason) {
     boot_progress_stage("UFS FIRST FAILURE");
     boot_progress_stage(firstReason);boot_progress_stage(first.stage);
+    k70ReportStateFailure(firstState,[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);});
     k70_formal_cpu_trace("UFS first result",first.result);
     k70_formal_cpu_trace("UFS first command/opcode",(uint64_t(first.command)<<32)|first.opcode);
     k70_formal_cpu_trace("UFS first type/LUN",(uint64_t(first.type)<<32)|first.lun);

@@ -69,6 +69,25 @@ static bool hostStartQueue''',1)
     queue=queue.replace('  if (!hostWaitRegister (0x60, 1, 1)', '  if (!hostControlHealthy() || !hostWaitRegister (0x60, 1, 1)',1)
     queue=queue.replace('    *why = "request list address";', '    gHost.poisoned=true;\n    *why = "request list address";')
     queue=queue.replace('    *why = "request list ready";', '    gHost.poisoned=true;\n    *why = "request list ready";')
+    # Retain original predicates/masks; only add first-mismatch evidence.
+    queue=queue.replace('(read32(gHost.hc,0x34)&1)', 'hostState(0x34,1,1)')
+    queue=queue.replace('(read32(gHost.hc,0x30)&15)==15', 'hostState(0x30,15,15)')
+    queue=queue.replace('!read32(gHost.hc,0x58)', 'hostState(0x58,0)')
+    queue=queue.replace('!read32(gHost.hc,0x78)', 'hostState(0x78,0)')
+    queue=queue.replace('!(read32(gHost.hc,0x60)&1)', 'hostState(0x60,0,1)')
+    queue=queue.replace('!(read32(gHost.hc,0x80)&1)', 'hostState(0x80,0,1)')
+    queue=queue.replace('!(read32(gHost.hc,0x20)&kUfsFatalStatus)', 'hostState(0x20,0,kUfsFatalStatus)')
+    queue=queue.replace('!(read32 (gHost.hc, 0x34) & 1)', '!hostState(0x34,1,1)')
+    queue=queue.replace('(read32 (gHost.hc, 0x30) & 0x0f) != 0x0f', '!hostState(0x30,15,15)')
+    queue=queue.replace('read32 (gHost.hc, 0x58) || read32 (gHost.hc, 0x78)', '!hostState(0x58,0) || !hostState(0x78,0)')
+    queue=queue.replace('read32 (gHost.hc, 0x20) & kUfsFatalStatus', '!hostState(0x20,0,kUfsFatalStatus)')
+    queue=queue.replace('(read32(gHost.hc,0x80)&1)', '!hostState(0x80,0,1)')
+    queue=queue.replace('read32(gHost.hc,0x24)!=0', '!hostState(0x24,0)')
+    queue=queue.replace('read32 (gHost.hc, 0x50) != uint32_t (gHost.phys)', '!hostState(0x50,uint32_t(gHost.phys))')
+    queue=queue.replace('read32 (gHost.hc, 0x54) != uint32_t (gHost.phys >> 32)', '!hostState(0x54,uint32_t(gHost.phys>>32))')
+    queue=queue.replace('  do {','  uint32_t actual=0;\n  do {',1)
+    queue=queue.replace('if ((read32 (gHost.hc, offset) & mask) == value)','if (((actual=read32(gHost.hc,offset)) & mask) == value)',1)
+    queue=queue.replace('  return false;\n}','  hostStateValue(offset,value,actual,mask);\n  return false;\n}',1)
     (HERE/'RootQueue.h').write_text(queue)
     commands=commands[:commands.index('// ---- Persistent store and log windows')]
     anchor='(dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;'
@@ -141,7 +160,7 @@ static void write32(uintptr_t,unsigned,uint32_t);
   static bool entered=false;if(entered)return;entered=true;
   static UfsRootDiagnostics first;
   const char *why="capacity/GPT qualification failed";
-  boot_progress_stage("K70 UFS-TAKEOVER01");
+  boot_progress_stage("K70 UFS-TAKEOVER02");
   bool pass=hostBringUp(&why) && k70qualify();
   if(!hostControlHealthy()){pass=false;why=gAccessFailure?gAccessFailure:"MMIO access failure";}
   const char *firstReason=pass?nullptr:why;
@@ -150,19 +169,21 @@ static void write32(uintptr_t,unsigned,uint32_t);
       recordTransport(gRootDiagnostic.result?gRootDiagnostic.result:kIOReturnError,gRootDiagnostic.ocs);
     first=gRootDiagnostic;
   }
+  K70StateFailure firstState=gStateFailure;
   gHost.ready=false;gHost.poisoned=true;
   gRootDiagnostic.stage="final own list stop";
   const char *endReason="own list stop failed";
   bool stopped=hostEnd(&endReason);
   if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
       (read32(gHost.hc,0x20)&kUfsFatalStatus))) {
-    pass=false;firstReason=endReason;first=gRootDiagnostic;
+    pass=false;firstReason=endReason;first=gRootDiagnostic;firstState=gStateFailure;
   }
   k70_formal_cpu_trace("UFS final list stopped",stopped);
   k70_formal_cpu_trace("UFS takeover qualified",pass);
   if(firstReason) {
     boot_progress_stage("UFS FIRST FAILURE");
     boot_progress_stage(firstReason);boot_progress_stage(first.stage);
+    k70ReportStateFailure(firstState,[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);});
     k70_formal_cpu_trace("UFS first result",first.result);
     k70_formal_cpu_trace("UFS first command/opcode",(uint64_t(first.command)<<32)|first.opcode);
     k70_formal_cpu_trace("UFS first type/LUN",(uint64_t(first.type)<<32)|first.lun);

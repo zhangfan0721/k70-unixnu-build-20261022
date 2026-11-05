@@ -1,6 +1,28 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 #pragma once
 #include "SmmuTakeover.h"
+// One fixed first-mismatch record for the existing takeover diagnostics.
+// Space: 1=HC, 2=SMMU, 3=software state. No allocation or hardware action.
+struct K70StateFailure {
+    bool present=false;
+    uint32_t space=0,offset=0,expected=0,actual=0,mask=0;
+    uint64_t phase=0;
+    bool check(unsigned s,uint64_t p,unsigned o,uint32_t want,uint32_t got,
+               uint32_t bits=0xffffffffU) {
+        if((got&bits)==want)return true;
+        if(!present) {
+            present=true;space=s;phase=p;offset=o;expected=want;actual=got;mask=bits;
+        }
+        return false;
+    }
+};
+template<class Trace>
+static void k70ReportStateFailure(const K70StateFailure &f,Trace trace) {
+    if(!f.present)return;
+    trace("UFS state space",f.space);trace("UFS state phase",f.phase);
+    trace("UFS state offset",f.offset);trace("UFS state expected",f.expected);
+    trace("UFS state actual",f.actual);trace("UFS state mask",f.mask);
+}
 // K70 UFS02 IDs + Xiaomi bsp-vermeer-t-oss kalama/apps-SMMU geometry.
 // One new route only. No reuse/fallback, global mode changes or other streams.
 struct K70SmmuPlan {
@@ -78,20 +100,31 @@ static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace tr
     p.error=nullptr;return p;
 }
 template<class Read>
-static bool k70SmmuSnapshotSame(const K70SmmuPlan &p,Read read) {
-    if(p.error || read(0)!=p.cr0 || read(0x20)!=0x4c017e69 ||
-       read(0x24)!=0x60000046 || read(0x28)!=0x5111)return false;
+static bool k70SmmuSnapshotSame(const K70SmmuPlan &p,Read read,
+                              K70StateFailure *detail=nullptr,uint64_t phase=0) {
+    K70StateFailure local;auto &f=detail?*detail:local;
+    auto same=[&](unsigned o,uint32_t want){return f.check(2,phase,o,want,read(o));};
+    if(p.error || !same(0,p.cr0) || !same(0x20,0x4c017e69) ||
+       !same(0x24,0x60000046) || !same(0x28,0x5111))return false;
     for(unsigned i=0;i<105;++i)
-        if(read(0x800+4*i)!=p.smr[i] || read(0xc00+4*i)!=p.s2cr[i])return false;
+        if(!same(0x800+4*i,p.smr[i]) || !same(0xc00+4*i,p.s2cr[i]))return false;
     for(unsigned i=0;i<9;++i)
-        if(read(k70ContextOffset(p.upstream.bank,i))!=p.context[i])return false;
+        if(!same(k70ContextOffset(p.upstream.bank,i),p.context[i]))return false;
     return true;
 }
 template<class Read,class Write,class Idle,class Trace>
-[[maybe_unused]] static const char *k70ConfigureUfsSmmu(const K70SmmuPlan &p,Read read,Write write,Idle idle,Trace trace) {
+[[maybe_unused]] static const char *k70ConfigureUfsSmmu(const K70SmmuPlan &p,Read read,Write write,Idle idle,Trace trace,
+                                                     K70StateFailure *detail=nullptr) {
+    K70StateFailure local;auto &f=detail?*detail:local;
+    uint64_t phase=uint64_t(2)<<32; // HC Configuring, low word=seen mask/write index.
+    auto same=[&](unsigned o,uint32_t want){
+        bool ok=f.check(2,phase,o,want,read(o));
+        if(!ok && !detail)k70ReportStateFailure(f,trace);
+        return ok;
+    };
     if(p.error)return p.error;
     if(p.sctlrQualification)return "K70 qualification cannot configure a route";
-    if(!idle() || !k70SmmuSnapshotSame(p,read))return "K70 ownership/queue changed before SMMU";
+    if(!idle() || !k70SmmuSnapshotSame(p,read,&f,phase))return "K70 ownership/queue changed before SMMU";
     unsigned cb=0x80000+4096*p.upstream.bank;
     unsigned allowed[]={cb,0x1800+4*p.upstream.bank,0x1000+4*p.upstream.bank,
                         0xc00+4*p.upstream.slot,0x800+4*p.upstream.slot};
@@ -102,10 +135,11 @@ template<class Read,class Write,class Idle,class Trace>
     const char *result=configureUfsSmmu(p.upstream,0x60,read,[&](unsigned offset,uint32_t value) {
         if(failed)return;
         unsigned i=0;while(i<5 && offset!=allowed[i])++i;
+        phase=(uint64_t(2)<<32)|(seen<<8)|i;
         if(i==5 || value!=expected[i] || (seen&(1U<<i))) {reject("K70 SMMU write outside plan");return;}
-        if(!idle() || read(0)!=p.cr0) {reject("K70 queue/global state changed before write");return;}
-        if(read(0x800+4*p.upstream.slot)!=((seen&16)?0x80000060U:p.smr[p.upstream.slot]) ||
-           read(0xc00+4*p.upstream.slot)!=((seen&8)?p.upstream.bank:p.s2cr[p.upstream.slot])) {
+        if(!idle() || !same(0,p.cr0)) {reject("K70 queue/global state changed before write");return;}
+        if(!same(0x800+4*p.upstream.slot,(seen&16)?0x80000060U:p.smr[p.upstream.slot]) ||
+           !same(0xc00+4*p.upstream.slot,(seen&8)?p.upstream.bank:p.s2cr[p.upstream.slot])) {
             reject("K70 selected route changed before write");return;
         }
         for(unsigned j=0;j<9;++j) {
@@ -113,30 +147,37 @@ template<class Read,class Write,class Idle,class Trace>
             if(j==0 && (seen&1))want=0;
             if(j==7 && (seen&4))want=0x10000;
             if(j==8 && (seen&2))want=1;
-            if(read(k70ContextOffset(p.upstream.bank,j))!=want){reject("K70 context phase changed before write");return;}
+            // VA64 changes the TCR/TTBR interpretation. Without a measured
+            // mismatching word, retain exact checks; do not invent a mask or
+            // adopt a new snapshot as the expected state after mode changes.
+            if(!same(k70ContextOffset(p.upstream.bank,j),want)){reject("K70 context phase changed before write");return;}
         }
         // Detect concurrent ownership changes to ALL other stream groups.
         for(unsigned j=0;j<105;++j)if(j!=p.upstream.slot &&
-            (read(0x800+4*j)!=p.smr[j] || read(0xc00+4*j)!=p.s2cr[j])) {reject("K70 other route changed before write");return;}
+            (!same(0x800+4*j,p.smr[j]) || !same(0xc00+4*j,p.s2cr[j]))) {reject("K70 other route changed before write");return;}
         trace("UFS SMMU write offset/value",(uint64_t(offset)<<32)|value);
         seen|=1U<<i;write(offset,value);
         uint32_t actual=read(offset);
         trace("UFS SMMU readback offset/value",(uint64_t(offset)<<32)|actual);
-        if(actual!=value)reject("K70 SMMU full-value readback failed");
+        if(!f.check(2,phase,offset,value,actual)) {
+            if(!detail)k70ReportStateFailure(f,trace);
+            reject("K70 SMMU full-value readback failed");
+        }
     });
     if(result)trace(result,0); // Preserve the upstream error before wrapping.
     if(failed)return firstFailure;
     if(result)return result;
-    if(!idle() || read(0)!=p.cr0)return "K70 queue/global state changed after SMMU";
+    phase=(uint64_t(2)<<32)|(seen<<8)|5;
+    if(!idle() || !same(0,p.cr0))return "K70 queue/global state changed after SMMU";
     for(unsigned i=0;i<105;++i)if(i!=p.upstream.slot &&
-        (read(0x800+4*i)!=p.smr[i] || read(0xc00+4*i)!=p.s2cr[i]))
+        (!same(0x800+4*i,p.smr[i]) || !same(0xc00+4*i,p.s2cr[i])))
         return "K70 other route changed after SMMU";
-    if(read(0x800+4*p.upstream.slot)!=0x80000060U ||
-       read(0xc00+4*p.upstream.slot)!=p.upstream.bank)
+    if(!same(0x800+4*p.upstream.slot,0x80000060U) ||
+       !same(0xc00+4*p.upstream.slot,p.upstream.bank))
         return "K70 selected route changed after SMMU";
     for(unsigned i=0;i<9;++i) {
         uint32_t want=i==7?0x10000U:i==8?1U:0U;
-        if(read(k70ContextOffset(p.upstream.bank,i))!=want)
+        if(!same(k70ContextOffset(p.upstream.bank,i),want))
             return "K70 selected context changed after SMMU";
     }
     trace("UFS SMMU route configured",1);return nullptr;

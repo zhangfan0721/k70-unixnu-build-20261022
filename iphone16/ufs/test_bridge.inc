@@ -28,6 +28,13 @@ static Callback callback;
 // 4: monotonic microseconds; 5: delay microseconds. Callbacks must not throw.
 static uint32_t read32(uintptr_t, unsigned offset) { return uint32_t(callback(0,offset,0,nullptr)); }
 static void hostWrite(unsigned offset, uint32_t value) { callback(1,offset,value,nullptr); }
+static bool hostStateValue(unsigned,uint32_t expected,uint32_t actual,uint32_t mask=0xffffffffU) {
+  return (actual&mask)==expected;
+}
+static bool hostState(unsigned offset,uint32_t expected,uint32_t mask=0xffffffffU) {
+  return hostStateValue(offset,expected,read32(gHost.hc,offset),mask);
+}
+
 static void cacheCivac(const void *start, size_t length) {
   callback(2,gHost.phys+uint64_t(static_cast<const uint8_t *>(start)-memory),length,const_cast<void *>(start));
 }

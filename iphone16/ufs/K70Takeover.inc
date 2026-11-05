@@ -17,7 +17,7 @@ static bool hostEnd(const char **why) {
     if(!hostControlHealthy() || !hostWaitRegister(0x60,1,0)) {
         *why="own list stop not confirmed; DMA retained";return false;
     }
-    if(read32(gHost.hc,0x58) || read32(gHost.hc,0x78) || !hcIdentity(true)) {
+    if(!hostState(0x58,0) || !hostState(0x78,0) || !hcIdentity(true)) {
         *why="own list stopped with outstanding/changed state; DMA retained";return false;
     }
     gPhase=K70HostPhase::Ended;
@@ -37,8 +37,8 @@ static bool hostBringUp(const char **why) {
     gRootDiagnostic.version=read32(gHost.hc,8);
     gExpectedList[0]=read32(gHost.hc,0x50);gExpectedList[1]=read32(gHost.hc,0x54);
     hostSnapshot("UFS takeover initial");
-    if(!hostControlHealthy() || !hcIdentity() || (read32(gHost.hc,0x30)&15)!=15 ||
-       read32(gHost.hc,0x58)) {*why="initial HC ownership/ready/doorbell";return false;}
+    if(!hostControlHealthy() || !hcIdentity() || !hostState(0x30,15,15) ||
+       !hostState(0x58,0)) {*why="initial HC ownership/ready/doorbell";return false;}
     gRootDiagnostic.stage="DMA allocation";
     gHost.dma=IOBufferMemoryDescriptor::inTaskWithOptions(kernel_task,
         static_cast<IOOptionBits>(kIODirectionInOut)|static_cast<IOOptionBits>(kIOMemoryPhysicallyContiguous)|
@@ -60,18 +60,18 @@ static bool hostBringUp(const char **why) {
     if(gSmmuPlan.error || !hostControlHealthy()) {
         *why=gSmmuPlan.error?gSmmuPlan.error:"SMMU read mapping";return false;
     }
-    if(!preflightWriteAccess() || !hcIdentity() || !k70SmmuSnapshotSame(gSmmuPlan,rd)) {
+    if(!preflightWriteAccess() || !hcIdentity() || !k70SmmuSnapshotSame(gSmmuPlan,rd,&gStateFailure,uint64_t(gPhase)<<32)) {
         *why="write permission/initial snapshot changed";return false;
     }
     gPhase=K70HostPhase::Stopping;gRootDiagnostic.stage="stop firmware list";
     if(!hostStopQueue(why))return false;
     hostSnapshot("UFS firmware list stopped");
-    if(!hostQueueIdleStopped() || !hcIdentity() || !k70SmmuSnapshotSame(gSmmuPlan,rd) ||
+    if(!hostQueueIdleStopped() || !hcIdentity() || !k70SmmuSnapshotSame(gSmmuPlan,rd,&gStateFailure,uint64_t(gPhase)<<32) ||
        !hostControlHealthy()) {*why="post-stop ownership changed";return false;}
     gPhase=K70HostPhase::Configuring;gRootDiagnostic.stage="SMMU configuration";
     const char *error=k70ConfigureUfsSmmu(gSmmuPlan,rd,
         [](unsigned o,uint32_t v){write32(gHost.smmu,o,v);},
-        [](){return hostControlHealthy() && hcIdentity() && hostQueueIdleStopped();},trace);
+        [](){return hostControlHealthy() && hcIdentity() && hostQueueIdleStopped();},trace,&gStateFailure);
     if(error || !hostControlHealthy()) {*why=error?error:"SMMU MMIO refusal";return false;}
     gRouteConfigured=true;gHost.cb=gHost.smmu+0xc5000;
     gRootDiagnostic.smmuSlot=gSmmuPlan.upstream.slot;
