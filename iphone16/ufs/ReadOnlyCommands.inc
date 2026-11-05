@@ -37,6 +37,10 @@ static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t tim
   if (!timeoutUs || dataBytes > kDataMax || (dataBytes & 3) ||
       (dataBytes ? (direction != 1 && direction != 2) : direction != 0)) return kIOReturnBadArgument;
   if (gHost.poisoned) return kIOReturnNotReady;
+  if(!hostTransportOwned()){
+    gHost.poisoned=true;gHost.ready=false;
+    return recordTransport(kIOReturnNotReady,*ocs);
+  }
   if (read32 (gHost.hc, 0x58) != 0) {
     gHost.poisoned = true;
     gHost.ready = false;
@@ -82,10 +86,16 @@ static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t tim
     gHost.poisoned=true;gHost.ready=false;return kIOReturnBadArgument;
   }
   cacheCivac (gHost.virt, kDataOffset + dataBytes);
+  if(!hostTransportOwned()){
+    gHost.poisoned=true;gHost.ready=false;return recordTransport(kIOReturnNotReady,*ocs);
+  }
   hostWrite (0x20, 1);  // Acknowledge completion only; preserve error evidence.
   HardwareTransferPort port;
   clock_interval_to_deadline (timeoutUs, kMicrosecondScale, &port.deadline);
   hostWrite (0x58, 1);
+  if(!hostControlHealthy()){
+    gHost.poisoned=true;gHost.ready=false;return recordTransport(kIOReturnNotReady,*ocs);
+  }
   UfsTransferPoll state;
   UfsTransferEnd end = pollUfsTransfer (port, state);
   gRootDiagnostic.polls = state.polls;
@@ -107,6 +117,10 @@ static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t tim
 static bool hostClearUcd (void)
 {
   if (gHost.poisoned) return false;
+  if(!hostTransportOwned()){
+    gHost.poisoned=true;gHost.ready=false;
+    recordTransport(kIOReturnNotReady,15);return false;
+  }
   // Check before touching the command/response area, not just before ringing.
   if (read32 (gHost.hc, 0x58) != 0) {
     gHost.poisoned = true;
@@ -172,7 +186,7 @@ static IOReturn hostScsiDir (uint8_t lun, const uint8_t *cdb, unsigned cdbLength
   *scsiStatus = 0xffff;
   if (!cdb || !cdbLength || cdbLength > 16 || dataBytes > kDataMax || direction > 2 ||
       (dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;
-  if (!K70UfsPolicy::command(lun,cdb,cdbLength,direction,dataBytes)) return kIOReturnNotPermitted;
+  if (!gWake.permit(lun,cdb,cdbLength,direction,dataBytes)) return kIOReturnNotPermitted;
   if (!hostClearUcd ()) return kIOReturnNotReady;
   uint8_t *ucd = gHost.virt + kUcdOffset;
   ucd[0] = 0x01;                      // COMMAND UPIU
@@ -219,6 +233,7 @@ static IOReturn hostScsi (uint8_t lun, const uint8_t *cdb, unsigned cdbLength, b
 static IOReturn hostQueryRead (uint8_t opcode, uint8_t idn, uint32_t *value)
 {
   if (!value || (opcode != 3 && opcode != 5)) return kIOReturnBadArgument;
+  if(opcode!=3 || idn!=2)return kIOReturnNotPermitted;
   if (!hostClearUcd ()) return kIOReturnNotReady;
   uint8_t *ucd = gHost.virt + kUcdOffset;
   ucd[0] = 0x16;                      // QUERY REQUEST

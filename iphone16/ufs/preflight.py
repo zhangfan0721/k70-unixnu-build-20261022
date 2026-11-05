@@ -53,6 +53,10 @@ def main():
     records.append({'name':'mapping-ios16-object','command':command,'passed':True,
                     'DAIF_PAR_AT_instructions_verified':True,
                     'sha256':hashlib.sha256(obj.read_bytes()).hexdigest()})
+    from compile_takeover import compile_body
+    command=compile_body(a.cxx,(a.out/'takeover-ios16').resolve())
+    records.append({'name':'actual-takeover-ios16-body','command':command,'passed':True,
+                    'external_SDK_declarations_only':True,'hardware_executed':False})
     subprocess.run([sys.executable,'-B',str(HERE/'test_mapping_scope.py')],check=True)
     subprocess.run([sys.executable,'-B',str(HERE/'check_inputs.py')],check=True)
     (a.out/'result.json').write_text(json.dumps({'compiler':version,'records':records,

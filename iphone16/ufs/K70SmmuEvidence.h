@@ -59,7 +59,7 @@ static inline uint64_t k70ReadWriteTranslation(uint64_t va) {
 }
 
 template<class Translate, class Read>
-static K70MapWord k70ReadMappedWord(uint64_t va, uint64_t pa, uint64_t bytes,
+[[maybe_unused]] static K70MapWord k70ReadMappedWord(uint64_t va, uint64_t pa, uint64_t bytes,
                                   unsigned offset, Translate translate, Read read) {
     K70MapWord w;w.offset=offset;
     const uint64_t max=~uint64_t(0);
@@ -87,7 +87,7 @@ static K70MapWord k70ReadMappedWord(uint64_t va, uint64_t pa, uint64_t bytes,
 }
 
 template<class Translate, class Read>
-static K70EvidenceStatus k70CollectSmmuEvidence(K70SmmuEvidence &e, uint64_t mapped,
+[[maybe_unused]] static K70EvidenceStatus k70CollectSmmuEvidence(K70SmmuEvidence &e, uint64_t mapped,
                                   Translate translate, Read read) {
     const unsigned offsets[]={0,0x20,0x24,0x28,0xc5000,0xc5020,0xc5024,
                               0xc5028,0xc502c,0xc5030,0xc5058,0x1114,0x1914};
@@ -128,7 +128,7 @@ static K70EvidenceStatus k70CollectSmmuEvidence(K70SmmuEvidence &e, uint64_t map
 }
 
 template<class Trace>
-static void k70TraceMapWord(const K70MapWord &w, Trace trace) {
+[[maybe_unused]] static void k70TraceMapWord(const K70MapWord &w, Trace trace) {
     trace("UFS map offset",w.offset);trace("UFS map VA",w.va);
     trace("UFS map expected PA",w.expectedPa);trace("UFS map actual PA",w.actualPa);
     trace("UFS map PAR",w.par);
@@ -139,7 +139,7 @@ static void k70TraceMapWord(const K70MapWord &w, Trace trace) {
 }
 
 template<class Trace>
-static void k70TraceSmmuEvidence(const K70SmmuEvidence &e, Trace trace) {
+[[maybe_unused]] static void k70TraceSmmuEvidence(const K70SmmuEvidence &e, Trace trace) {
     // Formatting uses retained raw values; it never rereads a device register.
     trace("UFS evidence status",uint64_t(e.status));
     if(e.status==K70EvidenceStatus::NotCollected)return;

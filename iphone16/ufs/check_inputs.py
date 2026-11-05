@@ -21,35 +21,47 @@ def check():
                  'native_ufs_log_','native_ufs_export_','verified_root','hostStoreOpen','hostLogOpen'):
         if word in code:raise ValueError('Forbidden compiled implementation: '+word)
     commands=(HERE/'ReadOnlyCommands.inc').read_text()
-    if commands.count('K70UfsPolicy::command(lun,cdb,cdbLength,direction,dataBytes)')!=1:
-        raise ValueError('Missing SCSI policy gate')
+    if commands.count('gWake.permit(lun,cdb,cdbLength,direction,dataBytes)')!=1:
+        raise ValueError('Missing stateless and one-shot SCSI command policy')
     if commands.count('if (direction == 1) return kIOReturnNotPermitted;')!=1:
         raise ValueError('Missing data-out rejection at submit boundary')
-    if 'hostScsi (0xd0' in code:raise ValueError('Unexpected power-state command')
-    transport=compiled['K70UfsTransport.inc']
-    if 'ReadOnlyCommands.inc' in compiled or 'RootQueue.h' in compiled or 'Qualification.inc' in compiled:
-        raise ValueError('Qualification compiles UFS command/queue/DMA code')
-    for word in ('hostWrite','hostStopQueue','hostStartQueue','hostScsi','hostNop','write32','read32',
-                 'IOBufferMemoryDescriptor','IOLockAlloc','k70qualify'):
-        if word in transport:raise ValueError('Unexpected transport operation: '+word)
-    if transport.count('*reinterpret_cast<volatile uint32_t *>(smmu+o)=v;')!=1:
-        raise ValueError('SCTLR store boundary changed')
-    if transport.count('mapPhys(')!=2 or 'mapPhys(0x1d84000,0x3000,hcMap)' not in transport:
-        raise ValueError('Map scope changed')
-    if 'k70ReadWriteTranslation(smmu+0xc5000)' not in transport:
-        raise ValueError('Missing write permission qualification')
-    qualify=compiled['K70SctlrQualification.h']
-    for required in ('offset!=0xc5000','value!=0','wrote || rejected',
-                     'k70SmmuSnapshotSame(p,read)','},true)'):
-        if required not in qualify:raise ValueError('Missing single-write gate: '+required)
-    upstream=compiled['SmmuTakeover.h']
-    if 'if (disableOnly) return nullptr;' not in upstream:
-        raise ValueError('Missing upstream disable-only stop')
-    if 'bool pass=hostBringUp' in transport or 'k70CollectSmmuEvidence' in transport:
-        raise ValueError('Stale diagnostic entry')
-    return {'scope':'single bank69 SCTLR zero/writeback qualification; no UFS transport','storage_writes':False,
-            'smmu_configuration_writes':True,'controller_takeover':False,
-            'smmu_write_scope':'one 32-bit store PA0x150c5000 value0; no other SMMU or HC writes',
+    if commands.count('hostTransportOwned()')!=3:
+        raise ValueError('Missing ownership gate before buffer/descriptor/doorbell use')
+    if 'if(opcode!=3 || idn!=2)return kIOReturnNotPermitted;' not in commands:
+        raise ValueError('Query range changed')
+    required={'K70HostIO.h','K70Takeover.inc','K70Smmu.h','SmmuTakeover.h',
+              'RootQueue.h','ReadOnlyCommands.inc','Qualification.inc'}
+    if not required<=compiled.keys() or 'K70SctlrQualification.h' in compiled:
+        raise ValueError('Integrated include set changed')
+    transport=compiled['K70UfsTransport.inc'];takeover=compiled['K70Takeover.inc']
+    io=compiled['K70HostIO.h']
+    if transport.count('k70_ufs_readonly_qualify(void)')!=1 or 'if(entered)return;entered=true;' not in transport:
+        raise ValueError('Missing exclusive one-shot entry')
+    stores=re.findall(r'\*reinterpret_cast<volatile uint32_t \*>\s*\([^;]+?\)\s*=',code)
+    if len(stores)!=1 or io.count('*reinterpret_cast<volatile uint32_t *>(base+offset)=value;')!=1:
+        raise ValueError('Raw MMIO store escaped the checked boundary')
+    if '*reinterpret_cast<volatile uint32_t *>' in transport or '*reinterpret_cast<volatile uint32_t *>' in takeover:
+        raise ValueError('Direct MMIO outside checked IO')
+    if 'k70ReadWriteTranslation(va)' not in io or 'translationOK(base+offset,pa,true)' not in io:
+        raise ValueError('Missing per-write permission/PA/attribute validation')
+    for required in ('configuredIdentity()', 'hcIdentity(', 'listIdentity()', 'K70HostPhase::Ending',
+                     'K70HostPhase::Transport', 'K70HostPhase::Configuring'):
+        if required not in io:raise ValueError('Missing phased write gate: '+required)
+    offsets=set(int(x,16) for x in re.findall(r'hostWrite\s*\(\s*(0x[0-9a-f]+)',code))
+    if offsets!={0x20,0x24,0x50,0x54,0x58,0x60}:raise ValueError('Controller write-set changed')
+    if takeover.count('hostScsi(0xd0,cdb,6,false,0,500000,&scsi)')!=1:
+        raise ValueError('ACTIVE wake call scope changed')
+    for word in ('attempt <','attempt<','IOSleep','while (','while('):
+        if word in takeover:raise ValueError('Unexpected retry/wait loop in integrated entry')
+    if 'gWake.observe(power)' not in takeover or 'if(gWake.needed())' not in takeover:
+        raise ValueError('Wake is not bound to a successful power query')
+    if 'hostWrite(0x60,0)' not in takeover or 'gCleanupAttempted=true' not in takeover:
+        raise ValueError('Missing bounded terminal stop')
+    return {'scope':'one integrated UFS takeover, optional single ACTIVE wake, capacity/GPT/four hashes',
+            'storage_writes':False,'smmu_configuration_writes':True,'controller_takeover':True,
+            'smmu_write_scope':'bank69 SCTLR0/CBA2R1/CBAR0x10000; one new SID0x60 route; readback at every step',
+            'hc_write_offsets':[hex(o) for o in sorted(offsets)],'wake_once_if_power_requires':True,
+            'command_retries':False,'root_published':False,
             'hardware_dma_isolation':False,'persistent_log':False,
             'root_authentication_changed':False,'hardware_tested':False,
             'compiled_files':sorted(compiled),

@@ -56,7 +56,7 @@
     "context69_observed": false,
     "SMMU_write_behavior_verified": false
   },
-  "ownership_contract": "Candidate must inspect context69 at runtime BEFORE any SMMU write. No valid reference, SCTLR/TTBR0/TTBR1/TCR/FSR zero; CBAR reset0 or exact firmware-cleanup0x100ff; CBA2R0/1. Unknown/live state refuses. This is conditional nonsecure ownership evidence, not proof of invisible firmware ownership.",
+  "ownership_contract": "Inspect-before-write; all105 routes stable, no masked/duplicate SID0x60 or bank69 reference, display slot3 retained, cleared tables/TCR/FSR. Accept zero SCTLR or exact MAP01/SCTLR01 residual0x3fd9a71e with CR0x250406/CBAR0/CBA2R0. Actively stop idle transfer list before configuring; full-value readback required.",
   "firmware_cleanup": "Kailua PlatformInitialize -> ArmSmmuDetach. ArmSmmuFreeContextBank clears TTBR0/TTBR1/TCR/FSR, may set CBAR type1 VMID255 (0x100ff). Existing firmware unchanged; no pre-SEC snapshot proves initial UFS route existed.",
   "reuse": {
     "repository": "UniXNU/ShengUfs",
@@ -87,5 +87,29 @@
     "global_CR0_write": false,
     "storage_media_write": false
   },
-  "failure": "No retries. Refuse before writes when plan/queue/snapshot fails. Partial configuration/readback error quarantines transport and retains DMA; no queue start, rollback or further commands. Manual reboot required for another candidate, separately authorized."
+  "failure": "No retries. Refuse before writes when plan/queue/snapshot fails. Partial configuration/readback error quarantines transport and retains DMA; no queue start, rollback or further commands. Manual reboot required for another candidate, separately authorized.",
+  "integrated_takeover": {
+    "upstream": "af785c1777161a62931425c2faaa536ce0bebd5b",
+    "start_snapshot": "SCTLR01: HCE1 HCS0x10f DB0 TMDB0 UTRLRSR1 UTMRLRSR0 IS0x400; no SCTLR write executed",
+    "hc_write_offsets": [
+      "0x20=1 completion ack only",
+      "0x24=0 interrupt mask",
+      "0x50/0x54=owned DMA list",
+      "0x58=1 one slot doorbell",
+      "0x60=0/1/0 stopped/configured/active/terminal"
+    ],
+    "commands": [
+      "NOP once",
+      "READ ATTRIBUTE3/2 once",
+      "optional exact ACTIVE0xd0/1b0000001000 once iff queried power22/33",
+      "LUN0 TUR once",
+      "LUN0 READ CAPACITY10 once",
+      "four bounded GPT READ10 ranges"
+    ],
+    "retries": false,
+    "media_writes": false,
+    "rollback": false,
+    "DMA_retained_until_reboot": true,
+    "hardware_tested": false
+  }
 }

@@ -1,9 +1,25 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
-// Generated: one SCTLR disable qualification, never a UFS transport.
+// Derived from UniXNU/ShengUfs af785c1777161a62931425c2faaa536ce0bebd5b.
+// Integrated one-shot UFS takeover and bounded read qualification.
 #include <IOKit/IODeviceMemory.h>
+#include <IOKit/IOMemoryDescriptor.h>
+#include <IOKit/IOBufferMemoryDescriptor.h>
+#include <libkern/crypto/sha2.h>
+extern "C" {
+#include <kern/clock.h>
+#include <vm/vm_kern.h>
+}
+#include "ReadOnlyPolicy.h"
+#include "GccUfs.h"
 #include "K70SmmuEvidence.h"
-#include "K70SctlrQualification.h"
+#include "K70Smmu.h"
 namespace {
+#include "RootDiagnostics.h"
+#include "TransferPoll.h"
+static UfsRootDiagnostics gRootDiagnostic;
+static bool gRootDiagnosticEnabled=true;
+static uint32_t read32(uintptr_t,unsigned);
+static void write32(uintptr_t,unsigned,uint32_t);
 static uintptr_t mapPhys (uint64_t phys, uint64_t length, OSSharedPtr<IOMemoryMap> &keep)
 {
   IODeviceMemory *memory = IODeviceMemory::withRange (phys, length);
@@ -15,52 +31,133 @@ static uintptr_t mapPhys (uint64_t phys, uint64_t length, OSSharedPtr<IOMemoryMa
   return keep ? static_cast<uintptr_t> (keep->getVirtualAddress ()) : 0;
 }
 
+}
+namespace {
+#include "RootTransportLayout.h"
+#include "K70Dma.h"
 
-static OSSharedPtr<IOMemoryMap> smmuMap,hcMap;
-static uintptr_t smmu,hc;
-static bool mapFault=false,consumed=false;
-static uint32_t checkedRead(uintptr_t base,uint64_t pa,uint64_t bytes,unsigned offset) {
-  auto word=k70ReadMappedWord(base,pa,bytes,offset,k70ReadTranslation,
-      [&](unsigned o){return *reinterpret_cast<volatile uint32_t *>(base+o);});
-  if(word.failure!=K70MapFailure::None || word.attr!=0 ||
-     word.shareability!=2 || word.nonSecure!=1)mapFault=true;
-  return word.value;
-}
-static uint32_t smmuRead(unsigned o){return checkedRead(smmu,0x15000000,0xd0000,o);}
-static bool queueIdle() {
-  const unsigned offsets[]={0x34,0x30,0x58,0x78,0x60,0x80,0x20};
-  uint32_t r[7];
-  for(unsigned i=0;i<7;++i) {
-    r[i]=checkedRead(hc,0x1d84000,0x3000,offsets[i]);
-    k70_formal_cpu_trace("SCTLR HC offset/value",(uint64_t(offsets[i])<<32)|r[i]);
+struct UfsHost {
+  OSSharedPtr<IOMemoryMap> hcMap, smmuMap;
+  uintptr_t hc;
+  IOBufferMemoryDescriptor *dma;
+  uint8_t *virt;
+  uint64_t phys;
+  IOLock *lock;
+  bool ready;
+  bool poisoned = false;
+  uintptr_t smmu = 0, cb = 0;
+};
+UfsHost gHost = { OSSharedPtr<IOMemoryMap> (), OSSharedPtr<IOMemoryMap> (), 0, nullptr, nullptr, 0, nullptr, false };
+
+#include "K70HostIO.h"
+
+static IOReturn recordTransport (IOReturn result, uint32_t ocs)
+{
+  gRootDiagnostic.result = static_cast<uint32_t> (result);
+  gRootDiagnostic.ocs = ocs;
+  if (result != kIOReturnSuccess && gRootDiagnosticEnabled) {
+    // Read only the already mapped HC's status/registers used by this driver.
+    gRootDiagnostic.hcs = read32 (gHost.hc, 0x30);
+    gRootDiagnostic.hce = read32 (gHost.hc, 0x34);
+    gRootDiagnostic.doorbell = read32 (gHost.hc, 0x58);
+    gRootDiagnostic.interrupt = read32 (gHost.hc, 0x20);
+    gRootDiagnostic.list = uint64_t (read32 (gHost.hc, 0x50)) |
+                          (uint64_t (read32 (gHost.hc, 0x54)) << 32);
+    gRootDiagnostic.runStop = read32 (gHost.hc, 0x60);
+    gRootDiagnostic.ahit = read32 (gHost.hc, 0x18);
+    for (unsigned i = 0; i < 5; ++i) gRootDiagnostic.uic[i] = read32 (gHost.hc, 0x38 + 4 * i);
+    if (gHost.smmu && gHost.cb) {
+      gRootDiagnostic.gfsr = read32 (gHost.smmu, 0x48);
+      gRootDiagnostic.gsyn = read32 (gHost.smmu, 0x54);
+      gRootDiagnostic.fsr = read32 (gHost.cb, 0x58);
+      gRootDiagnostic.fsyn = read32 (gHost.cb, 0x68);
+      gRootDiagnostic.far = uint64_t (read32 (gHost.cb, 0x60)) |
+                            (uint64_t (read32 (gHost.cb, 0x64)) << 32);
+    }
   }
-  return !mapFault && (r[0]&1) && (r[1]&15)==15 && !r[2] && !r[3] &&
-      !(r[4]&1) && !(r[5]&1) && !(r[6]&0x71880U);
+  return result;
 }
-static bool writePermission() {
-  uint64_t par=k70ReadWriteTranslation(smmu+0xc5000);
-  k70_formal_cpu_trace("SCTLR write PAR",par);
-  return !(par&1) && (par&0x000ffffffffff000ULL)==0x150c5000 &&
-      uint8_t(par>>56)==0 && ((par>>7)&3)==2 && ((par>>9)&1)==1;
+
+static void cacheCivac (const void *start, size_t length)
+{
+  uintptr_t address = reinterpret_cast<uintptr_t> (start) & ~uintptr_t (63);
+  uintptr_t end = reinterpret_cast<uintptr_t> (start) + length;
+  for (; address < end; address += 64) {
+    __asm__ volatile ("dc civac, %0" :: "r" (address) : "memory");
+  }
+  __asm__ volatile ("dsb sy" ::: "memory");
 }
+
+// Device-owned cache lines must not be written back over DMA results. All
+// callers use complete 64-byte lines from the dedicated page-aligned buffer.
+static void cacheInvalidate (const void *start, size_t length)
+{
+  __asm__ volatile ("dsb sy" ::: "memory");
+  uintptr_t address = reinterpret_cast<uintptr_t> (start);
+  for (uintptr_t end = address + length; address < end; address += 64) {
+    __asm__ volatile ("dc ivac, %0" :: "r" (address) : "memory");
+  }
+  __asm__ volatile ("dsb sy" ::: "memory");
+}
+
+static void hostWrite (unsigned offset, uint32_t value)
+{
+  __asm__ volatile ("dsb sy" ::: "memory");
+  write32 (gHost.hc, offset, value);
+  __asm__ volatile ("dsb sy" ::: "memory");
+}
+
+#include "RootQueue.h"
+
+#include "ReadOnlyCommands.inc"
+
+
+#include "K70Takeover.inc"
+#include "Qualification.inc"
 }
 extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;
-  boot_progress_stage("K70 SCTLR01 qualification only");
-  smmu=mapPhys(0x15000000,0xd0000,smmuMap);
-  hc=mapPhys(0x1d84000,0x3000,hcMap);
-  if(!smmu || !hc){boot_progress_stage("SCTLR map refused");return;}
-  auto trace=[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);};
-  static K70SmmuPlan p;p=k70PlanUfsSmmu(0,4,smmuRead,trace,true);
-  if(mapFault || p.error){boot_progress_stage(mapFault?"SCTLR read mapping refused":p.error);return;}
-  const char *error=k70QualifySctlr(p,consumed,smmuRead,
-      [&](unsigned o,uint32_t v) {
-        // Only this store is compiled; barriers complete before upstream readback.
-        *reinterpret_cast<volatile uint32_t *>(smmu+o)=v;
-        __asm__ volatile("dsb sy" ::: "memory");
-      },[](){return queueIdle() && writePermission();},trace);
-  trace("SCTLR readback",smmuRead(0xc5000));
-  trace("SCTLR map fault",mapFault);
-  boot_progress_stage(error?error:mapFault?"SCTLR post-read mapping refused":"SCTLR qualification passed; STOP");
-  // Always terminal for this diagnostic entry: no route, HC writes or DMA.
+  static UfsRootDiagnostics first;
+  const char *why="capacity/GPT qualification failed";
+  boot_progress_stage("K70 UFS-TAKEOVER01");
+  bool pass=hostBringUp(&why) && k70qualify();
+  if(!hostControlHealthy()){pass=false;why=gAccessFailure?gAccessFailure:"MMIO access failure";}
+  const char *firstReason=pass?nullptr:why;
+  if(!pass) {
+    if(gHost.hc && hostControlHealthy())
+      recordTransport(gRootDiagnostic.result?gRootDiagnostic.result:kIOReturnError,gRootDiagnostic.ocs);
+    first=gRootDiagnostic;
+  }
+  gHost.ready=false;gHost.poisoned=true;
+  gRootDiagnostic.stage="final own list stop";
+  const char *endReason="own list stop failed";
+  bool stopped=hostEnd(&endReason);
+  if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
+      (read32(gHost.hc,0x20)&kUfsFatalStatus))) {
+    pass=false;firstReason=endReason;first=gRootDiagnostic;
+  }
+  k70_formal_cpu_trace("UFS final list stopped",stopped);
+  k70_formal_cpu_trace("UFS takeover qualified",pass);
+  if(firstReason) {
+    boot_progress_stage("UFS FIRST FAILURE");
+    boot_progress_stage(firstReason);boot_progress_stage(first.stage);
+    k70_formal_cpu_trace("UFS first result",first.result);
+    k70_formal_cpu_trace("UFS first command/opcode",(uint64_t(first.command)<<32)|first.opcode);
+    k70_formal_cpu_trace("UFS first type/LUN",(uint64_t(first.type)<<32)|first.lun);
+    k70_formal_cpu_trace("UFS first OCS/response",(uint64_t(first.ocs)<<32)|first.response);
+    k70_formal_cpu_trace("UFS first SCSI/sense",(uint64_t(first.scsi)<<32)|first.sense);
+    k70_formal_cpu_trace("UFS first protocol/residual",(uint64_t(first.protocol)<<32)|first.residual);
+    k70_formal_cpu_trace("UFS first IS/HCS",(uint64_t(first.interrupt)<<32)|first.hcs);
+    k70_formal_cpu_trace("UFS first DB/RSR",(uint64_t(first.doorbell)<<32)|first.runStop);
+    k70_formal_cpu_trace("UFS first DMA",first.dma);
+    k70_formal_cpu_trace("UFS first list",first.list);
+    k70_formal_cpu_trace("UFS first global/CB fault",(uint64_t(first.gfsr)<<32)|first.fsr);
+    k70_formal_cpu_trace("UFS first fault address",first.far);
+    for(unsigned i=0;i<5;++i)
+      k70_formal_cpu_trace("UFS first UIC index/value",(uint64_t(i)<<32)|first.uic[i]);
+  }
+  if(!stopped)boot_progress_stage(endReason);
+  k70_formal_cpu_trace("UFS map/write fault",(uint64_t(gMapFault)<<32)|gWriteFault);
+  boot_progress_stage(pass?"UFS READ QUALIFIED; STOP":"UFS TAKEOVER STOP; no retry");
+  // DMA/list/route remain retained until reboot. No rollback or publication.
 }

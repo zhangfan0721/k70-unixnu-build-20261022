@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 #pragma once
-#pragma once
 #include "SmmuTakeover.h"
 // K70 UFS02 IDs + Xiaomi bsp-vermeer-t-oss kalama/apps-SMMU geometry.
 // One new route only. No reuse/fallback, global mode changes or other streams.
@@ -58,13 +57,17 @@ static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace tr
         p.context[i]=read(offset);
         trace("UFS context offset/value",(uint64_t(offset)<<32)|p.context[i]);
     }
-    // Qualification accepts only the exact MAP01 residual SCTLR profile.
-    // The ordinary full-route planner retains its original zero requirement.
+    // Both integrated takeover and the preserved SCTLR-only qualification
+    // accept the exact MAP01/SCTLR01 residual profile, not arbitrary M=0 data.
     if(sctlrQualification && (p.cr0!=0x250406 || p.context[0]!=0x3fd9a71e ||
                              p.context[7]!=0 || p.context[8]!=0)) {
         p.error="K70 qualification handoff profile changed";return p;
     }
-    for(unsigned i=sctlrQualification?1:0;i<7;++i)if(p.context[i]) {
+    if(p.context[0] && (p.context[0]!=0x3fd9a71e || p.cr0!=0x250406 ||
+                       p.context[7]!=0 || p.context[8]!=0)) {
+        p.error="K70 unexpected SCTLR residual profile";return p;
+    }
+    for(unsigned i=1;i<7;++i)if(p.context[i]) {
         p.error="K70 context not cleared/inactive";return p;
     }
     // 0: unused reset state. 0x100ff: exact ArmSmmuFreeContextBank cleanup
@@ -94,28 +97,35 @@ template<class Read,class Write,class Idle,class Trace>
                         0xc00+4*p.upstream.slot,0x800+4*p.upstream.slot};
     uint32_t expected[]={0,1,0x10000,p.upstream.bank,0x80000060};
     unsigned seen=0;bool failed=false;
+    const char *firstFailure=nullptr;
+    auto reject=[&](const char *reason){failed=true;if(!firstFailure)firstFailure=reason;};
     const char *result=configureUfsSmmu(p.upstream,0x60,read,[&](unsigned offset,uint32_t value) {
         if(failed)return;
         unsigned i=0;while(i<5 && offset!=allowed[i])++i;
-        if(i==5 || value!=expected[i] || (seen&(1U<<i)) || !idle() || read(0)!=p.cr0) {failed=true;return;}
+        if(i==5 || value!=expected[i] || (seen&(1U<<i))) {reject("K70 SMMU write outside plan");return;}
+        if(!idle() || read(0)!=p.cr0) {reject("K70 queue/global state changed before write");return;}
         if(read(0x800+4*p.upstream.slot)!=((seen&16)?0x80000060U:p.smr[p.upstream.slot]) ||
            read(0xc00+4*p.upstream.slot)!=((seen&8)?p.upstream.bank:p.s2cr[p.upstream.slot])) {
-            failed=true;return;
+            reject("K70 selected route changed before write");return;
         }
         for(unsigned j=0;j<9;++j) {
             uint32_t want=p.context[j];
+            if(j==0 && (seen&1))want=0;
             if(j==7 && (seen&4))want=0x10000;
             if(j==8 && (seen&2))want=1;
-            if(read(k70ContextOffset(p.upstream.bank,j))!=want){failed=true;return;}
+            if(read(k70ContextOffset(p.upstream.bank,j))!=want){reject("K70 context phase changed before write");return;}
         }
         // Detect concurrent ownership changes to ALL other stream groups.
         for(unsigned j=0;j<105;++j)if(j!=p.upstream.slot &&
-            (read(0x800+4*j)!=p.smr[j] || read(0xc00+4*j)!=p.s2cr[j])) {failed=true;return;}
+            (read(0x800+4*j)!=p.smr[j] || read(0xc00+4*j)!=p.s2cr[j])) {reject("K70 other route changed before write");return;}
         trace("UFS SMMU write offset/value",(uint64_t(offset)<<32)|value);
         seen|=1U<<i;write(offset,value);
-        if(read(offset)!=value)failed=true;
+        uint32_t actual=read(offset);
+        trace("UFS SMMU readback offset/value",(uint64_t(offset)<<32)|actual);
+        if(actual!=value)reject("K70 SMMU full-value readback failed");
     });
-    if(failed)return "K70 SMMU bounded write/readback/ownership";
+    if(result)trace(result,0); // Preserve the upstream error before wrapping.
+    if(failed)return firstFailure;
     if(result)return result;
     if(!idle() || read(0)!=p.cr0)return "K70 queue/global state changed after SMMU";
     for(unsigned i=0;i<105;++i)if(i!=p.upstream.slot &&

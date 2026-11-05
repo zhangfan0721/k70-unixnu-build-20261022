@@ -27,6 +27,17 @@ int main() {
     assert(writes[0].first==0xc5000 && writes[1].first==0x1914 && writes[2].first==0x1114);
     assert(writes[3].first==0xda0 && writes[4].first==0x9a0);
     assert(regs[0]==0x2d406);
+    // The real K70 residual must progress through ALL five writes, and the
+    // callback must compare SCTLR against zero after the first write.
+    reset();regs[0]=0x250406;regs[0xc5000/4]=0x3fd9a71e;p=plan();
+    assert(!p.error && !k70ConfigureUfsSmmu(p,rd,wr,[](){return true;},trace));
+    assert(writes.size()==5 && regs[0xc5000/4]==0 && regs[0x9a0/4]==0x80000060);
+    for(unsigned bit=0;bit<32;++bit) {
+        reset();regs[0]=0x250406;regs[0xc5000/4]=0x3fd9a71e;
+        p=plan();auto bad=[&](unsigned o,uint32_t v){writes.emplace_back(o,v);regs[o/4]=v|(1U<<bit);};
+        assert(k70ConfigureUfsSmmu(p,rd,bad,[](){return true;},trace));
+        assert(writes.size()==1 && !(regs[0x9a0/4]&0x80000000));
+    }
     for(unsigned n=0;n<9;++n) {
         reset();regs[k70ContextOffset(69,n)/4]=n==7?0x10000:n==8?2:1;
         assert(plan().error && writes.empty());

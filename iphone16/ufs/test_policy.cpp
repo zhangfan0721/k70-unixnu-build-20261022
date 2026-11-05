@@ -17,6 +17,20 @@ extern "C" unsigned k70_ufs_policy_test() {
  expect(!K70UfsPolicy::range(~0ULL,2));expect(!K70UfsPolicy::range(0,~0U));
  expect(K70UfsPolicy::range(0,6));expect(K70UfsPolicy::range(K70UfsPolicy::blocks-5,5));
  expect(!K70UfsPolicy::range(5,2));expect(!K70UfsPolicy::range(K70UfsPolicy::blocks-1,2));
+ unsigned char wake[6]={0x1b,0,0,0,0x10,0};
+ expect(K70UfsPolicy::command(0xd0,wake,6,0,0));
+ for(unsigned byte=0;byte<6;++byte)for(unsigned bit=0;bit<8;++bit) {
+   wake[byte]^=1U<<bit;expect(!K70UfsPolicy::command(0xd0,wake,6,0,0));wake[byte]^=1U<<bit;
+ }
+ K70UfsPolicy::Wake gate;
+ expect(!gate.permit(0xd0,wake,6,0,0));expect(!gate.observe(0));
+ expect(gate.observe(0x11) && !gate.needed());expect(!gate.permit(0xd0,wake,6,0,0));
+ const unsigned powerModes[]={0x22U,0x33U};
+ for(unsigned mode:powerModes) {
+   gate=K70UfsPolicy::Wake{};expect(gate.observe(mode) && gate.needed());
+   expect(gate.permit(0xd0,wake,6,0,0));expect(!gate.permit(0xd0,wake,6,0,0));
+   expect(!gate.observe(mode));
+ }
  return errors;
 }
 static unsigned regs[0x90000/4];

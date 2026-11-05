@@ -80,6 +80,15 @@ static void assertQuarantined()
 int main()
 {
   reset(); assert(ufs_test_nop()==0);
+  reset();transportOwned=false;
+  assert(ufs_test_nop()!=0 && writes==0 && releases==0);assertQuarantined();
+  reset();uint8_t active[6]={0x1b,0,0,0,0x10,0};uint32_t wakeScsi=0;
+  assert(ufs_test_scsi(0xd0,active,6,false,0,&wakeScsi)!=0 && writes==0);
+  assert(gWake.observe(0x22));
+  assert(ufs_test_scsi(0xd0,active,6,false,0,&wakeScsi)==0);
+  auto wakeWrites=writes;
+  assert(ufs_test_scsi(0xd0,active,6,false,0,&wakeScsi)!=0 && writes==wakeWrites);
+  reset();assert(ufs_test_nop()==0);
   uint32_t value=0; assert(ufs_test_query(3,2,&value)==0 && value==0x11);
   std::array<uint8_t,16384> out;
   assert(ufs_test_read(0,2,4,out.data())==0);

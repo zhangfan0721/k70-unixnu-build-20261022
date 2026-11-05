@@ -1,7 +1,7 @@
 """Derive the shared read-only transport from the immutable nuwa UFS input.
 
 Only queue/transport/DMA handling is retained. No block publication, persistent
-store, log, cache export, root authentication, legacy probe or SMMU setter.
+store, log, cache export, root authentication change or legacy probe.
 """
 from pathlib import Path
 import hashlib
@@ -37,25 +37,43 @@ def generate(source):
   return (read32(gHost.hc,0x34)&1) && (read32(gHost.hc,0x30)&15)==15 &&
          !read32(gHost.hc,0x58) && !read32(gHost.hc,0x78) &&
          !(read32(gHost.hc,0x60)&1) && !(read32(gHost.hc,0x80)&1) &&
-         !(read32(gHost.hc,0x20)&kUfsFatalStatus);
+         !(read32(gHost.hc,0x20)&kUfsFatalStatus) && hostControlHealthy();
 }
 static bool hostStopQueue''',1)
-    queue=queue.replace('  hostWrite (0x24, 0);','''  if(read32(gHost.hc,0x80)&1) {
-    *why="firmware task list still enabled";return false;
+    queue=queue.replace('  hostWrite (0x24, 0);','''  if(!hostControlHealthy() || (read32(gHost.hc,0x80)&1)) {
+    *why="task list enabled or MMIO unhealthy";return false;
   }
-  hostWrite (0x24, 0);''',1)
+  hostWrite (0x24, 0);
+  if(!hostControlHealthy() || read32(gHost.hc,0x24)!=0) {
+    *why="interrupt mask readback";return false;
+  }''',1)
+    queue=queue.replace('  if (!hostWaitRegister (0x60, 1, 0))',
+        '  if (!hostControlHealthy() || !hostWaitRegister (0x60, 1, 0))',1)
+    anchor='  return true;\n}\n\nstatic bool hostStartQueue'
+    queue=queue.replace(anchor,'''  if(!hostQueueIdleStopped()){*why="post-stop queue changed";return false;}
+  return true;
+}
+
+static bool hostStartQueue''',1)
     queue=queue.replace('  hostWrite (0x50,', '''  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
   if(!hostQueueIdleStopped() || !k70DmaAllocation(gHost.phys,kDmaBytes,limit)) {
     *why="queue/DMA changed before start";return false;
   }
   hostWrite (0x50,''',1)
+    queue=queue.replace('  hostWrite (0x54,', '''  if(!hostControlHealthy()){*why="UTRL low address write";return false;}
+  hostWrite (0x54,''',1)
+    queue=queue.replace('  if (read32 (gHost.hc, 0x50)', '  if (!hostControlHealthy() || read32 (gHost.hc, 0x50)',1)
+    queue=queue.replace('hostWrite (0x20, gRootDiagnostic.isBefore);','hostWrite (0x20, 1);')
+    queue=queue.replace('  hostWrite (0x60, 1);','''  if(!hostControlHealthy()){*why="status acknowledgement";return false;}
+  hostWrite (0x60, 1);''',1)
+    queue=queue.replace('  if (!hostWaitRegister (0x60, 1, 1)', '  if (!hostControlHealthy() || !hostWaitRegister (0x60, 1, 1)',1)
     queue=queue.replace('    *why = "request list address";', '    gHost.poisoned=true;\n    *why = "request list address";')
     queue=queue.replace('    *why = "request list ready";', '    gHost.poisoned=true;\n    *why = "request list ready";')
     (HERE/'RootQueue.h').write_text(queue)
     commands=commands[:commands.index('// ---- Persistent store and log windows')]
     anchor='(dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;'
     assert commands.count(anchor)==1
-    commands=commands.replace(anchor,anchor+'\n  if (!K70UfsPolicy::command(lun,cdb,cdbLength,direction,dataBytes)) return kIOReturnNotPermitted;')
+    commands=commands.replace(anchor,anchor+'\n  if (!gWake.permit(lun,cdb,cdbLength,direction,dataBytes)) return kIOReturnNotPermitted;')
     commands=commands.replace('  *ocs = 15;','  *ocs = 15;\n  if (direction == 1) return kIOReturnNotPermitted;',1)
     commands=commands.replace('  cacheCivac (gHost.virt, kDataOffset + dataBytes);','''  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
   if(!k70DmaDescriptors(gHost.phys,limit,direction,dataBytes,words,
@@ -65,44 +83,40 @@ static bool hostStopQueue''',1)
   cacheCivac (gHost.virt, kDataOffset + dataBytes);''',1)
     commands=commands.replace('Callers other than hostWrite4k never pass direction 1.',
         'Direction 1 is forbidden by the candidate policy and submit gate.')
+    commands=commands.replace('  if (gHost.poisoned) return kIOReturnNotReady;',
+        '''  if (gHost.poisoned) return kIOReturnNotReady;
+  if(!hostTransportOwned()){
+    gHost.poisoned=true;gHost.ready=false;
+    return recordTransport(kIOReturnNotReady,*ocs);
+  }''',1)
+    commands=commands.replace('  if (gHost.poisoned) return false;',
+        '''  if (gHost.poisoned) return false;
+  if(!hostTransportOwned()){
+    gHost.poisoned=true;gHost.ready=false;
+    recordTransport(kIOReturnNotReady,15);return false;
+  }''',1)
+    commands=commands.replace('  hostWrite (0x20, 1);','''  if(!hostTransportOwned()){
+    gHost.poisoned=true;gHost.ready=false;return recordTransport(kIOReturnNotReady,*ocs);
+  }
+  hostWrite (0x20, 1);''',1)
+    commands=commands.replace('  UfsTransferPoll state;','''  if(!hostControlHealthy()){
+    gHost.poisoned=true;gHost.ready=false;return recordTransport(kIOReturnNotReady,*ocs);
+  }
+  UfsTransferPoll state;''',1)
+    commands=commands.replace('  if (!value || (opcode != 3 && opcode != 5)) return kIOReturnBadArgument;',
+        '''  if (!value || (opcode != 3 && opcode != 5)) return kIOReturnBadArgument;
+  if(opcode!=3 || idn!=2)return kIOReturnNotPermitted;''',1)
     (HERE/'ReadOnlyCommands.inc').write_text(commands.rstrip()+'\n')
     mapping=main[main.index('static uintptr_t mapPhys'):main.index('void NativeUfs::inspect')]
-    body=main[main.index('namespace {\n#include "RootTransportLayout.h"'):main.index('namespace {\nstatic uint32_t be32w')]
+    body=main[main.index('namespace {\n#include "RootTransportLayout.h"'):main.index('// Bring the live controller up')]
     body=body.replace('#include "RootCommands.h"','#include "ReadOnlyCommands.inc"')
     body=body.replace('#include "RootTransportLayout.h"','#include "RootTransportLayout.h"\n#include "K70Dma.h"',1)
-    a=body.index('// Bring the live controller up')
-    # Keep the reusable command/queue implementation, but this diagnostic
-    # candidate only observes the existing SMMU map. No HC/GCC access, DMA
-    # allocation, queue takeover, planning or configuration is executed.
-    body=body[:a]+'''// Fixed, retained raw snapshot; formatting starts after all MMIO reads.
-static K70SmmuEvidence gSmmuEvidence;
-static bool hostBringUp (const char **why)
-{
-  gRootDiagnostic.stage = "K70 SMMU mapped read-only evidence";
-  gHost.smmu=mapPhys(0x15000000ULL,0xd0000,gHost.smmuMap);
-  if(!gHost.smmu){*why="K70 SMMU map";return false;}
-  k70CollectSmmuEvidence(gSmmuEvidence,gHost.smmu,k70ReadTranslation,
-      [](unsigned o){return read32(gHost.smmu,o);});
-  auto trace=[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);};
-  k70TraceSmmuEvidence(gSmmuEvidence,trace);
-  // Unconditional stop: never derive a permissive ownership decision from
-  // these words, and never enter hostStopQueue/configure/hostStartQueue.
-  gRootDiagnostic.stage = "K70 SMMU evidence diagnostic stop";
-  *why="K70 SMMU evidence diagnostic stop";
-  return false;
-}
-}
-
-'''
-    body=body.replace('#include "RootQueue.h"','''[[maybe_unused]] static bool hostStopQueue(const char **);
-[[maybe_unused]] static bool hostStartQueue(const char **);
-#include "RootQueue.h"''',1)
-    body=body.replace('#include "ReadOnlyCommands.inc"','''[[maybe_unused]] static IOReturn hostNop(void);
-[[maybe_unused]] static IOReturn hostQueryRead(uint8_t,uint8_t,uint32_t *);
-#include "ReadOnlyCommands.inc"''',1)
+    anchor='static IOReturn recordTransport'
+    body=body.replace(anchor,'#include "K70HostIO.h"\n\n'+anchor,1)
+    body+='\n#include "K70Takeover.inc"\n#include "Qualification.inc"\n}\n'
     prefix='''// SPDX-License-Identifier: BSD-2-Clause-Patent
 // Derived from UniXNU/ShengUfs af785c1777161a62931425c2faaa536ce0bebd5b.
-// Generated by generate.py; diagnostic entry stops after mapped SMMU evidence.
+// Integrated one-shot UFS takeover and bounded read qualification.
 #include <IOKit/IODeviceMemory.h>
 #include <IOKit/IOMemoryDescriptor.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
@@ -112,93 +126,65 @@ extern "C" {
 #include <vm/vm_kern.h>
 }
 #include "ReadOnlyPolicy.h"
+#include "GccUfs.h"
 #include "K70SmmuEvidence.h"
+#include "K70Smmu.h"
 namespace {
 #include "RootDiagnostics.h"
 #include "TransferPoll.h"
 static UfsRootDiagnostics gRootDiagnostic;
 static bool gRootDiagnosticEnabled=true;
-static uint32_t read32(uintptr_t b,unsigned o) {return *reinterpret_cast<volatile uint32_t *>(b+o);}
-static void write32(uintptr_t b,unsigned o,uint32_t v) {*reinterpret_cast<volatile uint32_t *>(b+o)=v;}
+static uint32_t read32(uintptr_t,unsigned);
+static void write32(uintptr_t,unsigned,uint32_t);
 '''+mapping+'}\n'
-    tail='''namespace {
-#include "Qualification.inc"
-}
-extern "C" void k70_ufs_readonly_qualify(void) {
- static bool entered=false;if(entered)return;entered=true;
- const char *why="capacity/GPT verification failed";
- boot_progress_stage("K70 formal UFS read-only transport enter");
- bool pass=hostBringUp(&why) && k70qualify();
- k70_formal_cpu_trace("UFS transport qualification",pass);
- if(pass)boot_progress_stage("UFS GPT passed; compare recorded SHA with local contract");
- else {
-  boot_progress_stage(why);boot_progress_stage(gRootDiagnostic.stage);
-  k70_formal_cpu_trace("UFS native result",gRootDiagnostic.result);
-  k70_formal_cpu_trace("UFS command opcode",gRootDiagnostic.opcode);
-  k70_formal_cpu_trace("UFS protocol reject",gRootDiagnostic.protocol);
-  k70_formal_cpu_trace("UFS SCSI status",gRootDiagnostic.scsi);
-  k70_formal_cpu_trace("UFS OCS",gRootDiagnostic.ocs);
-  k70_formal_cpu_trace("UFS fault address",gRootDiagnostic.far);
- }
-}
-'''
-    # This candidate compiles no UFS queue, command, DMA or route publisher.
-    runtime='''// SPDX-License-Identifier: BSD-2-Clause-Patent
-// Generated: one SCTLR disable qualification, never a UFS transport.
-#include <IOKit/IODeviceMemory.h>
-#include "K70SmmuEvidence.h"
-#include "K70SctlrQualification.h"
-namespace {
-'''+mapping+'''
-static OSSharedPtr<IOMemoryMap> smmuMap,hcMap;
-static uintptr_t smmu,hc;
-static bool mapFault=false,consumed=false;
-static uint32_t checkedRead(uintptr_t base,uint64_t pa,uint64_t bytes,unsigned offset) {
-  auto word=k70ReadMappedWord(base,pa,bytes,offset,k70ReadTranslation,
-      [&](unsigned o){return *reinterpret_cast<volatile uint32_t *>(base+o);});
-  if(word.failure!=K70MapFailure::None || word.attr!=0 ||
-     word.shareability!=2 || word.nonSecure!=1)mapFault=true;
-  return word.value;
-}
-static uint32_t smmuRead(unsigned o){return checkedRead(smmu,0x15000000,0xd0000,o);}
-static bool queueIdle() {
-  const unsigned offsets[]={0x34,0x30,0x58,0x78,0x60,0x80,0x20};
-  uint32_t r[7];
-  for(unsigned i=0;i<7;++i) {
-    r[i]=checkedRead(hc,0x1d84000,0x3000,offsets[i]);
-    k70_formal_cpu_trace("SCTLR HC offset/value",(uint64_t(offsets[i])<<32)|r[i]);
-  }
-  return !mapFault && (r[0]&1) && (r[1]&15)==15 && !r[2] && !r[3] &&
-      !(r[4]&1) && !(r[5]&1) && !(r[6]&0x71880U);
-}
-static bool writePermission() {
-  uint64_t par=k70ReadWriteTranslation(smmu+0xc5000);
-  k70_formal_cpu_trace("SCTLR write PAR",par);
-  return !(par&1) && (par&0x000ffffffffff000ULL)==0x150c5000 &&
-      uint8_t(par>>56)==0 && ((par>>7)&3)==2 && ((par>>9)&1)==1;
-}
-}
-extern "C" void k70_ufs_readonly_qualify(void) {
+    tail='''extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;
-  boot_progress_stage("K70 SCTLR01 qualification only");
-  smmu=mapPhys(0x15000000,0xd0000,smmuMap);
-  hc=mapPhys(0x1d84000,0x3000,hcMap);
-  if(!smmu || !hc){boot_progress_stage("SCTLR map refused");return;}
-  auto trace=[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);};
-  static K70SmmuPlan p;p=k70PlanUfsSmmu(0,4,smmuRead,trace,true);
-  if(mapFault || p.error){boot_progress_stage(mapFault?"SCTLR read mapping refused":p.error);return;}
-  const char *error=k70QualifySctlr(p,consumed,smmuRead,
-      [&](unsigned o,uint32_t v) {
-        // Only this store is compiled; barriers complete before upstream readback.
-        *reinterpret_cast<volatile uint32_t *>(smmu+o)=v;
-        __asm__ volatile("dsb sy" ::: "memory");
-      },[](){return queueIdle() && writePermission();},trace);
-  trace("SCTLR readback",smmuRead(0xc5000));
-  trace("SCTLR map fault",mapFault);
-  boot_progress_stage(error?error:mapFault?"SCTLR post-read mapping refused":"SCTLR qualification passed; STOP");
-  // Always terminal for this diagnostic entry: no route, HC writes or DMA.
+  static UfsRootDiagnostics first;
+  const char *why="capacity/GPT qualification failed";
+  boot_progress_stage("K70 UFS-TAKEOVER01");
+  bool pass=hostBringUp(&why) && k70qualify();
+  if(!hostControlHealthy()){pass=false;why=gAccessFailure?gAccessFailure:"MMIO access failure";}
+  const char *firstReason=pass?nullptr:why;
+  if(!pass) {
+    if(gHost.hc && hostControlHealthy())
+      recordTransport(gRootDiagnostic.result?gRootDiagnostic.result:kIOReturnError,gRootDiagnostic.ocs);
+    first=gRootDiagnostic;
+  }
+  gHost.ready=false;gHost.poisoned=true;
+  gRootDiagnostic.stage="final own list stop";
+  const char *endReason="own list stop failed";
+  bool stopped=hostEnd(&endReason);
+  if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
+      (read32(gHost.hc,0x20)&kUfsFatalStatus))) {
+    pass=false;firstReason=endReason;first=gRootDiagnostic;
+  }
+  k70_formal_cpu_trace("UFS final list stopped",stopped);
+  k70_formal_cpu_trace("UFS takeover qualified",pass);
+  if(firstReason) {
+    boot_progress_stage("UFS FIRST FAILURE");
+    boot_progress_stage(firstReason);boot_progress_stage(first.stage);
+    k70_formal_cpu_trace("UFS first result",first.result);
+    k70_formal_cpu_trace("UFS first command/opcode",(uint64_t(first.command)<<32)|first.opcode);
+    k70_formal_cpu_trace("UFS first type/LUN",(uint64_t(first.type)<<32)|first.lun);
+    k70_formal_cpu_trace("UFS first OCS/response",(uint64_t(first.ocs)<<32)|first.response);
+    k70_formal_cpu_trace("UFS first SCSI/sense",(uint64_t(first.scsi)<<32)|first.sense);
+    k70_formal_cpu_trace("UFS first protocol/residual",(uint64_t(first.protocol)<<32)|first.residual);
+    k70_formal_cpu_trace("UFS first IS/HCS",(uint64_t(first.interrupt)<<32)|first.hcs);
+    k70_formal_cpu_trace("UFS first DB/RSR",(uint64_t(first.doorbell)<<32)|first.runStop);
+    k70_formal_cpu_trace("UFS first DMA",first.dma);
+    k70_formal_cpu_trace("UFS first list",first.list);
+    k70_formal_cpu_trace("UFS first global/CB fault",(uint64_t(first.gfsr)<<32)|first.fsr);
+    k70_formal_cpu_trace("UFS first fault address",first.far);
+    for(unsigned i=0;i<5;++i)
+      k70_formal_cpu_trace("UFS first UIC index/value",(uint64_t(i)<<32)|first.uic[i]);
+  }
+  if(!stopped)boot_progress_stage(endReason);
+  k70_formal_cpu_trace("UFS map/write fault",(uint64_t(gMapFault)<<32)|gWriteFault);
+  boot_progress_stage(pass?"UFS READ QUALIFIED; STOP":"UFS TAKEOVER STOP; no retry");
+  // DMA/list/route remain retained until reboot. No rollback or publication.
 }
 '''
+    runtime=prefix+body+tail
     (HERE/'K70UfsTransport.inc').write_text(runtime)
     forbidden=('hostWrite4k','hostSyncCache','smmuBypassStream','native_ufs_store_',
                'native_ufs_log_','native_ufs_export_','verified_root','hostStoreOpen','hostLogOpen')

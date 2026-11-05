@@ -18,6 +18,9 @@ constexpr unsigned kMillisecondScale=1000;
 static UfsRootDiagnostics gRootDiagnostic;
 struct Host { uint8_t *virt; uint64_t phys; bool ready, poisoned; uintptr_t hc; void *lock; };
 static Host gHost;
+static bool controlHealthy=true,transportOwned=true;
+static bool hostControlHealthy(){return controlHealthy;}
+static bool hostTransportOwned(){return transportOwned;}
 alignas(4096) static uint8_t memory[kDmaBytes];
 using Callback = uint64_t (*)(unsigned operation, uint64_t address, uint64_t value, void *bytes);
 static Callback callback;
@@ -42,11 +45,13 @@ static IOReturn recordTransport(IOReturn result,uint32_t ocs) {
   gRootDiagnostic.result=result; gRootDiagnostic.ocs=ocs; return result;
 }
 #include "ReadOnlyPolicy.h"
+static K70UfsPolicy::Wake gWake;
 #include "ReadOnlyCommands.inc"
 #include "RootQueue.h"
 extern "C" {
 void ufs_test_reset(Callback cb, uint64_t physical) {
   callback=cb; memset(memory,0,sizeof(memory));
+  controlHealthy=transportOwned=true;gWake=K70UfsPolicy::Wake{};
   gHost={memory,physical,true,false,0,nullptr}; gRootDiagnostic=UfsRootDiagnostics{};
 }
 uint8_t *ufs_test_memory() { return memory; }

@@ -23,12 +23,14 @@ static void k70hash(const char *label,const uint8_t *p,unsigned size) {
  k70_formal_cpu_trace(names[i],v);}
 }
 static bool k70qualify() {
+ gRootDiagnostic.stage="READ CAPACITY";
  uint8_t cap[8],cdb[10]={0x25};uint32_t scsi=0;
  IOReturn r=hostScsi(0,cdb,10,true,8,1000000,&scsi);
  if(r!=kIOReturnSuccess)return false;
  memcpy(cap,gHost.virt+kDataOffset,8);
  k70_formal_cpu_trace("UFS last LBA",loadBe32(cap));
  k70_formal_cpu_trace("UFS block bytes",loadBe32(cap+4));
+ gRootDiagnostic.stage="capacity geometry";
  if(loadBe32(cap)!=K70UfsPolicy::blocks-1||loadBe32(cap+4)!=4096)return false;
  struct Region {uint64_t lba;unsigned count;uint8_t *out;const char *label;};
  Region ranges[]={{0,2,k70Gpt[0],"UFS SHA primary MBR/header"},
@@ -36,17 +38,20 @@ static bool k70qualify() {
  {K70UfsPolicy::blocks-5,4,k70Gpt[1]+8192,"UFS SHA backup entries"},
  {K70UfsPolicy::blocks-1,1,k70Gpt[1],"UFS SHA backup header"}};
  for(auto &v:ranges){
+  gRootDiagnostic.stage=v.label;gRootDiagnostic.lba=v.lba;
   k70_formal_cpu_trace("UFS read LBA",v.lba);
   if(hostRead4k(0,v.lba,v.count,v.out)!=kIOReturnSuccess)return false;
   k70hash(v.label,v.out,v.count*4096);
  }
  const uint8_t *a=k70Gpt[0]+4096,*b=k70Gpt[1];
+ gRootDiagnostic.stage="GPT header/CRC validation";
  if(!k70header(a,1,K70UfsPolicy::blocks-1,2)||
     !k70header(b,K70UfsPolicy::blocks-1,1,K70UfsPolicy::blocks-5)||
     memcmp(a+40,b+40,32)||memcmp(k70Gpt[0]+8192,k70Gpt[1]+8192,16384)||
     k70crc(k70Gpt[0]+8192,16384)!=k70le32(a+88)||k70le32(a+88)!=k70le32(b+88))return false;
  // Validate every occupied entry and pairwise disjointness in the usable range.
  uint64_t first=k70le64(a+40),last=k70le64(a+48);
+ gRootDiagnostic.stage="GPT entry boundaries/disjointness";
  if(first<6||first>last||last>=K70UfsPolicy::blocks-5)return false;
  unsigned used=0;
  for(unsigned i=0;i<128;++i){const uint8_t *e=k70Gpt[0]+8192+128*i;
