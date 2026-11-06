@@ -119,7 +119,7 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;
   static UfsRootDiagnostics first;
   const char *why="capacity/GPT qualification failed";
-  boot_progress_stage("K70 UFS-TAKEOVER04");
+  boot_progress_stage("K70 UFS-TAKEOVER05");
   bool pass=hostBringUp(&why) && k70qualify();
   if(!hostControlHealthy()){pass=false;why=gAccessFailure?gAccessFailure:"MMIO access failure";}
   const char *firstReason=pass?nullptr:why;
@@ -129,8 +129,10 @@ extern "C" void k70_ufs_readonly_qualify(void) {
     first=gRootDiagnostic;
   }
   K70StateFailure firstState=gStateFailure;
+  K70WaitRecord firstWait=gK70Wait;
   gHost.ready=false;gHost.poisoned=true;
   gRootDiagnostic.stage="final own list stop";
+  boot_progress_stage("UFS final stop enter");
   const char *endReason="own list stop failed";
   bool stopped=hostEnd(&endReason);
   if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
@@ -143,6 +145,7 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   if(firstReason) {
     boot_progress_stage("UFS FIRST FAILURE");
     boot_progress_stage(firstReason);boot_progress_stage(first.stage);
+    hostWaitTrace("UFS first wait",firstWait);
     k70ReportStateFailure(firstState,[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);});
     k70_formal_cpu_trace("UFS first result",first.result);
     k70_formal_cpu_trace("UFS first command/opcode",(uint64_t(first.command)<<32)|first.opcode);
@@ -159,7 +162,7 @@ extern "C" void k70_ufs_readonly_qualify(void) {
     for(unsigned i=0;i<5;++i)
       k70_formal_cpu_trace("UFS first UIC index/value",(uint64_t(i)<<32)|first.uic[i]);
   }
-  if(!stopped)boot_progress_stage(endReason);
+  if(!stopped){boot_progress_stage(endReason);hostWaitTrace("UFS stop wait");}
   k70_formal_cpu_trace("UFS map/write fault",(uint64_t(gMapFault)<<32)|gWriteFault);
   boot_progress_stage(pass?"UFS READ QUALIFIED; STOP":"UFS TAKEOVER STOP; no retry");
   // DMA/list/route remain retained until reboot. No rollback or publication.

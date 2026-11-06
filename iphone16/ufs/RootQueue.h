@@ -7,7 +7,7 @@ static bool hostWaitRegister (unsigned offset, uint32_t mask, uint32_t value)
   uint32_t actual=0;
   do {
     if (((actual=read32(gHost.hc,offset)) & mask) == value) return true;
-    IODelay (10);
+    if(!hostWaitPause(10))return false;
   } while (mach_absolute_time () < deadline);
   hostStateValue(offset,value,actual,mask);
   return false;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 // Single-slot completion policy. Port supplies ordered MMIO, invalidate-only
 // descriptor reads, a monotonic deadline and bounded pacing. No resubmission.
-enum class UfsTransferEnd { Completed, Fatal, Timeout };
+enum class UfsTransferEnd { Completed, Fatal, Timeout, ClockFailure, Budget };
 struct UfsTransferPoll {
   uint32_t polls = 0, doorbellSeen = 0, interruptSeen = 0, ocs = 15;
 };
@@ -22,7 +22,8 @@ static UfsTransferEnd pollUfsTransfer(Port &port, UfsTransferPoll &state)
       // Also allow a completion so fast that software never observes DB=1.
       if (state.ocs != 15) return UfsTransferEnd::Completed;
     }
-    if (port.expired()) return UfsTransferEnd::Timeout;
-    port.delay();
+    if (port.expired()) return port.clockFailed()?UfsTransferEnd::ClockFailure:UfsTransferEnd::Timeout;
+    if (!port.delay()) return UfsTransferEnd::ClockFailure;
+    if (state.polls>=0x1000000U) return UfsTransferEnd::Budget;
   }
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 // Board-local MMIO boundary for the single integrated takeover invocation.
+#include "K70Wait.h"
 enum class K70HostPhase { Inspect, Stopping, Configuring, Starting, Transport, Ending, Ended };
 static K70HostPhase gPhase=K70HostPhase::Inspect;
 static bool gMapFault=false,gWriteFault=false,gOwnStarted=false;

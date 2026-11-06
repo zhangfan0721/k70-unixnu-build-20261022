@@ -47,7 +47,9 @@ static void clock_interval_to_deadline(uint32_t interval, unsigned scale, uint64
   *deadline=callback(4,0,0,nullptr)+uint64_t(interval)*scale;
 }
 static uint64_t mach_absolute_time() { return callback(4,0,0,nullptr); }
-static void IODelay(uint32_t us) { callback(5,0,us,nullptr); }
+static void boot_progress_stage(const char *) {}
+static void k70_formal_cpu_trace(const char *,uint64_t) {}
+#include "K70Wait.h"
 static void IOLockLock(void *) {}
 static void IOLockUnlock(void *) {}
 static IOReturn recordTransport(IOReturn result,uint32_t ocs) {
@@ -57,16 +59,26 @@ static IOReturn recordTransport(IOReturn result,uint32_t ocs) {
 static K70UfsPolicy::Wake gWake;
 #include "ReadOnlyCommands.inc"
 #include "RootQueue.h"
+enum class K70HostPhase { Inspect,Stopping,Configuring,Starting,Transport,Ending,Ended };
+static K70HostPhase gPhase;
+static bool gOwnStarted=false,gCleanupAttempted=false;
+static bool hcIdentity(bool) {
+  return controlHealthy && hostState(0x34,1,1) &&
+      hostState(0x50,uint32_t(gHost.phys)) && hostState(0x54,uint32_t(gHost.phys>>32));
+}
+#include "K70End.inc"
 extern "C" {
 void ufs_test_reset(Callback cb, uint64_t physical) {
   callback=cb; memset(memory,0,sizeof(memory));
   controlHealthy=transportOwned=true;gWake=K70UfsPolicy::Wake{};
+  gOwnStarted=gCleanupAttempted=false;gPhase=K70HostPhase::Inspect;
   gHost={memory,physical,true,false,0,nullptr}; gRootDiagnostic=UfsRootDiagnostics{};
 }
 uint8_t *ufs_test_memory() { return memory; }
 bool ufs_test_poisoned() { return gHost.poisoned; }
 bool ufs_test_stop_queue() { const char *why=nullptr; return hostStopQueue(&why); }
 bool ufs_test_start_queue() { const char *why=nullptr; return hostStartQueue(&why); }
+bool ufs_test_end_queue() { const char *why=nullptr; return hostEnd(&why); }
 uint32_t ufs_test_query(uint8_t op,uint8_t idn,uint32_t *value) { return hostQueryRead(op,idn,value); }
 uint32_t ufs_test_scsi(uint8_t lun,const uint8_t *cdb,unsigned length,bool read,uint32_t bytes,uint32_t *scsi) {
   return hostScsi(lun,cdb,length,read,bytes,200000,scsi);

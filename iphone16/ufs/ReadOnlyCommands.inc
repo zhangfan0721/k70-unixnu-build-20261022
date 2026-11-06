@@ -2,15 +2,17 @@
 // Shared production command path. Included inside the root transport namespace.
 // The host harness replaces only MMIO, DMA synchronization, clock and lock primitives.
 struct HardwareTransferPort {
-  uint64_t deadline;
+  uint64_t deadline,started=0,last=0;
+  bool regressed=false;
   uint32_t doorbell () { return read32 (gHost.hc, 0x58); }
   uint32_t interrupt () { return read32 (gHost.hc, 0x20); }
   uint32_t completedOcs () {
     cacheInvalidate (gHost.virt, 64);
     return *reinterpret_cast<volatile uint32_t *> (gHost.virt + 8) & 0xff;
   }
-  bool expired () { return mach_absolute_time () >= deadline; }
-  void delay () { IODelay (2); }
+  bool expired () { uint64_t current=mach_absolute_time();regressed=current<last;last=current;if(regressed)gK70Wait={started,deadline,current,0,K70WaitCode::Regressed};return regressed || last>=deadline; }
+  bool clockFailed () { return regressed; }
+  bool delay () { return hostWaitPause(2); }
 };
 
 static void putBe32 (uint8_t *at, uint32_t value)
@@ -90,7 +92,16 @@ static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t tim
     gHost.poisoned=true;gHost.ready=false;return recordTransport(kIOReturnNotReady,*ocs);
   }
   hostWrite (0x20, 1);  // Acknowledge completion only; preserve error evidence.
+  boot_progress_stage(gRootDiagnostic.stage);
+  k70_formal_cpu_trace("UFS CMD/op",(uint64_t(gRootDiagnostic.command)<<32)|gRootDiagnostic.opcode);
+  k70_formal_cpu_trace("UFS type/LUN",(uint64_t(gRootDiagnostic.type)<<32)|gRootDiagnostic.lun);
+  if(gRootDiagnostic.type==1) {
+    uint64_t cdb=0;for(unsigned n=0;n<6;++n)cdb=(cdb<<8)|gHost.virt[kUcdOffset+16+n];
+    k70_formal_cpu_trace("UFS CDB first6",cdb);
+  }
+  k70_formal_cpu_trace("UFS timeout us",timeoutUs);
   HardwareTransferPort port;
+  port.started=port.last=mach_absolute_time();
   clock_interval_to_deadline (timeoutUs, kMicrosecondScale, &port.deadline);
   hostWrite (0x58, 1);
   if(!hostControlHealthy()){
@@ -102,6 +113,12 @@ static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t tim
   gRootDiagnostic.dbSeen = state.doorbellSeen;
   gRootDiagnostic.isSeen = state.interruptSeen;
   *ocs = state.ocs;
+  k70_formal_cpu_trace("UFS xfer end/count",(uint64_t(end)<<32)|state.polls);
+  k70_formal_cpu_trace("UFS xfer OCS/DB",(uint64_t(state.ocs)<<32)|state.doorbellSeen);
+  k70_formal_cpu_trace("UFS CMD start",port.started);
+  k70_formal_cpu_trace("UFS CMD deadline",port.deadline);
+  k70_formal_cpu_trace("UFS CMD last",mach_absolute_time());
+  if(end==UfsTransferEnd::ClockFailure)hostWaitTrace("UFS clock failure");
   if (end != UfsTransferEnd::Completed) {
     // No cancel/reset/retry: the controller may still own the buffer, even
     // with DB=0. Keep it allocated and prohibit all subsequent CPU writes.

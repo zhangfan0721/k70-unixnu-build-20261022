@@ -6,23 +6,7 @@ static void hostSnapshot(const char *stage) {
     for(unsigned o:offsets)
         k70_formal_cpu_trace("UFS HC offset/value",(uint64_t(o)<<32)|read32(gHost.hc,o));
 }
-static bool hostEnd(const char **why) {
-    if(!gOwnStarted)return true; // Never repeat a failed initial stop.
-    if(gCleanupAttempted){*why="own list stop already attempted";return false;}
-    gCleanupAttempted=true;gPhase=K70HostPhase::Ending;
-    if(!hostControlHealthy() || !hcIdentity(true)) {
-        *why="own list identity unknown; DMA retained";return false;
-    }
-    hostWrite(0x60,0);
-    if(!hostControlHealthy() || !hostWaitRegister(0x60,1,0)) {
-        *why="own list stop not confirmed; DMA retained";return false;
-    }
-    if(!hostState(0x58,0) || !hostState(0x78,0) || !hcIdentity(true)) {
-        *why="own list stopped with outstanding/changed state; DMA retained";return false;
-    }
-    gPhase=K70HostPhase::Ended;
-    return hostControlHealthy();
-}
+#include "K70End.inc"
 static bool hostBringUp(const char **why) {
     gRootDiagnostic.stage="controller/SMMU map";
     gHost.hc=mapPhys(UFS_HC_BASE,UFS_HC_SIZE,gHost.hcMap);
@@ -84,6 +68,7 @@ static bool hostBringUp(const char **why) {
     if(!hostStartQueue(why) || !hostControlHealthy())return false;
     gPhase=K70HostPhase::Transport;
     hostSnapshot("UFS owned list running");
+    hostTimebaseTrace();
     gRootDiagnostic.stage="NOP OUT";
     if(hostNop()!=kIOReturnSuccess){*why="NOP OUT";return false;}
     gRootDiagnostic.stage="power attribute query";
@@ -94,12 +79,24 @@ static bool hostBringUp(const char **why) {
     if(gWake.needed()) {
         gRootDiagnostic.stage="single ACTIVE wake";
         uint8_t cdb[6]={0x1b,0,0,0,0x10,0};uint32_t scsi=0;
-        if(hostScsi(0xd0,cdb,6,false,0,500000,&scsi)!=kIOReturnSuccess) {
+        boot_progress_stage("UFS ACTIVE enter");
+        IOReturn activeResult=hostScsi(0xd0,cdb,6,false,0,500000,&scsi);
+        k70_formal_cpu_trace("UFS ACTIVE result",activeResult);
+        k70_formal_cpu_trace("UFS ACTIVE SCSI",scsi);
+        if(activeResult!=kIOReturnSuccess) {
             *why="single ACTIVE wake";return false;
         }
-        IODelay(50000); // Fixed settle interval, not a command retry.
+        gRootDiagnostic.stage="ACTIVE 50ms settle";
+        boot_progress_stage("UFS settle enter");
+        bool settled=hostWaitPause(50000); // Same fixed interval, no scheduler wait.
+        hostWaitTrace("UFS settle returned");
+        if(!settled) {
+            gHost.ready=false;gHost.poisoned=true;
+            gRootDiagnostic.result=kIOReturnIOError;*why="ACTIVE settle clock failure";return false;
+        }
     }
     gRootDiagnostic.stage="single LUN0 readiness";
+    boot_progress_stage("UFS TUR enter");
     uint8_t tur[6]={};uint32_t scsi=0;
     if(hostScsi(0,tur,6,false,0,200000,&scsi)!=kIOReturnSuccess) {
         *why="single LUN0 readiness";return false;

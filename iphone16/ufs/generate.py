@@ -31,6 +31,12 @@ def generate(source):
                 'Read read, Write write, bool disableOnly=false)\n{',1)
             value=value.replace('  // Set VA64 before',
                 '  if (disableOnly) return nullptr;\n  // Set VA64 before',1)
+        if name=='TransferPoll.h':
+            value=value.replace('Completed, Fatal, Timeout','Completed, Fatal, Timeout, ClockFailure, Budget')
+            value=value.replace('if (port.expired()) return UfsTransferEnd::Timeout;',
+                'if (port.expired()) return port.clockFailed()?UfsTransferEnd::ClockFailure:UfsTransferEnd::Timeout;')
+            value=value.replace('    port.delay();',
+                '    if (!port.delay()) return UfsTransferEnd::ClockFailure;\n    if (state.polls>=0x1000000U) return UfsTransferEnd::Budget;')
         (HERE/name).write_text(value)
     queue=(HERE/'RootQueue.h').read_text()
     queue=queue.replace('static bool hostStopQueue', '''static bool hostQueueIdleStopped(void) {
@@ -88,6 +94,7 @@ static bool hostStartQueue''',1)
     queue=queue.replace('  do {','  uint32_t actual=0;\n  do {',1)
     queue=queue.replace('if ((read32 (gHost.hc, offset) & mask) == value)','if (((actual=read32(gHost.hc,offset)) & mask) == value)',1)
     queue=queue.replace('  return false;\n}','  hostStateValue(offset,value,actual,mask);\n  return false;\n}',1)
+    queue=queue.replace('    IODelay (10);','    if(!hostWaitPause(10))return false;')
     (HERE/'RootQueue.h').write_text(queue)
     commands=commands[:commands.index('// ---- Persistent store and log windows')]
     anchor='(dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;'
@@ -126,6 +133,31 @@ static bool hostStartQueue''',1)
     commands=commands.replace('  if (!value || (opcode != 3 && opcode != 5)) return kIOReturnBadArgument;',
         '''  if (!value || (opcode != 3 && opcode != 5)) return kIOReturnBadArgument;
   if(opcode!=3 || idn!=2)return kIOReturnNotPermitted;''',1)
+    commands=commands.replace('  uint64_t deadline;',
+        '  uint64_t deadline,started=0,last=0;\n  bool regressed=false;',1)
+    commands=commands.replace('  bool expired () { return mach_absolute_time () >= deadline; }',
+        '  bool expired () { uint64_t current=mach_absolute_time();regressed=current<last;last=current;if(regressed)gK70Wait={started,deadline,current,0,K70WaitCode::Regressed};return regressed || last>=deadline; }\n  bool clockFailed () { return regressed; }')
+    commands=commands.replace('  void delay () { IODelay (2); }',
+        '  bool delay () { return hostWaitPause(2); }')
+    commands=commands.replace('  HardwareTransferPort port;',
+        '''  boot_progress_stage(gRootDiagnostic.stage);
+  k70_formal_cpu_trace("UFS CMD/op",(uint64_t(gRootDiagnostic.command)<<32)|gRootDiagnostic.opcode);
+  k70_formal_cpu_trace("UFS type/LUN",(uint64_t(gRootDiagnostic.type)<<32)|gRootDiagnostic.lun);
+  if(gRootDiagnostic.type==1) {
+    uint64_t cdb=0;for(unsigned n=0;n<6;++n)cdb=(cdb<<8)|gHost.virt[kUcdOffset+16+n];
+    k70_formal_cpu_trace("UFS CDB first6",cdb);
+  }
+  k70_formal_cpu_trace("UFS timeout us",timeoutUs);
+  HardwareTransferPort port;
+  port.started=port.last=mach_absolute_time();''',1)
+    commands=commands.replace('  *ocs = state.ocs;',
+        '''  *ocs = state.ocs;
+  k70_formal_cpu_trace("UFS xfer end/count",(uint64_t(end)<<32)|state.polls);
+  k70_formal_cpu_trace("UFS xfer OCS/DB",(uint64_t(state.ocs)<<32)|state.doorbellSeen);
+  k70_formal_cpu_trace("UFS CMD start",port.started);
+  k70_formal_cpu_trace("UFS CMD deadline",port.deadline);
+  k70_formal_cpu_trace("UFS CMD last",mach_absolute_time());
+  if(end==UfsTransferEnd::ClockFailure)hostWaitTrace("UFS clock failure");''',1)
     (HERE/'ReadOnlyCommands.inc').write_text(commands.rstrip()+'\n')
     mapping=main[main.index('static uintptr_t mapPhys'):main.index('void NativeUfs::inspect')]
     body=main[main.index('namespace {\n#include "RootTransportLayout.h"'):main.index('// Bring the live controller up')]
@@ -161,7 +193,7 @@ static void write32(uintptr_t,unsigned,uint32_t);
   static bool entered=false;if(entered)return;entered=true;
   static UfsRootDiagnostics first;
   const char *why="capacity/GPT qualification failed";
-  boot_progress_stage("K70 UFS-TAKEOVER04");
+  boot_progress_stage("K70 UFS-TAKEOVER05");
   bool pass=hostBringUp(&why) && k70qualify();
   if(!hostControlHealthy()){pass=false;why=gAccessFailure?gAccessFailure:"MMIO access failure";}
   const char *firstReason=pass?nullptr:why;
@@ -171,8 +203,10 @@ static void write32(uintptr_t,unsigned,uint32_t);
     first=gRootDiagnostic;
   }
   K70StateFailure firstState=gStateFailure;
+  K70WaitRecord firstWait=gK70Wait;
   gHost.ready=false;gHost.poisoned=true;
   gRootDiagnostic.stage="final own list stop";
+  boot_progress_stage("UFS final stop enter");
   const char *endReason="own list stop failed";
   bool stopped=hostEnd(&endReason);
   if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
@@ -185,6 +219,7 @@ static void write32(uintptr_t,unsigned,uint32_t);
   if(firstReason) {
     boot_progress_stage("UFS FIRST FAILURE");
     boot_progress_stage(firstReason);boot_progress_stage(first.stage);
+    hostWaitTrace("UFS first wait",firstWait);
     k70ReportStateFailure(firstState,[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);});
     k70_formal_cpu_trace("UFS first result",first.result);
     k70_formal_cpu_trace("UFS first command/opcode",(uint64_t(first.command)<<32)|first.opcode);
@@ -201,7 +236,7 @@ static void write32(uintptr_t,unsigned,uint32_t);
     for(unsigned i=0;i<5;++i)
       k70_formal_cpu_trace("UFS first UIC index/value",(uint64_t(i)<<32)|first.uic[i]);
   }
-  if(!stopped)boot_progress_stage(endReason);
+  if(!stopped){boot_progress_stage(endReason);hostWaitTrace("UFS stop wait");}
   k70_formal_cpu_trace("UFS map/write fault",(uint64_t(gMapFault)<<32)|gWriteFault);
   boot_progress_stage(pass?"UFS READ QUALIFIED; STOP":"UFS TAKEOVER STOP; no retry");
   // DMA/list/route remain retained until reboot. No rollback or publication.

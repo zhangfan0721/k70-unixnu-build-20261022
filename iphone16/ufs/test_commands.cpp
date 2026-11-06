@@ -5,18 +5,27 @@
 #include <algorithm>
 #include <string>
 enum class Fault { None, Empty, Type, Tag, Lun, Query, Residual, Underflow,
-  Oversize, SenseLength, CheckCondition, Timeout, Fatal, Stop, Start, HighBase };
+  Oversize, SenseLength, CheckCondition, Timeout, Fatal, Stop, Start, HighBase,
+  Frozen, Regressed, BusyTimeout, Deferred };
 static Fault fault;
 static std::array<uint8_t,kDmaBytes> device;
 static std::array<uint32_t,64> registers;
 static uint64_t now;
-static unsigned writes, releases;
+static unsigned writes, releases, sleepingDelays;
 static bool released;
 static uint32_t completionFsr=0;
+static unsigned clockReads;
 
 static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
 {
-  if (op==0) return registers.at(address/4);
+  if (op==0) {
+    if(address==0x58 && fault==Fault::Deferred && now>=20) {
+      registers[0x58/4]=0;*reinterpret_cast<uint32_t *>(device.data()+8)=0;
+      auto cmd=device.data()+kUcdOffset;auto rsp=cmd+kRspOffset;
+      memcpy(rsp,cmd,32);rsp[0]=cmd[0]+0x20;rsp[1]=0;
+    }
+    return registers.at(address/4);
+  }
   if (op==1) {
     ++writes;
     if (address==0x20) registers[address/4]&=~uint32_t(value);
@@ -26,8 +35,9 @@ static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
       gRootDiagnostic.fsr=completionFsr;
       assert(released); released=false;
       if (fault==Fault::Fatal) { registers[0x20/4]=0x20000; return 0; }
+      if (fault==Fault::BusyTimeout || fault==Fault::Deferred) return 0;
       registers[0x58/4]=0;
-      if (fault==Fault::Timeout) return 0;
+      if (fault==Fault::Timeout || fault==Fault::Frozen || fault==Fault::Regressed) return 0;
       uint8_t *cmd=device.data()+kUcdOffset, *rsp=cmd+kRspOffset;
       std::fill(rsp,rsp+512,0);
       memset(device.data()+kDataOffset,0x7b,kDataMax);
@@ -56,13 +66,19 @@ static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
     if (op==2) { ++releases; memcpy(at,bytes,value); released=true; }
     else memcpy(bytes,at,value);
   }
-  if (op==4) return now;
-  if (op==5) now+=value;
+  if (op==4) {
+    ++clockReads;
+    if(fault==Fault::Frozen)return now;
+    if(fault==Fault::Regressed && clockReads==8)now=0;
+    return now++;
+  }
+  if (op==5) { ++sleepingDelays; now+=value; }
   return 0;
 }
 static void reset(Fault f=Fault::None)
 {
-  completionFsr=0;fault=f; device.fill(0); registers.fill(0); now=0; writes=releases=0; released=false;
+  completionFsr=0;fault=f; device.fill(0); registers.fill(0); now=0; writes=releases=sleepingDelays=0; released=false;
+  clockReads=0;
   registers[0x34/4]=1; registers[0x30/4]=15; registers[0x60/4]=1;
   registers[0]=0x01000000;
   ufs_test_reset(io,0x8cb5e9000);
@@ -81,6 +97,49 @@ static void assertQuarantined()
 }
 int main()
 {
+  // The real submit timeout must not rely on a scheduler-capable IODelay to
+  // return before it can examine its deadline again.
+  reset(Fault::Timeout);assert(ufs_test_nop()==kIOReturnTimeout);
+  assert(sleepingDelays==0);
+  reset(Fault::Deferred);assert(ufs_test_nop()==0 && now>=20 && sleepingDelays==0);
+  for(Fault f:{Fault::Frozen,Fault::Regressed}) {
+    reset(f);assert(ufs_test_nop()==kIOReturnIOError);
+    assert(sleepingDelays==0 && clockReads<5000);assertQuarantined();
+  }
+  reset();assert(hostWaitPause(50000) && now>=50000 && sleepingDelays==0);
+  reset(Fault::Frozen);assert(!hostWaitPause(50000));
+  assert(gK70Wait.code==K70WaitCode::Frozen && clockReads<5000);
+  reset(Fault::Regressed);assert(!hostWaitPause(50000));
+  assert(gK70Wait.code==K70WaitCode::Regressed);
+  // The SAME terminal function as production: normal completion, timeout
+  // with DB clear, timeout with DB still owned, bad clocks, failed list stop.
+  for(Fault f:{Fault::None,Fault::Deferred,Fault::Timeout,Fault::BusyTimeout,Fault::Frozen,Fault::Stop}) {
+    reset();assert(ufs_test_stop_queue() && ufs_test_start_queue());
+    gOwnStarted=true;gPhase=K70HostPhase::Transport;
+    uint8_t activeCmd[6]={0x1b,0,0,0,0x10,0};uint32_t scsi=0;
+    assert(gWake.observe(0x33));fault=f;
+    IOReturn result=hostScsi(0xd0,activeCmd,6,false,0,500000,&scsi);
+    if(f==Fault::None || f==Fault::Deferred || f==Fault::Stop) {
+      assert(result==0 && scsi==0);
+      assert(!memcmp(device.data()+kUcdOffset+16,activeCmd,6));
+      assert(device[kUcdOffset]==1 && device[kUcdOffset+2]==0xd0);
+      assert(device[kUcdOffset+1]==0 && device[kUcdOffset+3]==0);
+      assert((*reinterpret_cast<uint32_t *>(device.data())&0x06000000U)==0);
+      assert((*reinterpret_cast<uint32_t *>(device.data()+28)&0xffff)==0);
+      assert(hostWaitPause(50000));
+      uint8_t tur[6]={};assert(hostScsi(0,tur,6,false,0,200000,&scsi)==0);
+    } else assert(result!=0 && gHost.poisoned);
+    if(f==Fault::Timeout || f==Fault::BusyTimeout)assert(now>=500000);
+    uint8_t saved[kDmaBytes];memcpy(saved,memory,sizeof(saved));
+    gHost.ready=false;gHost.poisoned=true;
+    bool stopped=ufs_test_end_queue();
+    assert(gCleanupAttempted && sleepingDelays==0);
+    assert(stopped==(f!=Fault::Stop && f!=Fault::BusyTimeout));
+    assert(!memcmp(saved,memory,sizeof(saved))); // Retained; no reuse/free/write.
+    unsigned endWrites=writes;
+    assert(!ufs_test_end_queue() && writes==endWrites); // No second stop attempt.
+    assertQuarantined();
+  }
   for(uint32_t format: {0U,0x200U,0x400U,0x600U}) {
     reset();completionFsr=format;assert(ufs_test_nop()==0);
     assert(gRootDiagnostic.fsr==format && !ufs_test_poisoned());

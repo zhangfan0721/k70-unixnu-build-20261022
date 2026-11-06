@@ -34,7 +34,7 @@ def check():
     if not required<=compiled.keys() or 'K70SctlrQualification.h' in compiled:
         raise ValueError('Integrated include set changed')
     transport=compiled['K70UfsTransport.inc'];takeover=compiled['K70Takeover.inc']
-    io=compiled['K70HostIO.h']
+    io=compiled['K70HostIO.h'];ending=compiled['K70End.inc']
     if transport.count('k70_ufs_readonly_qualify(void)')!=1 or 'if(entered)return;entered=true;' not in transport:
         raise ValueError('Missing exclusive one-shot entry')
     stores=re.findall(r'\*reinterpret_cast<volatile uint32_t \*>\s*\([^;]+?\)\s*=',code)
@@ -55,8 +55,9 @@ def check():
         if word in takeover:raise ValueError('Unexpected retry/wait loop in integrated entry')
     if 'gWake.observe(power)' not in takeover or 'if(gWake.needed())' not in takeover:
         raise ValueError('Wake is not bound to a successful power query')
-    if 'hostWrite(0x60,0)' not in takeover or 'gCleanupAttempted=true' not in takeover:
+    if 'hostWrite(0x60,0)' not in ending or 'gCleanupAttempted=true' not in ending:
         raise ValueError('Missing bounded terminal stop')
+    if 'IODelay' in code or 'IOSleep' in code:raise ValueError('Scheduler delay survived in bounded UFS path')
     return {'scope':'one integrated UFS takeover, optional single ACTIVE wake, capacity/GPT/four hashes',
             'storage_writes':False,'smmu_configuration_writes':True,'controller_takeover':True,
             'smmu_write_scope':'bank69 SCTLR0/CBA2R1/CBAR0x10000; one new SID0x60 route; readback at every step',
