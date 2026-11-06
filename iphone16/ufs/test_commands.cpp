@@ -6,7 +6,7 @@
 #include <string>
 enum class Fault { None, Empty, Type, Tag, Lun, Query, Residual, Underflow,
   Oversize, SenseLength, CheckCondition, Timeout, Fatal, Stop, Start, HighBase,
-  Frozen, Regressed, BusyTimeout, Deferred };
+  Frozen, Regressed, BusyTimeout, Deferred, QueueRegressed };
 static Fault fault;
 static std::array<uint8_t,kDmaBytes> device;
 static std::array<uint32_t,64> registers;
@@ -29,7 +29,7 @@ static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
   if (op==1) {
     ++writes;
     if (address==0x20) registers[address/4]&=~uint32_t(value);
-    else if (!(address==0x60 && ((fault==Fault::Stop && !value) || (fault==Fault::Start && value))) &&
+    else if (!(address==0x60 && (((fault==Fault::Stop || fault==Fault::QueueRegressed) && !value) || (fault==Fault::Start && value))) &&
              !(address==0x54 && fault==Fault::HighBase)) registers.at(address/4)=uint32_t(value);
     if (address==0x58) {
       gRootDiagnostic.fsr=completionFsr;
@@ -70,6 +70,7 @@ static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
     ++clockReads;
     if(fault==Fault::Frozen)return now;
     if(fault==Fault::Regressed && clockReads==8)now=0;
+    if(fault==Fault::QueueRegressed && clockReads==14)now=0;
     return now++;
   }
   if (op==5) { ++sleepingDelays; now+=value; }
@@ -111,6 +112,10 @@ int main()
   assert(gK70Wait.code==K70WaitCode::Frozen && clockReads<5000);
   reset(Fault::Regressed);assert(!hostWaitPause(50000));
   assert(gK70Wait.code==K70WaitCode::Regressed);
+  reset();assert(ufs_test_stop_queue() && ufs_test_start_queue());
+  gOwnStarted=true;fault=Fault::QueueRegressed;clockReads=0;now=0;
+  assert(!ufs_test_end_queue());
+  assert(gK70Wait.code==K70WaitCode::Regressed && clockReads<30);
   // The SAME terminal function as production: normal completion, timeout
   // with DB clear, timeout with DB still owned, bad clocks, failed list stop.
   for(Fault f:{Fault::None,Fault::Deferred,Fault::Timeout,Fault::BusyTimeout,Fault::Frozen,Fault::Stop}) {

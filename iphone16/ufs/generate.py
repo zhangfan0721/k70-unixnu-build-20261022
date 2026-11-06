@@ -95,6 +95,12 @@ static bool hostStartQueue''',1)
     queue=queue.replace('if ((read32 (gHost.hc, offset) & mask) == value)','if (((actual=read32(gHost.hc,offset)) & mask) == value)',1)
     queue=queue.replace('  return false;\n}','  hostStateValue(offset,value,actual,mask);\n  return false;\n}',1)
     queue=queue.replace('    IODelay (10);','    if(!hostWaitPause(10))return false;')
+    queue=queue.replace('  uint32_t actual=0;', '  uint64_t last=mach_absolute_time();\n  uint32_t actual=0,iterations=0;')
+    queue=queue.replace('  } while (mach_absolute_time () < deadline);', '''    uint64_t current=mach_absolute_time();
+    if(current<last) {gK70Wait={last,deadline,current,iterations,K70WaitCode::Regressed};return false;}
+    last=current;
+    if(++iterations==0x1000000U) {gK70Wait={last,deadline,current,iterations,K70WaitCode::Budget};return false;}
+  } while (last < deadline);''')
     (HERE/'RootQueue.h').write_text(queue)
     commands=commands[:commands.index('// ---- Persistent store and log windows')]
     anchor='(dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;'
@@ -211,7 +217,7 @@ static void write32(uintptr_t,unsigned,uint32_t);
   bool stopped=hostEnd(&endReason);
   if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
       (read32(gHost.hc,0x20)&kUfsFatalStatus))) {
-    pass=false;firstReason=endReason;first=gRootDiagnostic;firstState=gStateFailure;
+    pass=false;firstReason=endReason;first=gRootDiagnostic;firstState=gStateFailure;firstWait=gK70Wait;
   }
   k70_formal_cpu_trace("UFS final list stopped",stopped);
   k70_formal_cpu_trace("UFS takeover qualified",pass);

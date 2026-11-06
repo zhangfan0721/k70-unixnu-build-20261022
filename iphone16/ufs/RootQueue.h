@@ -4,11 +4,16 @@ static bool hostWaitRegister (unsigned offset, uint32_t mask, uint32_t value)
 {
   uint64_t deadline;
   clock_interval_to_deadline (100, kMillisecondScale, &deadline);
-  uint32_t actual=0;
+  uint64_t last=mach_absolute_time();
+  uint32_t actual=0,iterations=0;
   do {
     if (((actual=read32(gHost.hc,offset)) & mask) == value) return true;
     if(!hostWaitPause(10))return false;
-  } while (mach_absolute_time () < deadline);
+    uint64_t current=mach_absolute_time();
+    if(current<last) {gK70Wait={last,deadline,current,iterations,K70WaitCode::Regressed};return false;}
+    last=current;
+    if(++iterations==0x1000000U) {gK70Wait={last,deadline,current,iterations,K70WaitCode::Budget};return false;}
+  } while (last < deadline);
   hostStateValue(offset,value,actual,mask);
   return false;
 }

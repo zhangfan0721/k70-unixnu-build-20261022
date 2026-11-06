@@ -137,7 +137,7 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   bool stopped=hostEnd(&endReason);
   if(pass && (!stopped || !hostControlHealthy() || !configuredIdentity() ||
       (read32(gHost.hc,0x20)&kUfsFatalStatus))) {
-    pass=false;firstReason=endReason;first=gRootDiagnostic;firstState=gStateFailure;
+    pass=false;firstReason=endReason;first=gRootDiagnostic;firstState=gStateFailure;firstWait=gK70Wait;
   }
   k70_formal_cpu_trace("UFS final list stopped",stopped);
   k70_formal_cpu_trace("UFS takeover qualified",pass);
