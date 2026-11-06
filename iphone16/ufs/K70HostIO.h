@@ -47,7 +47,12 @@ static bool hostState(unsigned o,uint32_t want,uint32_t mask=0xffffffffU) {
     return hostStateValue(o,want,read32(gHost.hc,o),mask);
 }
 static bool smmuState(unsigned o,uint32_t want) {
-    return gStateFailure.check(2,uint64_t(gPhase)<<32,o,want,read32(gHost.smmu,o));
+    uint32_t raw=read32(gHost.smmu,o),mask=k70SmmuWordMask(gSmmuPlan.upstream.bank,o);
+    if(o==k70ContextOffset(gSmmuPlan.upstream.bank,6))gRootDiagnostic.fsr=raw;
+    return gStateFailure.check(2,uint64_t(gPhase)<<32,o,want&mask,raw,mask);
+}
+static bool hostContextHealthy() {
+    return gRouteConfigured && smmuState(k70ContextOffset(gSmmuPlan.upstream.bank,6),0) && hostControlHealthy();
 }
 static bool listIdentity() {
     return hostState(0x50,gExpectedList[0]) &&

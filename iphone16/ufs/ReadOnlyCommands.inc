@@ -109,6 +109,9 @@ static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t tim
     gHost.ready = false;
     return recordTransport (end == UfsTransferEnd::Timeout ? kIOReturnTimeout : kIOReturnIOError, *ocs);
   }
+  if(!hostContextHealthy()){
+    gHost.poisoned=true;gHost.ready=false;return recordTransport(kIOReturnIOError,*ocs);
+  }
   cacheInvalidate (gHost.virt, kDataOffset + dataBytes);
   gRootDiagnostic.response = loadBe32 (gHost.virt + kUcdOffset + kRspOffset);
   return recordTransport (*ocs == 0 ? kIOReturnSuccess : kIOReturnIOError, *ocs);

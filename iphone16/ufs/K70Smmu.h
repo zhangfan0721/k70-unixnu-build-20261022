@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 #pragma once
 #include "SmmuTakeover.h"
+#include "K70Fsr.h"
 // One fixed first-mismatch record for the existing takeover diagnostics.
 // Space: 1=HC, 2=SMMU, 3=software state. No allocation or hardware action.
 struct K70StateFailure {
@@ -35,6 +36,9 @@ static unsigned k70ContextOffset(unsigned bank,unsigned index) {
     const unsigned cbOffsets[]={0,0x20,0x24,0x28,0x2c,0x30,0x58};
     return index<7?0x80000+bank*4096+cbOffsets[index]:
            (index==7?0x1000:0x1800)+bank*4;
+}
+static uint32_t k70SmmuWordMask(unsigned bank,unsigned offset) {
+    return offset==k70ContextOffset(bank,6)?k70FsrFaultMask:0xffffffffU;
 }
 template<class Read,class Trace>
 static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace trace,
@@ -89,7 +93,7 @@ static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace tr
                        p.context[7]!=0 || p.context[8]!=0)) {
         p.error="K70 unexpected SCTLR residual profile";return p;
     }
-    for(unsigned i=1;i<7;++i)if(p.context[i]) {
+    for(unsigned i=1;i<7;++i)if(i==6?k70FsrFaults(p.context[i]):p.context[i]) {
         p.error="K70 context not cleared/inactive";return p;
     }
     // 0: unused reset state. 0x100ff: exact ArmSmmuFreeContextBank cleanup
@@ -103,7 +107,10 @@ template<class Read>
 static bool k70SmmuSnapshotSame(const K70SmmuPlan &p,Read read,
                               K70StateFailure *detail=nullptr,uint64_t phase=0) {
     K70StateFailure local;auto &f=detail?*detail:local;
-    auto same=[&](unsigned o,uint32_t want){return f.check(2,phase,o,want,read(o));};
+    auto same=[&](unsigned o,uint32_t want){
+        uint32_t mask=k70SmmuWordMask(p.upstream.bank,o);
+        return f.check(2,phase,o,want&mask,read(o),mask);
+    };
     if(p.error || !same(0,p.cr0) || !same(0x20,0x4c017e69) ||
        !same(0x24,0x60000046) || !same(0x28,0x5111))return false;
     for(unsigned i=0;i<105;++i)
@@ -118,7 +125,8 @@ template<class Read,class Write,class Idle,class Trace>
     K70StateFailure local;auto &f=detail?*detail:local;
     uint64_t phase=uint64_t(2)<<32; // HC Configuring, low word=seen mask/write index.
     auto same=[&](unsigned o,uint32_t want){
-        bool ok=f.check(2,phase,o,want,read(o));
+        uint32_t mask=k70SmmuWordMask(p.upstream.bank,o);
+        bool ok=f.check(2,phase,o,want&mask,read(o),mask);
         if(!ok && !detail)k70ReportStateFailure(f,trace);
         return ok;
     };
@@ -147,9 +155,8 @@ template<class Read,class Write,class Idle,class Trace>
             if(j==0 && (seen&1))want=0;
             if(j==7 && (seen&4))want=0x10000;
             if(j==8 && (seen&2))want=1;
-            // VA64 changes the TCR/TTBR interpretation. Without a measured
-            // mismatching word, retain exact checks; do not invent a mask or
-            // adopt a new snapshot as the expected state after mode changes.
+            // Only FSR Format[10:9] is excluded from fault checks. Tables,
+            // TCR, SCTLR, CBA2R and CBAR remain exact; never rebaseline them.
             if(!same(k70ContextOffset(p.upstream.bank,j),want)){reject("K70 context phase changed before write");return;}
         }
         // Detect concurrent ownership changes to ALL other stream groups.

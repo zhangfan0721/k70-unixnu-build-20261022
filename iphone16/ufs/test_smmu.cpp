@@ -33,6 +33,33 @@ int main() {
     assert(writes[0].first==0xc5000 && writes[1].first==0x1914 && writes[2].first==0x1114);
     assert(writes[3].first==0xda0 && writes[4].first==0x9a0);
     assert(regs[0]==0x2d406);
+    // FSR Format[10:9] is not a fault, including the measured VA64 change.
+    for(uint32_t format: {0U,0x200U,0x400U,0x600U}) {
+        reset();regs[0xc5058/4]=format;p=plan();
+        assert(!p.error && p.context[6]==format);
+        regs[0xc5058/4]=format^0x600U;
+        assert(k70SmmuSnapshotSame(p,rd));
+        assert(!k70ConfigureUfsSmmu(p,rd,wr,[](){return true;},trace));
+        assert(writes.size()==5 && regs[0xc5058/4]==(format^0x600U));
+    }
+    // Format changes at every write boundary remain allowed; every other bit
+    // rejects before initialization or before the next write/route publication.
+    for(unsigned step=0;step<5;++step) {
+        reset();p=plan();unsigned count=0;
+        auto mode=[&](unsigned o,uint32_t v){wr(o,v);if(count++==step)regs[0xc5058/4]=0x400;};
+        assert(!k70ConfigureUfsSmmu(p,rd,mode,[](){return true;},trace));
+        assert(writes.size()==5);
+        for(unsigned bit=0;bit<32;++bit)if(bit!=9 && bit!=10) {
+            reset();regs[0xc5058/4]=0x400U|(1U<<bit);assert(plan().error);
+            reset();p=plan();count=0;
+            auto fault=[&](unsigned o,uint32_t v){wr(o,v);if(count++==step)regs[0xc5058/4]=0x400U|(1U<<bit);};
+            K70StateFailure failure;
+            assert(k70ConfigureUfsSmmu(p,rd,fault,[](){return true;},trace,&failure));
+            assert(writes.size()==step+1 && failure.present);
+            assert(failure.offset==0xc5058 && failure.actual==(0x400U|(1U<<bit)));
+            assert(failure.expected==0 && failure.mask==0xfffff9ffU);
+        }
+    }
     // A mode-change mismatch must retain the first exact register/value pair,
     // stop before CBAR and never publish a route. Do not assume a VA64 write
     // makes arbitrary changes acceptable.
@@ -48,7 +75,7 @@ int main() {
         uint32_t expected=n==8?1:0;
         assert(traced("UFS state expected")==expected);
         assert(traced("UFS state actual")==uint32_t(expected^0x20));
-        assert(traced("UFS state mask")==0xffffffffU);
+        assert(traced("UFS state mask")==(n==6?0xfffff9ffU:0xffffffffU));
         assert(traced("UFS state space")==2);
         assert(traced("UFS state phase")==((uint64_t(2)<<32)|(n==8?0x101U:0x302U)));
     }

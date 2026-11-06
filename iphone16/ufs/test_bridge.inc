@@ -6,6 +6,7 @@
 #include <cstring>
 #include <cassert>
 #include "RootDiagnostics.h"
+#include "K70Fsr.h"
 #include "TransferPoll.h"
 using IOReturn = uint32_t;
 constexpr IOReturn kIOReturnSuccess=0, kIOReturnError=0xe00002bc,
@@ -21,6 +22,7 @@ static Host gHost;
 static bool controlHealthy=true,transportOwned=true;
 static bool hostControlHealthy(){return controlHealthy;}
 static bool hostTransportOwned(){return transportOwned;}
+static bool hostContextHealthy(){return !k70FsrFaults(gRootDiagnostic.fsr);}
 alignas(4096) static uint8_t memory[kDmaBytes];
 using Callback = uint64_t (*)(unsigned operation, uint64_t address, uint64_t value, void *bytes);
 static Callback callback;

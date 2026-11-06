@@ -12,6 +12,7 @@ static std::array<uint32_t,64> registers;
 static uint64_t now;
 static unsigned writes, releases;
 static bool released;
+static uint32_t completionFsr=0;
 
 static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
 {
@@ -22,6 +23,7 @@ static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
     else if (!(address==0x60 && ((fault==Fault::Stop && !value) || (fault==Fault::Start && value))) &&
              !(address==0x54 && fault==Fault::HighBase)) registers.at(address/4)=uint32_t(value);
     if (address==0x58) {
+      gRootDiagnostic.fsr=completionFsr;
       assert(released); released=false;
       if (fault==Fault::Fatal) { registers[0x20/4]=0x20000; return 0; }
       registers[0x58/4]=0;
@@ -60,7 +62,7 @@ static uint64_t io(unsigned op,uint64_t address,uint64_t value,void *bytes)
 }
 static void reset(Fault f=Fault::None)
 {
-  fault=f; device.fill(0); registers.fill(0); now=0; writes=releases=0; released=false;
+  completionFsr=0;fault=f; device.fill(0); registers.fill(0); now=0; writes=releases=0; released=false;
   registers[0x34/4]=1; registers[0x30/4]=15; registers[0x60/4]=1;
   registers[0]=0x01000000;
   ufs_test_reset(io,0x8cb5e9000);
@@ -79,6 +81,15 @@ static void assertQuarantined()
 }
 int main()
 {
+  for(uint32_t format: {0U,0x200U,0x400U,0x600U}) {
+    reset();completionFsr=format;assert(ufs_test_nop()==0);
+    assert(gRootDiagnostic.fsr==format && !ufs_test_poisoned());
+    for(unsigned bit=0;bit<32;++bit)if(bit!=9 && bit!=10) {
+      reset();completionFsr=format|(1U<<bit);
+      assert(ufs_test_nop()==kIOReturnIOError);
+      assert(gRootDiagnostic.fsr==completionFsr);assertQuarantined();
+    }
+  }
   reset(); assert(ufs_test_nop()==0);
   reset();transportOwned=false;
   assert(ufs_test_nop()!=0 && writes==0 && releases==0);assertQuarantined();

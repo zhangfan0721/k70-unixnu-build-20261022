@@ -119,7 +119,7 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;
   static UfsRootDiagnostics first;
   const char *why="capacity/GPT qualification failed";
-  boot_progress_stage("K70 UFS-TAKEOVER02");
+  boot_progress_stage("K70 UFS-TAKEOVER03");
   bool pass=hostBringUp(&why) && k70qualify();
   if(!hostControlHealthy()){pass=false;why=gAccessFailure?gAccessFailure:"MMIO access failure";}
   const char *firstReason=pass?nullptr:why;
@@ -139,6 +139,7 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   }
   k70_formal_cpu_trace("UFS final list stopped",stopped);
   k70_formal_cpu_trace("UFS takeover qualified",pass);
+  k70_formal_cpu_trace("UFS terminal FSR raw",gRootDiagnostic.fsr);
   if(firstReason) {
     boot_progress_stage("UFS FIRST FAILURE");
     boot_progress_stage(firstReason);boot_progress_stage(first.stage);
