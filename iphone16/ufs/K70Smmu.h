@@ -29,6 +29,7 @@ static void k70ReportStateFailure(const K70StateFailure &f,Trace trace) {
 struct K70SmmuPlan {
     UfsSmmuPlan upstream;
     uint32_t cr0=0,smr[105]={},s2cr[105]={},context[9]={};
+    K70StateFailure failure;
     const char *error="not planned";
     bool sctlrQualification=false;
 };
@@ -47,8 +48,26 @@ static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace tr
     trace("UFS SMMU CR0",p.cr0);
     uint32_t id0=read(0x20),id1=read(0x24),id2=read(0x28);
     trace("UFS SMMU ID0",id0);trace("UFS SMMU ID1",id1);trace("UFS SMMU ID2",id2);
-    if(id0!=0x4c017e69 || id1!=0x60000046 || id2!=0x5111 || (p.cr0&9)) {
-        p.error="K70 SMMU IDs/global mode";return p;
+    auto reject=[&](const char *reason,unsigned offset,uint32_t want,uint32_t got,
+                    uint32_t mask=0xffffffffU) {
+        p.failure.check(2,0,offset,want,got,mask);p.error=reason;return p;
+    };
+    if(id0!=0x4c017e69)return reject("K70 IDR0 layout",0x20,0x4c017e69,id0);
+    if(id1!=0x60000046)return reject("K70 IDR1 geometry",0x24,0x60000046,id1);
+    if(id2!=0x5111)return reject("K70 IDR2 formats/address widths",0x28,0x5111,id2);
+    // IHI0062D.c 9.6.3: routing must be enabled and use legacy 15-bit IDs.
+    // IDR2=0x5111 has neither VMID16S nor E2HS; do not enter those modes.
+    // All remaining CR0 attributes are observed, never rewritten. In particular
+    // MemAttr/BSU affect stream-table bypass, and PTM affects TLB maintenance;
+    // none requires a historical value for a matched, translation-disabled CB.
+    const uint32_t cr0Fields[]={0x1U,0x8U,0x80000000U,0x40000000U,0x30000000U};
+    for(uint32_t field:cr0Fields) {
+        if(!(p.cr0&field))continue;
+        const char *reason=field==1?"K70 CR0.CLIENTPD must be zero":
+            field==8?"K70 CR0.EXIDENABLE unsupported":
+            field==0x80000000U?"K70 CR0.VMID16EN unsupported":
+            field==0x40000000U?"K70 CR0.HYPMODE unsupported":"K70 CR0 reserved bits";
+        return reject(reason,0,0,p.cr0,field);
     }
     unsigned valid=0,matches=0;
     for(unsigned i=0;i<105;++i) {
@@ -60,47 +79,70 @@ static K70SmmuPlan k70PlanUfsSmmu(uint64_t dma,uint64_t bytes,Read read,Trace tr
         trace("UFS SMR/S2CR",(uint64_t(p.smr[i])<<32)|p.s2cr[i]);
     }
     trace("UFS valid slots",valid);trace("UFS SID60 matches",matches);
-    if(matches){p.error="existing/duplicate/masked UFS route; no overwrite";return p;}
-    // The existing K70 display handoff is mandatory, never reprogrammed.
-    if(valid!=1 || p.smr[3]!=0x80021c00 || p.s2cr[3]!=3) {
-        p.error="K70 route ownership changed";return p;
+    // Fixed PlatformSecLib passes these MDP SIDs to ArmSmmuDetachAll.
+    // Its SkipStream predicate, not a slot/count/raw-word snapshot, identifies
+    // the routes it is allowed to preserve. Never modify any preserved route.
+    const unsigned mdp[]={0x1c00,0x1c01,0x1c03,0x1c04,0x2801,0x2c01};
+    for(unsigned i=0;i<105;++i)if(p.smr[i]&0x80000000U) {
+        unsigned mask=(p.smr[i]>>16)&0x7fff,id=p.smr[i]&0x7fff;
+        if(!((id^0x60U)&~mask))
+            return reject("K70 SID60 route already exists",0x800+4*i,0,p.smr[i],0x80000000U);
+        unsigned type=(p.s2cr[i]>>16)&3,bank=p.s2cr[i]&255;
+        // Even when TYPE makes CBNDX architecturally ignored, the fixed UEFI
+        // detach code uses it unconditionally in its retained-bank list.
+        if(bank==69)
+            return reject("K70 firmware retained bank69",0xc00+4*i,3,p.s2cr[i],0xff);
+        bool retained=false;
+        for(unsigned sid:mdp)if((sid&~mask)==(id&~mask))retained=true;
+        if(!retained)
+            return reject("K70 non-MDP route survived cleanup",0x800+4*i,0,p.smr[i],0x80000000U);
+        if(type==3)
+            return reject("K70 retained S2CR.TYPE reserved",0xc00+4*i,0,p.s2cr[i],0x30000);
+        // Only bank3 is established as the retained K70 display context by the
+        // fixed-firmware evidence. Do not generalize to uninspected contexts
+        // (in particular their possible nested stage-2 references).
+        if(bank!=3)
+            return reject("K70 retained MDP context unsupported",0xc00+4*i,3,p.s2cr[i],0xff);
     }
+    // Check the selected context before the upstream planner can return a
+    // generic error. Preserve the actual offending field for terminal logs.
+    for(unsigned i=0;i<9;++i) {
+        unsigned offset=k70ContextOffset(69,i);
+        p.context[i]=read(offset);
+        trace("UFS context offset/value",(uint64_t(offset)<<32)|p.context[i]);
+    }
+    // SCTLR reset fields are mostly UNKNOWN (16.5.18). The existing fixed
+    // firmware reclaims non-display banks but deliberately leaves SCTLR.
+    // M=0 alone is NOT ownership: also require the cleanup invariant below,
+    // cleared tables/TCR, no faults and no live reference, then quiesce HC.
+    if(p.context[0]&1)
+        return reject("K70 SCTLR.M enabled",0xc5000,0,p.context[0],1);
+    for(unsigned i=1;i<6;++i)if(p.context[i])
+        return reject("K70 context table/TCR not reclaimed",k70ContextOffset(69,i),0,p.context[i]);
+    if(k70FsrFaults(p.context[6]))
+        return reject("K70 initial FSR fault",0xc5058,0,p.context[6],k70FsrFaultMask);
+    // ArmSmmuFreeContextBank preserves TYPE=0/2, or TYPE=1 with VMID=255;
+    // other TYPE/VMID combinations are rewritten to that TYPE=1 signature.
+    // Attributes/IRPTNDX are not ownership tokens and are replaced before SID
+    // publication. This is a firmware cleanup invariant, not an Arm guarantee.
+    unsigned type=(p.context[7]>>16)&3;
+    if(type==3)
+        return reject("K70 CBAR.TYPE not reclaimed",0x1114,0x10000,p.context[7],0x30000);
+    if(type==1 && (p.context[7]&255)!=255)
+        return reject("K70 CBAR.VMID not reclaimed",0x1114,255,p.context[7],255);
+    // 10.2.2: VA64 may initially be either width; MONC is ignored for this
+    // Non-secure bank. VMID16 is RES0 on this IDR2, bits15:2 are reserved.
+    if(p.context[8]&0xffff0000U)
+        return reject("K70 CBA2R.VMID16 unsupported",0x1914,0,p.context[8],0xffff0000U);
+    if(p.context[8]&0xfffcU)
+        return reject("K70 CBA2R reserved bits",0x1914,0,p.context[8],0xfffcU);
     p.upstream=planUfsSmmuBank(0x60,dma,bytes,read,0);
     if(p.upstream.error){p.error=p.upstream.error;return p;}
     if(p.upstream.reuse || p.upstream.bank!=69 || p.upstream.slot>=105 ||
        (p.smr[p.upstream.slot]&0x80000000U)) {
         p.error="K70 new-route geometry";return p;
     }
-    // An empty SMR is insufficient: prohibit ANY valid reference to bank69,
-    // active translation, retained tables/TCR/faults or an unknown CBAR state.
-    for(unsigned i=0;i<105;++i)
-        if((p.smr[i]&0x80000000U) && (p.s2cr[i]&255)==p.upstream.bank) {
-            p.error="K70 context referenced";return p;
-        }
     trace("UFS selected slot",p.upstream.slot);trace("UFS selected bank",p.upstream.bank);
-    for(unsigned i=0;i<9;++i) {
-        unsigned offset=k70ContextOffset(p.upstream.bank,i);
-        p.context[i]=read(offset);
-        trace("UFS context offset/value",(uint64_t(offset)<<32)|p.context[i]);
-    }
-    // Both integrated takeover and the preserved SCTLR-only qualification
-    // accept the exact MAP01/SCTLR01 residual profile, not arbitrary M=0 data.
-    if(sctlrQualification && (p.cr0!=0x250406 || p.context[0]!=0x3fd9a71e ||
-                             p.context[7]!=0 || p.context[8]!=0)) {
-        p.error="K70 qualification handoff profile changed";return p;
-    }
-    if(p.context[0] && (p.context[0]!=0x3fd9a71e || p.cr0!=0x250406 ||
-                       p.context[7]!=0 || p.context[8]!=0)) {
-        p.error="K70 unexpected SCTLR residual profile";return p;
-    }
-    for(unsigned i=1;i<7;++i)if(i==6?k70FsrFaults(p.context[i]):p.context[i]) {
-        p.error="K70 context not cleared/inactive";return p;
-    }
-    // 0: unused reset state. 0x100ff: exact ArmSmmuFreeContextBank cleanup
-    // signature (S1_TRANS_S2_BYPASS, VMID255); never accept a live profile.
-    if((p.context[7]!=0 && p.context[7]!=0x100ff) || p.context[8]>1) {
-        p.error="K70 context ownership profile unknown";return p;
-    }
     p.error=nullptr;return p;
 }
 template<class Read>
@@ -140,7 +182,21 @@ template<class Read,class Write,class Idle,class Trace>
     unsigned seen=0;bool failed=false;
     const char *firstFailure=nullptr;
     auto reject=[&](const char *reason){failed=true;if(!firstFailure)firstFailure=reason;};
-    const char *result=configureUfsSmmu(p.upstream,0x60,read,[&](unsigned offset,uint32_t value) {
+    // Upstream also performs reads between callbacks. Preserve the raw value
+    // it sees, while retaining the exact first mismatch before its generic
+    // readback error can return early (no extra MMIO operation).
+    auto upstreamRead=[&](unsigned offset) {
+        uint32_t actual=read(offset),want=0;bool known=true;
+        if(offset==cb)want=(seen&1)?0:p.context[0];
+        else if(offset==allowed[1])want=(seen&2)?1:p.context[8];
+        else if(offset==allowed[2])want=(seen&4)?0x10000:p.context[7];
+        else if(offset==allowed[3])want=(seen&8)?p.upstream.bank:p.s2cr[p.upstream.slot];
+        else if(offset==allowed[4])want=(seen&16)?0x80000060U:p.smr[p.upstream.slot];
+        else known=false;
+        if(known && !f.check(2,phase,offset,want,actual))reject("K70 upstream readback/state changed");
+        return actual;
+    };
+    const char *result=configureUfsSmmu(p.upstream,0x60,upstreamRead,[&](unsigned offset,uint32_t value) {
         if(failed)return;
         unsigned i=0;while(i<5 && offset!=allowed[i])++i;
         phase=(uint64_t(2)<<32)|(seen<<8)|i;

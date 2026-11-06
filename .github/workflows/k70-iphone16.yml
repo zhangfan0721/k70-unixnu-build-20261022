@@ -57,13 +57,19 @@ jobs:
           ref: af785c1777161a62931425c2faaa536ce0bebd5b
           path: ufs-source
           persist-credentials: false
+      - uses: actions/cache@v4
+        with:
+          path: legacy-iig
+          key: k70-iig-15F31d-de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331
       - name: Restore the fixed legacy IIG tool only
         run: |
           set -euo pipefail
-          curl --fail --location --connect-timeout 30 --max-time 180 'https://visiting-postage-manhattan-carlos.trycloudflare.com/e005008e0cf14932bfabf45aa35fc772.tgz' -o legacy-iig.tgz
-          echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
-          mkdir -p legacy-iig
-          tar -xzf legacy-iig.tgz -C legacy-iig
+          if [[ ! -f legacy-iig/bin/iig || ! -f legacy-iig/lib/libclang.dylib ]]; then
+            curl --fail --location --connect-timeout 30 --max-time 180 'https://artificial-blacks-chairs-gourmet.trycloudflare.com/cedb5d17bad247f89030d97a4babf50b.tgz' -o legacy-iig.tgz
+            echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+            mkdir -p legacy-iig
+            tar -xzf legacy-iig.tgz -C legacy-iig
+          fi
           echo '3cff6bb296003f758b658fe15b9462a06f3d483a7a6f24fdd3c66c8e6a30295c  legacy-iig/bin/iig' | shasum -a 256 -c -
           echo '2b8c5a9b4721651d4461d66bda2bd62672e7ee14d92217786a76a0db86403015  legacy-iig/lib/libclang.dylib' | shasum -a 256 -c -
           chmod +x legacy-iig/bin/iig
@@ -83,7 +89,7 @@ jobs:
           brew install cmake ninja unifdef llvm
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
-          { sw_vers; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version; xcrun --sdk iphoneos iig --version; clang --version; python --version; } > evidence/toolchain.txt
+          { sw_vers; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version; "$IIG" --version; clang --version; python --version; } > evidence/toolchain.txt
       - name: Fetch pinned Apple header listings
         env:
           GH_TOKEN: ${{ github.token }}

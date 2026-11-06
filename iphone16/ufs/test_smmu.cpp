@@ -26,6 +26,13 @@ static void reset() {
 }
 static K70SmmuPlan plan(){return k70PlanUfsSmmu(0x8cb5e9000ULL,kDmaBytes,rd,trace);}
 int main() {
+    // Different boots may leave different inactive attributes. Qualification
+    // must not bind them to the MAP01 CR0/SCTLR/route snapshot.
+    for(uint32_t cr0: {0x250406U,0x24d406U,0x2d406U,0x25fc06U}) {
+        reset();regs[0]=cr0;regs[0xc5000/4]=0x3fd9a71e;
+        auto initial=plan();
+        assert(!initial.error && initial.cr0==cr0);
+    }
     reset();auto p=plan();assert(!p.error && p.upstream.bank==69 && p.upstream.slot==104);
     auto wr=[](unsigned o,uint32_t v){writes.emplace_back(o,v);regs.at(o/4)=v;};
     assert(!k70ConfigureUfsSmmu(p,rd,wr,[](){return true;},trace));
@@ -97,10 +104,65 @@ int main() {
         assert(writes.size()==1 && !(regs[0x9a0/4]&0x80000000));
     }
     for(unsigned n=0;n<9;++n) {
-        reset();regs[k70ContextOffset(69,n)/4]=n==7?0x10000:n==8?2:1;
+        reset();regs[k70ContextOffset(69,n)/4]=n==7?0x10000:n==8?4:1;
         assert(plan().error && writes.empty());
     }
     reset();regs[(0x1000+4*69)/4]=0x100ff;assert(!plan().error);
+    // Firmware reclaim predicates permit inactive attributes, not an exact
+    // reset/cleanup word. All are replaced and fully checked before routing.
+    for(uint32_t sctlr: {0U,2U,0x3fd9a71eU,0x40000000U})
+    for(uint32_t cbar: {0U,0x05000023U,0x01020000U,0x0121f7ffU})
+    for(uint32_t cba2r: {0U,1U,2U,3U}) {
+        reset();regs[0]=0x24d406;regs[0xc5000/4]=sctlr;
+        regs[0x1114/4]=cbar;regs[0x1914/4]=cba2r;p=plan();
+        assert(!p.error && p.context[0]==sctlr && p.context[7]==cbar);
+        assert(!k70ConfigureUfsSmmu(p,rd,wr,[](){return true;},trace));
+        assert(regs[0xc5000/4]==0 && regs[0x1114/4]==0x10000 && regs[0x1914/4]==1);
+    }
+    // A retained MDP route can occupy another slot and have other attributes;
+    // preserve every raw word. Only the already qualified bank3 is supported.
+    reset();regs[0x800/4]=0x80001c01;regs[0xc00/4]=0x00008303;
+    regs[0x80c/4]=0;regs[0xc0c/4]=0x12345678;p=plan();
+    assert(!p.error && p.smr[0]==0x80001c01);
+    assert(!k70ConfigureUfsSmmu(p,rd,wr,[](){return true;},trace));
+    assert(regs[0xc00/4]==0x00008303 && regs[0xc0c/4]==0x12345678);
+    // Fixed UEFI records CBNDX even for a bypass/fault retained route: bank69
+    // must still refuse, despite the architectural field being ignored there.
+    reset();regs[0xc0c/4]=0x20003;assert(!plan().error);
+    reset();regs[0xc0c/4]=0x20045;assert(plan().error);
+    // Named qualification failures retain the true register/mask/raw value.
+    for(auto bad: {std::make_pair(0U,1U),std::make_pair(0U,8U),
+                   std::make_pair(0U,0x80000000U),std::make_pair(0U,0x40000000U),
+                   std::make_pair(0xc5000U,1U),std::make_pair(0x1114U,0x10001U),
+                   std::make_pair(0x1114U,0x30000U),std::make_pair(0x1914U,4U),
+                   std::make_pair(0x1914U,0x10000U)}) {
+        reset();regs[bad.first/4]|=bad.second;p=plan();
+        assert(p.error && p.failure.present && p.failure.offset==bad.first);
+        assert(p.failure.actual==regs[bad.first/4] && writes.empty());
+    }
+    reset();regs[0xc0c/4]=4;p=plan();
+    assert(p.error && p.failure.offset==0xc0c && p.failure.mask==255);
+    // A legal initial variation must never mask drift during the same takeover.
+    const unsigned changed[]={0,0xc5000,0x1114,0x1914,0x80c,0xc0c,0x804,0xc04};
+    for(unsigned offset:changed) {
+        reset();regs[0]=0x24d406;regs[0xc5000/4]=0x3fd9a71e;p=plan();
+        assert(!p.error);regs[offset/4]^=0x1000;K70StateFailure f;
+        assert(!k70SmmuSnapshotSame(p,rd,&f));
+        assert(f.present && f.offset==offset && f.mask==0xffffffffU);
+        assert(k70ConfigureUfsSmmu(p,rd,wr,[](){return true;},trace,&f));
+        assert(writes.empty());
+    }
+    for(unsigned offset:changed)for(unsigned step=0;step<5;++step) {
+        reset();regs[0]=0x24d406;regs[0xc5000/4]=0x3fd9a71e;p=plan();
+        unsigned count=0;
+        auto drift=[&](unsigned o,uint32_t v){wr(o,v);if(count++==step)regs[offset/4]^=0x1000;};
+        K70StateFailure f;
+        assert(k70ConfigureUfsSmmu(p,rd,drift,[](){return true;},trace,&f));
+        if(!f.present || f.offset!=offset || f.mask!=0xffffffffU)
+            std::fprintf(stderr,"drift offset=%x step=%u first=%x mask=%x present=%u\n",offset,step,f.offset,f.mask,unsigned(f.present));
+        assert(f.present && f.offset==offset && f.mask==0xffffffffU);
+        assert(writes.size()==step+1);
+    }
     // Unreferenced SMR slots do not prove context ownership: tables/TCR,
     // activity, unknown CBAR, shared references and retained faults all refuse.
     for(auto pair: {std::make_pair(0x800U,0x80000060U),
@@ -165,7 +227,7 @@ int main() {
     qualifyReset();p=qualifyPlan();consumed=false;regs[0xc5020/4]=4;
     assert(k70QualifySctlr(p,consumed,rd,wr,[](){return true;},trace) && writes.empty());
     for(unsigned n=0;n<9;++n) {
-        qualifyReset();regs[k70ContextOffset(69,n)/4]^=1;
+        qualifyReset();regs[k70ContextOffset(69,n)/4]^=n==7?0x10000:n==8?4:1;
         assert(qualifyPlan().error && writes.empty());
     }
     qualifyReset();p=qualifyPlan();consumed=false;

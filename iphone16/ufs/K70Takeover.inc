@@ -56,8 +56,10 @@ static bool hostBringUp(const char **why) {
     bzero(gHost.virt,kDmaBytes);cacheCivac(gHost.virt,kDmaBytes);
     auto trace=[](const char *s,uint64_t v){k70_formal_cpu_trace(s,v);};
     auto rd=[](unsigned o){return read32(gHost.smmu,o);};
+    gRootDiagnostic.stage="initial SMMU qualification";
     gSmmuPlan=k70PlanUfsSmmu(gHost.phys,kDmaBytes,rd,trace);
     if(gSmmuPlan.error || !hostControlHealthy()) {
+        if(gSmmuPlan.failure.present)gStateFailure=gSmmuPlan.failure;
         *why=gSmmuPlan.error?gSmmuPlan.error:"SMMU read mapping";return false;
     }
     if(!preflightWriteAccess() || !hcIdentity() || !k70SmmuSnapshotSame(gSmmuPlan,rd,&gStateFailure,uint64_t(gPhase)<<32)) {
