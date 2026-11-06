@@ -16,14 +16,14 @@ INTEGRATION = ROOT / 'integration'
 # Remove the newer-layout backport in an isolated adapter copy only.
 adapter_dir = INTEGRATION / 'iphone16-probe'
 shutil.copytree(INTEGRATION / 'iphone16', adapter_dir)
-(adapter_dir / 'patches/003-iig.patch').unlink()
+(adapter_dir / 'patches/003-iig.patch').unlink(missing_ok=True)
 sys.path.insert(0, str(adapter_dir))
 gate = importlib.import_module('build')
 core, device = ROOT / 'upstream', ROOT / 'device'
 font = ROOT / 'uefi/Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h'
 gate.check(core, device, font)
 for option in ('--help', '--version'):
-    p = subprocess.run(['xcrun', '--sdk', 'iphoneos', 'iig', option], capture_output=True, text=True)
+    p = subprocess.run([os.environ['IIG'], option] if os.environ.get('IIG') else ['xcrun', '--sdk', 'iphoneos', 'iig', option], capture_output=True, text=True)
     (EVIDENCE / ('iig-' + option[2:] + '.txt')).write_text(p.stdout + p.stderr)
 sys.path.insert(0, str(core / 'scripts'))
 cli, config, kernel = (importlib.import_module('unixnu.' + n) for n in ('cli', 'config', 'kernel'))
@@ -74,6 +74,7 @@ directory = Path(record['directory'].replace(old_tree, str(ctx.tree)))
 if not (directory / 'meta_features.h').is_file():
     raise ValueError('Real XNU configuration did not generate the selected feature headers')
 compiler = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--find', 'clang++'], text=True).strip()
+sdk = subprocess.check_output(['xcrun','--sdk','iphoneos','--show-sdk-path'],text=True).strip()
 command, removed = [compiler], []
 arguments = record['arguments']
 index = 1
@@ -90,7 +91,7 @@ while index < len(arguments):
         command.extend(['-o', str(EVIDENCE / 'IOService.iig.o')])
         index += 1
     else:
-        command.append(value.replace(old_tree, str(ctx.tree)))
+        command.append(__import__('re').sub(r'/Applications/Xcode_[^/]+\.app/Contents/Developer/Platforms/iPhoneOS\.platform/Developer/SDKs/iPhoneOS[^/]+\.sdk', sdk, value.replace(old_tree, str(ctx.tree))))
     index += 1
 command += ['-Wno-unknown-warning-option']
 (EVIDENCE / 'generated-compile-command.json').write_text(json.dumps(command, indent=2) + '\n')

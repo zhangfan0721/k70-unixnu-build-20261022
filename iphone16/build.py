@@ -6,6 +6,7 @@ import importlib.util
 import json
 from pathlib import Path
 import platform
+import os
 import shutil
 import struct
 import subprocess
@@ -156,9 +157,10 @@ def main():
         return
     if platform.system() != 'Darwin' or args.jobs < 1:
         raise ValueError('Full build requires macOS/Xcode and positive jobs')
-    for tool in ('clang', 'mig', 'iig'):
+    for tool in ('clang', 'mig'):
         subprocess.run(['xcrun', '--sdk', 'iphoneos', '--find', tool], check=True)
-    iig_version = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', 'iig', '--version'], text=True).strip()
+    iig = os.environ.get('IIG') or subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--find', 'iig'], text=True).strip()
+    iig_version = subprocess.check_output([iig, '--version'], text=True).strip()
     if iig_version != IIG_VERSION:
         raise ValueError('Use the qualified legacy IIG generator: ' + iig_version)
     options = cli.parser().parse_args(['build', 'kernel', '-D', str(HERE / 'device'),

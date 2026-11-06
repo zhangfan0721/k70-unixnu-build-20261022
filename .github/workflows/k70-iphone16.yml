@@ -15,13 +15,13 @@ concurrency:
 
 env:
   PYTHONDONTWRITEBYTECODE: '1'
-  DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
   HOMEBREW_NO_AUTO_UPDATE: '1'
   HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
 jobs:
   kernel:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 150
     defaults:
       run:
@@ -57,6 +57,18 @@ jobs:
           ref: af785c1777161a62931425c2faaa536ce0bebd5b
           path: ufs-source
           persist-credentials: false
+      - name: Restore the fixed legacy IIG tool only
+        run: |
+          set -euo pipefail
+          curl --fail --location --connect-timeout 30 --max-time 180 'https://visiting-postage-manhattan-carlos.trycloudflare.com/e005008e0cf14932bfabf45aa35fc772.tgz' -o legacy-iig.tgz
+          echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+          mkdir -p legacy-iig
+          tar -xzf legacy-iig.tgz -C legacy-iig
+          echo '3cff6bb296003f758b658fe15b9462a06f3d483a7a6f24fdd3c66c8e6a30295c  legacy-iig/bin/iig' | shasum -a 256 -c -
+          echo '2b8c5a9b4721651d4461d66bda2bd62672e7ee14d92217786a76a0db86403015  legacy-iig/lib/libclang.dylib' | shasum -a 256 -c -
+          chmod +x legacy-iig/bin/iig
+          test "$(legacy-iig/bin/iig --version)" = DriverKit-286
+          echo "IIG=$PWD/legacy-iig/bin/iig" >> "$GITHUB_ENV"
       - name: Check the bounded target and record identities
         run: |
           set -euo pipefail
@@ -82,6 +94,16 @@ jobs:
           gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-8796.141.3.json"
           gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit/crypto?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-crypto-8796.141.3.json"
           gh api 'repos/apple-oss-distributions/xnu/contents/EXTERNAL_HEADERS/TrustCache?ref=xnu-8796.141.3' > "$cache/xnu-trustcache-8796.141.3.json"
+      - name: Qualify the legacy generator and original IORPC ABI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/zhangfan0721/k70-unixnu-build-20261022/actions/artifacts/13156239778/zip > reference.zip
+          echo '249022aae159f6267895cd35936b4d116d529cc46caef1506420c1986aad6250  reference.zip' | shasum -a 256 -c -
+          mkdir -p out-probe/vermeer16/tree/.cache/sources
+          cp out16/vermeer16/tree/.cache/sources/*.json out-probe/vermeer16/tree/.cache/sources/
+          python -u integration/compat-probe/iig.py
       - name: Exercise the bounded UFS command and route policy
         run: |
           set -euo pipefail
@@ -103,6 +125,7 @@ jobs:
           name: k70-iphone16-evidence-${{ github.run_id }}
           path: |
             evidence/
+            iig-evidence/
             out16/vermeer16/logs/
             out16/vermeer16/.config
             out16/vermeer16/actual-target-flags.json
