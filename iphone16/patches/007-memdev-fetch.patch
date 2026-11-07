@@ -1,5 +1,5 @@
---- a/bsd/dev/memdev.c	2026-11-07 11:26:37.269609700 +0800
-+++ b/bsd/dev/memdev.c	2026-11-07 11:26:37.353425700 +0800
+--- a/bsd/dev/memdev.c
++++ b/bsd/dev/memdev.c
 @@ -157,11 +157,18 @@
  	.d_type       = D_DISK,
  };
