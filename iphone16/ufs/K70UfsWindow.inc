@@ -110,6 +110,15 @@ static bool k70WindowOpen (uint64_t lba, uint32_t blocks, int devid)
   if (gWindowState != 0) {
     return false;
   }
+  // Diagnostic mode: stop with the digests on screen so a hardware run does not
+  // have to be timed against a scrolling log.
+  char halt[8];
+  if (PE_parse_boot_argn ("k70halt", halt, sizeof (halt)) && halt[0] == '1') {
+    boot_progress_stage ("K70 UFS window digests above; halted on request");
+    for (;;) {
+      __asm__ volatile ("wfi");
+    }
+  }
   gWindowDev = mdevadd_fetch (devid, blocks, k70WindowFetch);
   if (gWindowDev < 0) {
     return false;
