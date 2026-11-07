@@ -178,30 +178,41 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   // DMA/list/route remain retained until reboot. No rollback or publication.
 }
 
+// Freezes the machine on request so a hardware run reports its own outcome on a
+// screen that cannot scroll away. The reason becomes the last progress stage.
+static bool k70WindowHaltReport(const char *why, bool ok)
+{
+  char halt[8];
+  if (PE_parse_boot_argn("k70halt", halt, sizeof(halt)) && halt[0] == '1') {
+    boot_progress_stage(why);
+    for (;;) {
+      __asm__ volatile ("wfi");
+    }
+  }
+  return ok;
+}
+
 extern "C" bool k70_ufs_window_prepare(void)
 {
   char argument[64];
   unsigned long long lba = 0;
   unsigned blocks = 0;
   if (!PE_parse_boot_argn("k70rd", argument, sizeof(argument))) {
-    return false;                       // no declared window: default deny
+    return k70WindowHaltReport("K70 UFS window: no k70rd argument", false);
   }
   if (!K70Window::parseArgument(argument, &lba, &blocks)) {
-    boot_progress_stage("K70 UFS window argument refused");
-    return false;
+    return k70WindowHaltReport("K70 UFS window: argument refused", false);
   }
   const char *why = "window bring-up refused";
   boot_progress_stage("K70 UFS window bring-up");
   if (!hostBringUp(&why)) {
-    boot_progress_stage(why);
-    return false;
+    return k70WindowHaltReport(why, false);
   }
   if (!k70WindowOpen(lba, blocks, 0)) {
-    boot_progress_stage("K70 UFS window refused");
-    return false;
+    return k70WindowHaltReport("K70 UFS window: open refused", false);
   }
   k70_formal_cpu_trace("UFS window base lba", lba);
   k70_formal_cpu_trace("UFS window blocks", blocks);
   boot_progress_stage("K70 UFS window open");
-  return true;
+  return k70WindowHaltReport("K70 UFS window: open; halted", true);
 }
