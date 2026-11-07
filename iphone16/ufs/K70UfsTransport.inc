@@ -8,11 +8,20 @@
 extern "C" {
 #include <kern/clock.h>
 #include <vm/vm_kern.h>
+#include <sys/errno.h>
+#include <sys/types.h>
+#include <pexpert/pexpert.h>
 }
 #include "ReadOnlyPolicy.h"
 #include "GccUfs.h"
 #include "K70SmmuEvidence.h"
 #include "K70Smmu.h"
+#include "WindowPlan.h"
+// Declared at global scope: an extern "C" declaration inside the unnamed
+// namespace below would take internal linkage and stop matching memdev's
+// definition.
+extern "C" dev_t mdevadd_fetch (int devid, unsigned int size,
+    int (*fetch) (int, uint64_t, void *, size_t));
 namespace {
 #include "RootDiagnostics.h"
 #include "TransferPoll.h"
@@ -114,6 +123,7 @@ static void hostWrite (unsigned offset, uint32_t value)
 
 #include "K70Takeover.inc"
 #include "Qualification.inc"
+#include "K70UfsWindow.inc"
 }
 extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;
@@ -166,4 +176,56 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   k70_formal_cpu_trace("UFS map/write fault",(uint64_t(gMapFault)<<32)|gWriteFault);
   boot_progress_stage(pass?"UFS READ QUALIFIED; STOP":"UFS TAKEOVER STOP; no retry");
   // DMA/list/route remain retained until reboot. No rollback or publication.
+}
+
+// Reports the command line the kernel actually received. Reading it back on the
+// screen is what separated a parser problem from a handoff problem once.
+extern "C" void k70_ufs_window_bootargs(void)
+{
+  const char *line = PE_boot_args();
+  boot_progress_stage(line && *line ? line : "(no boot arguments)");
+}
+
+// Freezes the machine on request so a hardware run reports its own outcome on a
+// screen that cannot scroll away. The reason becomes the last progress stage.
+static bool k70WindowHaltReport(const char *why, bool ok)
+{
+  // Every outcome names itself on the console; k70halt additionally parks the
+  // CPU so the line cannot scroll away.
+  boot_progress_stage(why);
+  char halt[8];
+  if (PE_parse_boot_arg_str("k70halt", halt, sizeof(halt)) && halt[0] == '1') {
+    for (;;) {
+      __asm__ volatile ("wfi");
+    }
+  }
+  return ok;
+}
+
+extern "C" bool k70_ufs_window_prepare(void)
+{
+  char argument[64];
+  unsigned long long lba = 0;
+  unsigned blocks = 0;
+  boot_progress_stage("K70W 1 enter");
+  if (!PE_parse_boot_arg_str("k70rd", argument, sizeof(argument))) {
+    return k70WindowHaltReport("K70W 2 no k70rd argument", false);
+  }
+  boot_progress_stage("K70W 3 argument read");
+  if (!K70Window::parseArgument(argument, &lba, &blocks)) {
+    return k70WindowHaltReport("K70W 4 argument refused", false);
+  }
+  boot_progress_stage("K70W 5 bring-up");
+  const char *why = "K70W 6 bring-up refused";
+  if (!hostBringUp(&why)) {
+    return k70WindowHaltReport(why, false);
+  }
+  boot_progress_stage("K70W 7 transport up");
+  if (!k70WindowOpen(lba, blocks, 0)) {
+    return k70WindowHaltReport(k70WindowRefusalReason(), false);
+  }
+  boot_progress_stage("K70W 8 opened");
+  k70_formal_cpu_trace("UFS window base lba", lba);
+  k70_formal_cpu_trace("UFS window blocks", blocks);
+  return k70WindowHaltReport("K70W 9 done", true);
 }

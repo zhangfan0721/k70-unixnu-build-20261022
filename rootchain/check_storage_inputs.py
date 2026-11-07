@@ -6,8 +6,19 @@ or complete C++ object-layout qualification. Apple bytes and reports stay local.
 from pathlib import Path
 import argparse,hashlib,json,struct,sys,subprocess
 
-EXPECTED={'com.apple.iokit.IOStorageFamily':'2.1','com.apple.filesystems.hfs.kext':'627.100.6'}
-KPI={'com.apple.kpi.'+s for s in ('mach','private','unsupported','iokit','libkern','bsd')}
+EXPECTED={'com.apple.iokit.IOStorageFamily':'2.1','com.apple.filesystems.hfs.kext':'627.100.6',
+          'com.apple.filesystems.apfs':'2142.140.9','com.apple.driver.AppleEffaceableStorage':'1.0',
+          'com.apple.iokit.CoreAnalyticsFamily':'1','com.apple.iokit.IOCryptoAcceleratorFamily':'1.0.1',
+          'com.apple.kec.corecrypto':'12.0','com.apple.kext.CoreTrust':'1',
+          'com.apple.security.AppleImage4':'5.0.0'}
+
+# The HFS+IOStorageFamily pair is entirely Local-Root. Four members of the APFS
+# closure declare Root instead, which is a different kext load policy, not a
+# different pointer contract: prelinked components are all loaded from the same
+# metadata list. Record the declared value instead of demanding one class.
+REQUIRED={'Local-Root','Root'}
+# dsep is declared only by the APFS closure (CoreTrust/AppleImage4/corecrypto).
+KPI={'com.apple.kpi.'+s for s in ('mach','private','unsupported','iokit','libkern','bsd','dsep')}
 PIN='2b6ffb50117eee820b98aca9bd51b5c7dfb2970e'
 ORIGINAL='2ec297bac95bcba01046fd0148e97e7e5885c05a6c18827f39f534ba375c1221'
 
@@ -48,9 +59,11 @@ def main():
     proof={}
     for name,version in EXPECTED.items():
         entry=entries[name];original=original_entries[name]
-        assert entry['CFBundleVersion']==version and entry['OSBundleRequired']=='Local-Root'
+        assert entry['CFBundleVersion']==version and entry['OSBundleRequired'] in REQUIRED
         assert entry['OSBundleLibraries']==original['OSBundleLibraries']
-        assert entry['IOKitPersonalities']==original['IOKitPersonalities']
+        # corecrypto and CoreTrust declare no personalities; compare declared value.
+        assert entry.get('IOKitPersonalities')==original.get('IOKitPersonalities')
+        assert set(entry)==set(original)
         assert entry.get('OSKernelResource') is not True
         h=backed_offset(segments,entry['_PrelinkExecutableLoadAddr'],32,len(candidate))
         image=macho(candidate,h)
@@ -67,7 +80,8 @@ def main():
                 assert section['size'] and section['size']%8==0
                 at=backed_offset(segments,section['va'],section['size'],len(candidate))
                 constructors.extend(struct.unpack_from('<'+'Q'*(section['size']//8),candidate,at))
-        assert constructors and all(is_code(c) for c in constructors)
+        # A component may legitimately declare none (corecrypto, CoreTrust).
+        assert all(is_code(c) for c in constructors)
         hashes=[]
         for segment in executable:
             at=backed_offset(segments,segment['va'],segment['filesize'],len(candidate))
@@ -78,13 +92,16 @@ def main():
                      'original_dependencies_and_personalities_unchanged':True}
     header_index=report['sparse_index']
     at=backed_offset(segments,header_index['va'],header_index['size'],len(candidate))
-    headers=list(struct.unpack_from('<2Q',candidate,at))
+    count=header_index['size']//8
+    assert count==len(EXPECTED)
+    headers=list(struct.unpack_from('<%dQ'%count,candidate,at))
     assert headers==sorted(entries[n]['_PrelinkExecutableLoadAddr'] for n in EXPECTED)
     result={'original_sha256':digest(old),'native_sha256':digest(native),'candidate_sha256':digest(candidate),
             'dependency_closure':sorted(selected),'modules':proof,'rebased_constructor_and_start_pointers_checked':True,
             'original_execution_bytes_preserved':True,'sparse_header_index_checked':True,
             'legacy_static_slide_extent_covers_all_segments':True,
             'pointer_counts':report['pointer_counts'],'hardware_storage_backends_added':False,
+            'filesystem_drivers_added':True,'root_mount_role':None,
             'complete_cpp_abi_qualified':False,'runtime_initialization_verified':False,'md0_mount_verified':False}
     (a.out/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps({k:v for k,v in result.items() if k!='modules'},indent=2))

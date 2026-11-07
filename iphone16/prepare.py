@@ -154,6 +154,10 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\textern void k70_formal_cpu_summary(void);\n\tk70_formal_cpu_summary();\n\terr = IOFindBSDRoot(rootdevice, sizeof(rootdevice), &rootdev, &flags);')
     edit(root, name, '\t\tif (0 == (err = vfs_mountroot())) {',
          '\t\tboot_progress_stage("vfs_mountroot enter");\n\t\tif (0 == (err = vfs_mountroot())) {\n\t\t\tboot_progress_stage("vfs_mountroot mounted; authentication pending");')
+    edit(root, name, "\t\trootdevice[0] = '\\0';",
+         '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);'
+         ' k70_formal_cpu_trace("vfs_mountroot failed err", (uint64_t)(int64_t)err); }\n'
+         "\t\trootdevice[0] = '\\0';\n")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
          'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'

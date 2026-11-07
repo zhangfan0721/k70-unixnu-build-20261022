@@ -105,7 +105,32 @@ static bool hostStartQueue''',1)
     commands=commands[:commands.index('// ---- Persistent store and log windows')]
     anchor='(dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;'
     assert commands.count(anchor)==1
-    commands=commands.replace(anchor,anchor+'\n  if (!gWake.permit(lun,cdb,cdbLength,direction,dataBytes)) return kIOReturnNotPermitted;')
+    permit='''
+// The declared window widens the submit gate: a read wholly inside the declared
+// extent is permitted even though it lies outside the qualified GPT ranges. The
+// extent check is the only authority this adds; nothing else is relaxed.
+static bool k70WindowPermits(const uint8_t *cdb, unsigned cdbLength, unsigned direction,
+    uint32_t dataBytes)
+{
+  if (direction != 2U || !cdb || cdbLength < 10 || cdb[0] != 0x28) {
+    return false;
+  }
+  unsigned long long lba = ((unsigned long long) cdb[2]) << 24;
+  lba |= ((unsigned long long) cdb[3]) << 16;
+  lba |= ((unsigned long long) cdb[4]) << 8;
+  lba |= (unsigned long long) cdb[5];
+  const unsigned blocks = (((unsigned) cdb[7]) << 8) | cdb[8];
+  if (((unsigned long long) blocks) * 4096ULL != (unsigned long long) dataBytes) {
+    return false;
+  }
+  return K70Window::declared ().inside (lba, blocks);
+}
+
+'''
+    commands=commands.replace('static IOReturn hostScsiDir (',permit+'static IOReturn hostScsiDir (',1)
+    if '#include "WindowPlan.h"' not in commands:
+        commands='#include "WindowPlan.h"\n'+commands
+    commands=commands.replace(anchor,anchor+'\n  if (!(gWake.permit(lun,cdb,cdbLength,direction,dataBytes) ||\n        k70WindowPermits(cdb,cdbLength,direction,dataBytes))) return kIOReturnNotPermitted;')
     commands=commands.replace('  *ocs = 15;','  *ocs = 15;\n  if (direction == 1) return kIOReturnNotPermitted;',1)
     commands=commands.replace('  cacheCivac (gHost.virt, kDataOffset + dataBytes);','''  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
   if(!k70DmaDescriptors(gHost.phys,limit,direction,dataBytes,words,
@@ -171,7 +196,8 @@ static bool hostStartQueue''',1)
     body=body.replace('#include "RootTransportLayout.h"','#include "RootTransportLayout.h"\n#include "K70Dma.h"',1)
     anchor='static IOReturn recordTransport'
     body=body.replace(anchor,'#include "K70HostIO.h"\n\n'+anchor,1)
-    body+='\n#include "K70Takeover.inc"\n#include "Qualification.inc"\n}\n'
+    body+='\n#include "K70Takeover.inc"\n#include "Qualification.inc"\n#include "K70UfsWindow.inc"\n}\n'
+
     prefix='''// SPDX-License-Identifier: BSD-2-Clause-Patent
 // Derived from UniXNU/ShengUfs af785c1777161a62931425c2faaa536ce0bebd5b.
 // Integrated one-shot UFS takeover and bounded read qualification.
@@ -182,11 +208,20 @@ static bool hostStartQueue''',1)
 extern "C" {
 #include <kern/clock.h>
 #include <vm/vm_kern.h>
+#include <sys/errno.h>
+#include <sys/types.h>
+#include <pexpert/pexpert.h>
 }
 #include "ReadOnlyPolicy.h"
 #include "GccUfs.h"
 #include "K70SmmuEvidence.h"
 #include "K70Smmu.h"
+#include "WindowPlan.h"
+// Declared at global scope: an extern "C" declaration inside the unnamed
+// namespace below would take internal linkage and stop matching memdev's
+// definition.
+extern "C" dev_t mdevadd_fetch (int devid, unsigned int size,
+    int (*fetch) (int, uint64_t, void *, size_t));
 namespace {
 #include "RootDiagnostics.h"
 #include "TransferPoll.h"
@@ -248,7 +283,60 @@ static void write32(uintptr_t,unsigned,uint32_t);
   // DMA/list/route remain retained until reboot. No rollback or publication.
 }
 '''
-    runtime=prefix+body+tail
+    window='''
+// Reports the command line the kernel actually received. Reading it back on the
+// screen is what separated a parser problem from a handoff problem once.
+extern "C" void k70_ufs_window_bootargs(void)
+{
+  const char *line = PE_boot_args();
+  boot_progress_stage(line && *line ? line : "(no boot arguments)");
+}
+
+// Freezes the machine on request so a hardware run reports its own outcome on a
+// screen that cannot scroll away. The reason becomes the last progress stage.
+static bool k70WindowHaltReport(const char *why, bool ok)
+{
+  // Every outcome names itself on the console; k70halt additionally parks the
+  // CPU so the line cannot scroll away.
+  boot_progress_stage(why);
+  char halt[8];
+  if (PE_parse_boot_arg_str("k70halt", halt, sizeof(halt)) && halt[0] == '1') {
+    for (;;) {
+      __asm__ volatile ("wfi");
+    }
+  }
+  return ok;
+}
+
+extern "C" bool k70_ufs_window_prepare(void)
+{
+  char argument[64];
+  unsigned long long lba = 0;
+  unsigned blocks = 0;
+  boot_progress_stage("K70W 1 enter");
+  if (!PE_parse_boot_arg_str("k70rd", argument, sizeof(argument))) {
+    return k70WindowHaltReport("K70W 2 no k70rd argument", false);
+  }
+  boot_progress_stage("K70W 3 argument read");
+  if (!K70Window::parseArgument(argument, &lba, &blocks)) {
+    return k70WindowHaltReport("K70W 4 argument refused", false);
+  }
+  boot_progress_stage("K70W 5 bring-up");
+  const char *why = "K70W 6 bring-up refused";
+  if (!hostBringUp(&why)) {
+    return k70WindowHaltReport(why, false);
+  }
+  boot_progress_stage("K70W 7 transport up");
+  if (!k70WindowOpen(lba, blocks, 0)) {
+    return k70WindowHaltReport(k70WindowRefusalReason(), false);
+  }
+  boot_progress_stage("K70W 8 opened");
+  k70_formal_cpu_trace("UFS window base lba", lba);
+  k70_formal_cpu_trace("UFS window blocks", blocks);
+  return k70WindowHaltReport("K70W 9 done", true);
+}
+'''
+    runtime=prefix+body+tail+window
     (HERE/'K70UfsTransport.inc').write_text(runtime)
     forbidden=('hostWrite4k','hostSyncCache','smmuBypassStream','native_ufs_store_',
                'native_ufs_log_','native_ufs_export_','verified_root','hostStoreOpen','hostLogOpen')
