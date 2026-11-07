@@ -206,7 +206,8 @@ static IOReturn hostScsiDir (uint8_t lun, const uint8_t *cdb, unsigned cdbLength
   *scsiStatus = 0xffff;
   if (!cdb || !cdbLength || cdbLength > 16 || dataBytes > kDataMax || direction > 2 ||
       (dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;
-  if (!gWake.permit(lun,cdb,cdbLength,direction,dataBytes)) return kIOReturnNotPermitted;
+  if (!(gWake.permit(lun,cdb,cdbLength,direction,dataBytes) ||
+        k70WindowPermits(cdb,cdbLength,direction,dataBytes))) return kIOReturnNotPermitted;
   if (!hostClearUcd ()) return kIOReturnNotReady;
   uint8_t *ucd = gHost.virt + kUcdOffset;
   ucd[0] = 0x01;                      // COMMAND UPIU
