@@ -1,19 +1,26 @@
 --- a/osfmk/prng/prng_random.c
 +++ b/osfmk/prng/prng_random.c
-@@ -264,7 +264,15 @@
+@@ -263,8 +263,22 @@
+ void
  register_and_init_prng(struct cckprng_ctx *ctx, const struct cckprng_funcs *funcs)
  {
- 	assert(cpu_number() == master_cpu);
--	assert(!prng_ready);
++	extern void boot_progress_stage(const char *);
++	extern void k70_formal_cpu_trace(const char *, uint64_t);
++	boot_progress_stage("PRNG register enter");
++	k70_formal_cpu_trace("PRNG register cpu", cpu_number());
++	k70_formal_cpu_trace("PRNG register ready", prng_ready);
 +
 +	/*
 +	 * The original corecrypto kext registers the generator from its module
-+	 * initialisers and again from its start routine. The first registration
-+	 * wins; a second one must not panic the machine.
++	 * initialisers and again from its start routine. The first registration wins;
++	 * the second must not panic the machine, and it may run on another CPU, so
++	 * the check has to come before the master-CPU assertion.
 +	 */
 +	if (prng_ready) {
 +		return;
 +	}
+ 	assert(cpu_number() == master_cpu);
+-	assert(!prng_ready);
  
  	entropy_init();
  
