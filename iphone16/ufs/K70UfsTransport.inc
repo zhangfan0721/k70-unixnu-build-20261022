@@ -8,6 +8,7 @@
 extern "C" {
 #include <kern/clock.h>
 #include <vm/vm_kern.h>
+#include <sys/errno.h>
 }
 #include "ReadOnlyPolicy.h"
 #include "GccUfs.h"
@@ -114,6 +115,35 @@ static void hostWrite (unsigned offset, uint32_t value)
 
 #include "K70Takeover.inc"
 #include "Qualification.inc"
+#include "K70UfsWindow.inc"
+}
+
+extern "C" bool k70_ufs_window_prepare(void)
+{
+  char argument[64];
+  unsigned long long lba = 0;
+  unsigned blocks = 0;
+  if (!PE_parse_boot_argn("k70rd", argument, sizeof(argument))) {
+    return false;                       // no declared window: default deny
+  }
+  if (!K70Window::parseArgument(argument, &lba, &blocks)) {
+    boot_progress_stage("K70 UFS window argument refused");
+    return false;
+  }
+  const char *why = "window bring-up refused";
+  boot_progress_stage("K70 UFS window bring-up");
+  if (!hostBringUp(&why)) {
+    boot_progress_stage(why);
+    return false;
+  }
+  if (!k70WindowOpen(lba, blocks, 0)) {
+    boot_progress_stage("K70 UFS window refused");
+    return false;
+  }
+  k70_formal_cpu_trace("UFS window base lba", lba);
+  k70_formal_cpu_trace("UFS window blocks", blocks);
+  boot_progress_stage("K70 UFS window open");
+  return true;
 }
 extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;

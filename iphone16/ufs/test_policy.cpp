@@ -31,8 +31,38 @@ extern "C" unsigned k70_ufs_policy_test() {
    expect(gate.permit(0xd0,wake,6,0,0));expect(!gate.permit(0xd0,wake,6,0,0));
    expect(!gate.observe(mode));
  }
+ // A declared window widens the readable range without touching the GPT blocks.
+ K70UfsPolicy::Window &w=K70UfsPolicy::window();
+ expect(!w.declared());expect(!w.inside(211008,1));
+ expect(!K70UfsPolicy::range(211008,1));
+ expect(w.declare(211008,2359296));
+ expect(w.declared() && w.baseLba==211008 && w.blockCount==2359296);
+ expect(K70UfsPolicy::range(211008,1));
+ expect(K70UfsPolicy::range(211008+2359296-1,1));
+ expect(!K70UfsPolicy::range(211008-1,1));
+ expect(!K70UfsPolicy::range(211008+2359296,1));
+ expect(!K70UfsPolicy::range(211008,2359297));
+ expect(!K70UfsPolicy::range(0,6)==false);   // GPT head still readable
+ expect(K70UfsPolicy::range(0,6));
+ // Declarations that cannot be honoured leave the previous window intact.
+ expect(!w.declare(0,0));
+ expect(!w.declare(K70UfsPolicy::blocks,1));
+ expect(!w.declare(K70UfsPolicy::blocks-5,6));
+ expect(w.baseLba==211008 && w.blockCount==2359296);
+ w.clear();
+ expect(!w.declared() && !K70UfsPolicy::range(211008,1));
  return errors;
 }
+
+#ifdef K70_POLICY_MAIN
+#include <cstdio>
+extern "C" unsigned k70_ufs_route_test();
+int main(){
+  unsigned e=k70_ufs_policy_test();
+  std::printf("k70 policy: %u errors\n",e);
+  return e?1:0;
+}
+#endif
 static unsigned regs[0x90000/4];
 static unsigned rejection,validSlots,matches,extendedReads;
 static unsigned long long lastPair;

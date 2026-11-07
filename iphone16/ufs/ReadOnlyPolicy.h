@@ -5,10 +5,33 @@
 // contents can be addressed, and no device-to-host request has a general range.
 namespace K70UfsPolicy {
 static constexpr unsigned long long blocks = 61842432ULL;
+
+// A declared read-only window. Default is unset, which keeps the TAKEOVER05
+// GPT-only surface exactly as qualified. Declaring a window never removes the
+// GPT blocks and never allows a write; it only widens the readable range.
+struct Window {
+    // Members are named so they cannot shadow the device-wide block count above.
+    unsigned long long baseLba = 0;
+    unsigned blockCount = 0;
+    bool declare(unsigned long long lba, unsigned count) {
+        if (!count || lba >= blocks || count > blocks - lba) return false;
+        baseLba = lba; blockCount = count; return true;
+    }
+    void clear() { baseLba = 0; blockCount = 0; }
+    bool declared() const { return blockCount != 0; }
+    bool inside(unsigned long long lba, unsigned count) const {
+        if (!blockCount || !count || lba < baseLba) return false;
+        unsigned long long off = lba - baseLba;
+        return off < blockCount && count <= blockCount - off;
+    }
+};
+inline Window &window() { static Window w; return w; }
+
 static inline bool range(unsigned long long lba, unsigned count) {
     if (!count || lba >= blocks || count > blocks-lba) return false;
     return (lba < 6 && count <= 6-lba) ||
-           (lba >= blocks-5 && count <= blocks-lba);
+           (lba >= blocks-5 && count <= blocks-lba) ||
+           window().inside(lba, count);
 }
 static inline bool command(unsigned lun, const unsigned char *cdb,
                            unsigned length, unsigned direction, unsigned bytes) {
