@@ -178,29 +178,12 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   // DMA/list/route remain retained until reboot. No rollback or publication.
 }
 
-// Reports the command line the kernel actually received, then parks the CPU when
-// it mentions k70halt. This deliberately avoids the boot-argument parser so a
-// transport problem cannot masquerade as a missing argument.
+// Reports the command line the kernel actually received. Reading it back on the
+// screen is what separated a parser problem from a handoff problem once.
 extern "C" void k70_ufs_window_bootargs(void)
 {
   const char *line = PE_boot_args();
   boot_progress_stage(line && *line ? line : "(no boot arguments)");
-  static const char needle[] = "k70halt";
-  bool halt = false;
-  if (line) {
-    for (const char *p = line; *p && !halt; ++p) {
-      unsigned i = 0;
-      while (needle[i] && p[i] == needle[i]) {
-        ++i;
-      }
-      halt = needle[i] == 0;
-    }
-  }
-  if (halt) {
-    for (;;) {
-      __asm__ volatile ("wfi");
-    }
-  }
 }
 
 // Freezes the machine on request so a hardware run reports its own outcome on a
@@ -208,7 +191,7 @@ extern "C" void k70_ufs_window_bootargs(void)
 static bool k70WindowHaltReport(const char *why, bool ok)
 {
   char halt[8];
-  if (PE_parse_boot_argn("k70halt", halt, sizeof(halt)) && halt[0] == '1') {
+  if (PE_parse_boot_arg_str("k70halt", halt, sizeof(halt)) && halt[0] == '1') {
     boot_progress_stage(why);
     for (;;) {
       __asm__ volatile ("wfi");
@@ -222,7 +205,7 @@ extern "C" bool k70_ufs_window_prepare(void)
   char argument[64];
   unsigned long long lba = 0;
   unsigned blocks = 0;
-  if (!PE_parse_boot_argn("k70rd", argument, sizeof(argument))) {
+  if (!PE_parse_boot_arg_str("k70rd", argument, sizeof(argument))) {
     return k70WindowHaltReport("K70 UFS window: no k70rd argument", false);
   }
   if (!K70Window::parseArgument(argument, &lba, &blocks)) {

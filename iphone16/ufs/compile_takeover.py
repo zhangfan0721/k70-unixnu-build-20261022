@@ -17,6 +17,7 @@ void IODelay(uint32_t); uint64_t mach_absolute_time();
 void clock_interval_to_deadline(uint32_t,unsigned,uint64_t *);
 int PE_parse_boot_argn(const char *,void *,int);
 char *PE_boot_args(void);
+int PE_parse_boot_arg_str(const char *,char *,int);
 }
 constexpr int EIO=5,EINVAL=22;
 using IOReturn=uint32_t;using IOByteCount=uint64_t;using IOOptionBits=uint64_t;using dev_t=int32_t;
