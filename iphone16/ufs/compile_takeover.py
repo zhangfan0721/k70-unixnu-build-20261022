@@ -15,12 +15,14 @@ void bzero(void *,size_t); int snprintf(char *,size_t,const char *,...);
 void boot_progress_stage(const char *); void k70_formal_cpu_trace(const char *,uint64_t);
 void IODelay(uint32_t); uint64_t mach_absolute_time();
 void clock_interval_to_deadline(uint32_t,unsigned,uint64_t *);
+int PE_parse_boot_argn(const char *,void *,int);
 }
-using IOReturn=uint32_t;using IOByteCount=uint64_t;using IOOptionBits=uint64_t;
+constexpr int EIO=5,EINVAL=22;
+using IOReturn=uint32_t;using IOByteCount=uint64_t;using IOOptionBits=uint64_t;using dev_t=int32_t;
 constexpr IOReturn kIOReturnSuccess=0,kIOReturnError=1,kIOReturnBadArgument=2,
  kIOReturnIOError=3,kIOReturnBusy=4,kIOReturnTimeout=5,kIOReturnNotReady=6,kIOReturnNotPermitted=7;
 constexpr unsigned kIOMapAnywhere=1,kIOMapInhibitCache=2,OSNoRetain=0,
- kIODirectionInOut=3,kIOMemoryPhysicallyContiguous=4,kIOMemoryMapperNone=8,
+ kIODirectionIn=1,kIODirectionInOut=3,kIOMemoryPhysicallyContiguous=4,kIOMemoryMapperNone=8,
  kMicrosecondScale=1,kMillisecondScale=1000;
 extern void *kernel_task;
 struct IOMemoryMap {uintptr_t getVirtualAddress();};
@@ -34,6 +36,7 @@ struct IODeviceMemory {
 };
 struct IOBufferMemoryDescriptor {
  static IOBufferMemoryDescriptor *inTaskWithOptions(void *,IOOptionBits,size_t,size_t);
+ static IOBufferMemoryDescriptor *withCapacity(size_t,IOOptionBits);
  void *getBytesNoCopy();uint64_t getPhysicalSegment(uint64_t,IOByteCount *,unsigned);
 };
 struct IOLock {}; IOLock *IOLockAlloc();void IOLockLock(IOLock *);void IOLockUnlock(IOLock *);
