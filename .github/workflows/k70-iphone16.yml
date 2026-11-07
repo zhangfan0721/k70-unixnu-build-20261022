@@ -2,6 +2,9 @@ name: K70 Darwin22 integration gate
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [codex/k70-formal-xnu]
+    paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
   push:
     branches: [codex/k70-formal-xnu]
     paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
