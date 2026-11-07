@@ -6,7 +6,6 @@
 // issues no MMIO of its own. The window is never discovered: the caller declares
 // an LBA extent, the policy records it, and every request is checked against it
 // before a command is built.
-#include "WindowPlan.h"
 
 static constexpr uint8_t kWindowLun = 0;
 static volatile int gWindowState = 0;            // 0 closed, 1 open, 2 poisoned
@@ -14,9 +13,6 @@ static K70Window::Extent gWindowExtent = { 0, 0 };
 static IOBufferMemoryDescriptor *gWindowBounce = nullptr;
 static void *gWindowScratch = nullptr;
 static dev_t gWindowDev = -1;
-
-extern "C" dev_t mdevadd_fetch (int devid, unsigned int size,
-    int (*fetch) (int, uint64_t, void *, size_t));
 
 // Serves one strategy request. Returns an errno; the caller completes the buf.
 // Any transport or policy failure poisons the window for good: a half-served

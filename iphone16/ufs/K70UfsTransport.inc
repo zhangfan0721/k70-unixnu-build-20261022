@@ -9,12 +9,19 @@ extern "C" {
 #include <kern/clock.h>
 #include <vm/vm_kern.h>
 #include <sys/errno.h>
+#include <sys/types.h>
 #include <pexpert/pexpert.h>
 }
 #include "ReadOnlyPolicy.h"
 #include "GccUfs.h"
 #include "K70SmmuEvidence.h"
 #include "K70Smmu.h"
+#include "WindowPlan.h"
+// Declared at global scope: an extern "C" declaration inside the unnamed
+// namespace below would take internal linkage and stop matching memdev's
+// definition.
+extern "C" dev_t mdevadd_fetch (int devid, unsigned int size,
+    int (*fetch) (int, uint64_t, void *, size_t));
 namespace {
 #include "RootDiagnostics.h"
 #include "TransferPoll.h"
