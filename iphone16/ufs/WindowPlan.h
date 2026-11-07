@@ -14,6 +14,33 @@ enum : unsigned {
   kMaxChunks   = 64,     // 64 * 32 blocks = 8 MiB of window per request
 };
 
+// Recorded LUN0 geometry, used only to refuse a declaration that runs past the
+// end of the device.
+static constexpr unsigned long long kDeviceBlocks = 61842432ULL;
+
+// The declared window. Nothing is readable through it until declare() succeeds,
+// and a declaration never widens itself later.
+struct WindowState {
+  unsigned long long baseLba = 0;
+  unsigned blockCount = 0;
+  bool declare(unsigned long long lba, unsigned count) {
+    if (!count || lba >= kDeviceBlocks || count > kDeviceBlocks - lba) {
+      return false;
+    }
+    baseLba = lba;
+    blockCount = count;
+    return true;
+  }
+  void clear() { baseLba = 0; blockCount = 0; }
+  bool declared() const { return blockCount != 0; }
+  bool inside(unsigned long long lba, unsigned count) const {
+    if (!blockCount || !count || lba < baseLba) return false;
+    const unsigned long long offset = lba - baseLba;
+    return offset < blockCount && count <= blockCount - offset;
+  }
+};
+inline WindowState &declared() { static WindowState w; return w; }
+
 struct Extent {
   unsigned long long base;    // first authorized LBA
   unsigned blocks;            // authorized block count, non-zero when valid
@@ -85,6 +112,46 @@ inline bool make(const Extent &e, unsigned long long offset,
 
 // Writes are never servable: the window is a read-only projection.
 inline bool writable(unsigned long long, unsigned long long) { return false; }
+
+// Result codes for one served request. The kernel binding maps these onto the
+// errno its strategy reports; the host harness asserts on them directly.
+enum : int { kServed = 0, kRefused = -1, kTransportFailed = -2 };
+
+// Serves one strategy request. `read(lba, blocks, target)` must return 0 on
+// success; `permit(lba, blocks)` must return true for the chunk to be issued.
+// An unaligned request is bounced through `scratch`, which must hold at least
+// kMaxTransfer blocks. A transport failure stops immediately: the caller poisons
+// the window rather than serving a root volume from a device that half-answered.
+template <class Read, class Permit>
+int serve(const Extent &e, unsigned long long offset, unsigned long long length,
+          void *dst, void *scratch, Read read, Permit permit) {
+  if (!dst || !scratch || !length) return kRefused;
+  Plan plan;
+  if (!make(e, offset, length, &plan)) return kRefused;
+  for (unsigned i = 0; i < plan.count; ++i) {
+    const Chunk &c = plan.chunk[i];
+    const unsigned blocks = c.bytes / kBlockBytes;
+    if (!permit(c.lba, blocks)) return kRefused;
+    unsigned char *target = plan.bounce
+        ? static_cast<unsigned char *>(scratch)
+        : static_cast<unsigned char *>(dst) + (c.offset - plan.aligned);
+    if (read(c.lba, blocks, target) != 0) return kTransportFailed;
+    if (plan.bounce) {
+      const unsigned long long chunkStart = c.offset;
+      const unsigned long long chunkEnd = c.offset + c.bytes;
+      const unsigned long long reqStart = offset;
+      const unsigned long long reqEnd = offset + length;
+      const unsigned long long from = chunkStart > reqStart ? chunkStart : reqStart;
+      const unsigned long long to = chunkEnd < reqEnd ? chunkEnd : reqEnd;
+      if (from < to) {
+        __builtin_memcpy(static_cast<unsigned char *>(dst) + (from - reqStart),
+                         static_cast<unsigned char *>(scratch) + (from - chunkStart),
+                         static_cast<unsigned long>(to - from));
+      }
+    }
+  }
+  return kServed;
+}
 
 // Parses one number for the declared window, refusing overflow before it can
 // wrap. A "0x" prefix selects hexadecimal; otherwise the field is decimal.
