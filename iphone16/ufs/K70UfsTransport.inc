@@ -9,6 +9,7 @@ extern "C" {
 #include <kern/clock.h>
 #include <vm/vm_kern.h>
 #include <sys/errno.h>
+#include <pexpert/pexpert.h>
 }
 #include "ReadOnlyPolicy.h"
 #include "GccUfs.h"

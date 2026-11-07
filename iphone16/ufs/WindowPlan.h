@@ -21,8 +21,8 @@ static constexpr unsigned long long kDeviceBlocks = 61842432ULL;
 // The declared window. Nothing is readable through it until declare() succeeds,
 // and a declaration never widens itself later.
 struct WindowState {
-  unsigned long long baseLba = 0;
-  unsigned blockCount = 0;
+  unsigned long long baseLba;
+  unsigned blockCount;
   bool declare(unsigned long long lba, unsigned count) {
     if (!count || lba >= kDeviceBlocks || count > kDeviceBlocks - lba) {
       return false;
@@ -39,7 +39,7 @@ struct WindowState {
     return offset < blockCount && count <= blockCount - offset;
   }
 };
-inline WindowState &declared() { static WindowState w; return w; }
+inline WindowState &declared() { static WindowState w = {}; return w; }
 
 struct Extent {
   unsigned long long base;    // first authorized LBA
