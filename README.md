@@ -1,11 +1,36 @@
 # K70 XNU source build
 
 Manual macOS CI and the pinned source tree for running iOS 16.7.16 (20H392) on the
-Redmi K70 (vermeer, SM8550) through UEFI → UniXNU → DarwinBoot → XNU.
+Redmi K70 (vermeer, SM8550). The chain is the one described in the UniXNU [boot
+chain](https://unixnu.com/zh/concepts/boot-chain): Android bootloader → BootShim and
+UEFI firmware → UniXNU → DarwinBoot → patched XNU → IPSW userspace.
 
+- [Documentation](https://unixnu.com/zh/)
+- [Porting guide](https://unixnu.com/zh/porting/)
+- [Build](https://unixnu.com/zh/building)
+- Device repository: [UniXNU-vermeer](https://github.com/mansar1337/UniXNU-vermeer)
 - [Integration gate workflow](.github/workflows/k70-iphone16.yml)
 - [Latest storage build](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42340630197)
 - Original source-build baseline: [run 39801380604](https://github.com/xyyyds0106/k70-unixnu-build-20261022/actions/runs/39801380604), commit `ecc325019f99d9491c15893f89c5e3703543b8ae`
+
+## Prerequisites
+
+Every workflow pins its inputs and records the actual macOS/Xcode/SDK/compiler
+versions per run. Nothing is fetched from a moving reference:
+
+| Input | Pin |
+| --- | --- |
+| XNU | `apple-oss-distributions/xnu@1b191cb58250d0705d8a51287127505aa4bc0789` (xnu-8796.141.3) |
+| UniXNU core | `UniXNU/UniXNU@b6ae99c17194e6a18fd819d3148e69fe405e91fc` |
+| Device | `mansar1337/UniXNU-vermeer@d4dbb3683023a17bb468b9774f52c87f3060e739` |
+| UEFI | `yyx2025/uefi-vermeer@da38b23cc7b3b3716cf7c72c42866bd73c978dd3` |
+| UFS transport | `UniXNU/ShengUfs@af785c1777161a62931425c2faaa536ce0bebd5b` |
+| Generator | Xcode 15.4 DriverKit-286 `iig`, SHA-256 pinned |
+
+A build needs a macOS 15 runner with Xcode 16.4 and the 75 MB `legacy-iig` tool
+cache; a clean checkout alone is not sufficient (see gap 3 below). Private inputs —
+phone images, photos, seeds and the original Apple kernelcache — stay local and are
+never uploaded.
 
 Nothing in this repository is a usable operating system. Every row below is a
 checkpoint with its own scope and its own evidence, and no stage count is a
