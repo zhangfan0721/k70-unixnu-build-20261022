@@ -118,34 +118,6 @@ static void hostWrite (unsigned offset, uint32_t value)
 #include "Qualification.inc"
 #include "K70UfsWindow.inc"
 }
-
-extern "C" bool k70_ufs_window_prepare(void)
-{
-  char argument[64];
-  unsigned long long lba = 0;
-  unsigned blocks = 0;
-  if (!PE_parse_boot_argn("k70rd", argument, sizeof(argument))) {
-    return false;                       // no declared window: default deny
-  }
-  if (!K70Window::parseArgument(argument, &lba, &blocks)) {
-    boot_progress_stage("K70 UFS window argument refused");
-    return false;
-  }
-  const char *why = "window bring-up refused";
-  boot_progress_stage("K70 UFS window bring-up");
-  if (!hostBringUp(&why)) {
-    boot_progress_stage(why);
-    return false;
-  }
-  if (!k70WindowOpen(lba, blocks, 0)) {
-    boot_progress_stage("K70 UFS window refused");
-    return false;
-  }
-  k70_formal_cpu_trace("UFS window base lba", lba);
-  k70_formal_cpu_trace("UFS window blocks", blocks);
-  boot_progress_stage("K70 UFS window open");
-  return true;
-}
 extern "C" void k70_ufs_readonly_qualify(void) {
   static bool entered=false;if(entered)return;entered=true;
   static UfsRootDiagnostics first;
@@ -197,4 +169,32 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   k70_formal_cpu_trace("UFS map/write fault",(uint64_t(gMapFault)<<32)|gWriteFault);
   boot_progress_stage(pass?"UFS READ QUALIFIED; STOP":"UFS TAKEOVER STOP; no retry");
   // DMA/list/route remain retained until reboot. No rollback or publication.
+}
+
+extern "C" bool k70_ufs_window_prepare(void)
+{
+  char argument[64];
+  unsigned long long lba = 0;
+  unsigned blocks = 0;
+  if (!PE_parse_boot_argn("k70rd", argument, sizeof(argument))) {
+    return false;                       // no declared window: default deny
+  }
+  if (!K70Window::parseArgument(argument, &lba, &blocks)) {
+    boot_progress_stage("K70 UFS window argument refused");
+    return false;
+  }
+  const char *why = "window bring-up refused";
+  boot_progress_stage("K70 UFS window bring-up");
+  if (!hostBringUp(&why)) {
+    boot_progress_stage(why);
+    return false;
+  }
+  if (!k70WindowOpen(lba, blocks, 0)) {
+    boot_progress_stage("K70 UFS window refused");
+    return false;
+  }
+  k70_formal_cpu_trace("UFS window base lba", lba);
+  k70_formal_cpu_trace("UFS window blocks", blocks);
+  boot_progress_stage("K70 UFS window open");
+  return true;
 }

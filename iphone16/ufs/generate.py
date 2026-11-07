@@ -171,7 +171,7 @@ static bool hostStartQueue''',1)
     body=body.replace('#include "RootTransportLayout.h"','#include "RootTransportLayout.h"\n#include "K70Dma.h"',1)
     anchor='static IOReturn recordTransport'
     body=body.replace(anchor,'#include "K70HostIO.h"\n\n'+anchor,1)
-    body+='\n#include "K70Takeover.inc"\n#include "Qualification.inc"\n}\n'
+    body+='\n#include "K70Takeover.inc"\n#include "Qualification.inc"\n#include "K70UfsWindow.inc"\n}\n'
     prefix='''// SPDX-License-Identifier: BSD-2-Clause-Patent
 // Derived from UniXNU/ShengUfs af785c1777161a62931425c2faaa536ce0bebd5b.
 // Integrated one-shot UFS takeover and bounded read qualification.
@@ -182,6 +182,8 @@ static bool hostStartQueue''',1)
 extern "C" {
 #include <kern/clock.h>
 #include <vm/vm_kern.h>
+#include <sys/errno.h>
+#include <pexpert/pexpert.h>
 }
 #include "ReadOnlyPolicy.h"
 #include "GccUfs.h"
@@ -248,7 +250,36 @@ static void write32(uintptr_t,unsigned,uint32_t);
   // DMA/list/route remain retained until reboot. No rollback or publication.
 }
 '''
-    runtime=prefix+body+tail
+    window='''
+extern "C" bool k70_ufs_window_prepare(void)
+{
+  char argument[64];
+  unsigned long long lba = 0;
+  unsigned blocks = 0;
+  if (!PE_parse_boot_argn("k70rd", argument, sizeof(argument))) {
+    return false;                       // no declared window: default deny
+  }
+  if (!K70Window::parseArgument(argument, &lba, &blocks)) {
+    boot_progress_stage("K70 UFS window argument refused");
+    return false;
+  }
+  const char *why = "window bring-up refused";
+  boot_progress_stage("K70 UFS window bring-up");
+  if (!hostBringUp(&why)) {
+    boot_progress_stage(why);
+    return false;
+  }
+  if (!k70WindowOpen(lba, blocks, 0)) {
+    boot_progress_stage("K70 UFS window refused");
+    return false;
+  }
+  k70_formal_cpu_trace("UFS window base lba", lba);
+  k70_formal_cpu_trace("UFS window blocks", blocks);
+  boot_progress_stage("K70 UFS window open");
+  return true;
+}
+'''
+    runtime=prefix+body+tail+window
     (HERE/'K70UfsTransport.inc').write_text(runtime)
     forbidden=('hostWrite4k','hostSyncCache','smmuBypassStream','native_ufs_store_',
                'native_ufs_log_','native_ufs_export_','verified_root','hostStoreOpen','hostLogOpen')
