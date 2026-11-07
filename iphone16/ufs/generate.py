@@ -296,9 +296,11 @@ extern "C" void k70_ufs_window_bootargs(void)
 // screen that cannot scroll away. The reason becomes the last progress stage.
 static bool k70WindowHaltReport(const char *why, bool ok)
 {
+  // Every outcome names itself on the console; k70halt additionally parks the
+  // CPU so the line cannot scroll away.
+  boot_progress_stage(why);
   char halt[8];
   if (PE_parse_boot_arg_str("k70halt", halt, sizeof(halt)) && halt[0] == '1') {
-    boot_progress_stage(why);
     for (;;) {
       __asm__ volatile ("wfi");
     }
