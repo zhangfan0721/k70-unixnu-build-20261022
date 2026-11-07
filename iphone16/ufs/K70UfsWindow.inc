@@ -13,6 +13,9 @@ static K70Window::Extent gWindowExtent = { 0, 0 };
 static IOBufferMemoryDescriptor *gWindowBounce = nullptr;
 static void *gWindowScratch = nullptr;
 static dev_t gWindowDev = -1;
+// Names the exact check that refused the open, so a hardware run reports which
+// one failed instead of one shared message.
+static const char *gWindowRefusal = "K70 UFS window: open refused";
 
 // Serves one strategy request. Returns an errno; the caller completes the buf.
 // Any transport or policy failure poisons the window for good: a half-served
@@ -84,22 +87,32 @@ static void k70WindowReportHead (void)
   }
 }
 
+// Returns the reason the open was refused, for the caller to report.
+static const char *k70WindowRefusalReason (void)
+{
+  return gWindowRefusal;
+}
+
 // Declares the extent, proves one bounded read, then publishes md<devid>.
 static bool k70WindowOpen (uint64_t lba, uint32_t blocks, int devid)
 {
   if (gWindowState != 0 || !blocks) {
+    gWindowRefusal = "K70 UFS window: state or size refused";
     return false;
   }
   if (!K70Window::declared ().declare (lba, blocks)) {
+    gWindowRefusal = "K70 UFS window: declare refused";
     return false;
   }
   gWindowBounce = IOBufferMemoryDescriptor::withCapacity (
       K70Window::kMaxTransfer * K70Window::kBlockBytes, kIODirectionIn);
   if (!gWindowBounce) {
+    gWindowRefusal = "K70 UFS window: buffer refused";
     return false;
   }
   gWindowScratch = gWindowBounce->getBytesNoCopy ();
   if (!gWindowScratch) {
+    gWindowRefusal = "K70 UFS window: scratch refused";
     return false;
   }
   gWindowExtent.base = lba;
@@ -108,9 +121,13 @@ static bool k70WindowOpen (uint64_t lba, uint32_t blocks, int devid)
   // behind, before it becomes a root device.
   k70WindowReportHead ();
   if (gWindowState != 0) {
+    gWindowRefusal = "K70 UFS window: first read refused";
     return false;
   }
   gWindowDev = mdevadd_fetch (devid, blocks, k70WindowFetch);
+  if (gWindowDev < 0) {
+    gWindowRefusal = "K70 UFS window: md0 claim refused";
+  }
   if (gWindowDev < 0) {
     return false;
   }

@@ -217,7 +217,7 @@ extern "C" bool k70_ufs_window_prepare(void)
     return k70WindowHaltReport(why, false);
   }
   if (!k70WindowOpen(lba, blocks, 0)) {
-    return k70WindowHaltReport("K70 UFS window: open refused", false);
+    return k70WindowHaltReport(k70WindowRefusalReason(), false);
   }
   k70_formal_cpu_trace("UFS window base lba", lba);
   k70_formal_cpu_trace("UFS window blocks", blocks);
