@@ -1,3 +1,4 @@
+#include "WindowPlan.h"
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 // Shared production command path. Included inside the root transport namespace.
 // The host harness replaces only MMIO, DMA synchronization, clock and lock primitives.
@@ -200,6 +201,27 @@ static IOReturn hostNop (void)
 
 // Run a SCSI command. direction 0: no data, 1: host -> device from the DMA data area (already filled by the caller), 2: device
 // -> host into the DMA data area. Direction 1 is forbidden by the candidate policy and submit gate.
+
+// The declared window widens the submit gate: a read wholly inside the declared
+// extent is permitted even though it lies outside the qualified GPT ranges. The
+// extent check is the only authority this adds; nothing else is relaxed.
+static bool k70WindowPermits(const uint8_t *cdb, unsigned cdbLength, unsigned direction,
+    uint32_t dataBytes)
+{
+  if (direction != 2U || !cdb || cdbLength < 10 || cdb[0] != 0x28) {
+    return false;
+  }
+  unsigned long long lba = ((unsigned long long) cdb[2]) << 24;
+  lba |= ((unsigned long long) cdb[3]) << 16;
+  lba |= ((unsigned long long) cdb[4]) << 8;
+  lba |= (unsigned long long) cdb[5];
+  const unsigned blocks = (((unsigned) cdb[7]) << 8) | cdb[8];
+  if (((unsigned long long) blocks) * 4096ULL != (unsigned long long) dataBytes) {
+    return false;
+  }
+  return K70Window::declared ().inside (lba, blocks);
+}
+
 static IOReturn hostScsiDir (uint8_t lun, const uint8_t *cdb, unsigned cdbLength, unsigned direction, uint32_t dataBytes,
                              uint32_t timeoutUs, uint32_t *scsiStatus)
 {

@@ -41,26 +41,6 @@ static uintptr_t mapPhys (uint64_t phys, uint64_t length, OSSharedPtr<IOMemoryMa
 }
 
 }
-
-// The declared window widens the submit gate: a read wholly inside the declared
-// extent is permitted even though it lies outside the qualified GPT ranges. The
-// extent check is the only authority this adds; nothing else is relaxed.
-static bool k70WindowPermits(const uint8_t *cdb, unsigned cdbLength, unsigned direction,
-    uint32_t dataBytes)
-{
-  if (direction != 2U || !cdb || cdbLength < 10 || cdb[0] != 0x28) {
-    return false;
-  }
-  unsigned long long lba = ((unsigned long long) cdb[2]) << 24;
-  lba |= ((unsigned long long) cdb[3]) << 16;
-  lba |= ((unsigned long long) cdb[4]) << 8;
-  lba |= (unsigned long long) cdb[5];
-  const unsigned blocks = (((unsigned) cdb[7]) << 8) | cdb[8];
-  if (((unsigned long long) blocks) * 4096ULL != (unsigned long long) dataBytes) {
-    return false;
-  }
-  return K70Window::declared ().inside (lba, blocks);
-}
 namespace {
 #include "RootTransportLayout.h"
 #include "K70Dma.h"

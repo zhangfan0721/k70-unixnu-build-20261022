@@ -105,6 +105,31 @@ static bool hostStartQueue''',1)
     commands=commands[:commands.index('// ---- Persistent store and log windows')]
     anchor='(dataBytes & 3) || (dataBytes ? !direction : direction)) return kIOReturnBadArgument;'
     assert commands.count(anchor)==1
+    permit='''
+// The declared window widens the submit gate: a read wholly inside the declared
+// extent is permitted even though it lies outside the qualified GPT ranges. The
+// extent check is the only authority this adds; nothing else is relaxed.
+static bool k70WindowPermits(const uint8_t *cdb, unsigned cdbLength, unsigned direction,
+    uint32_t dataBytes)
+{
+  if (direction != 2U || !cdb || cdbLength < 10 || cdb[0] != 0x28) {
+    return false;
+  }
+  unsigned long long lba = ((unsigned long long) cdb[2]) << 24;
+  lba |= ((unsigned long long) cdb[3]) << 16;
+  lba |= ((unsigned long long) cdb[4]) << 8;
+  lba |= (unsigned long long) cdb[5];
+  const unsigned blocks = (((unsigned) cdb[7]) << 8) | cdb[8];
+  if (((unsigned long long) blocks) * 4096ULL != (unsigned long long) dataBytes) {
+    return false;
+  }
+  return K70Window::declared ().inside (lba, blocks);
+}
+
+'''
+    commands=commands.replace('static IOReturn hostScsiDir (',permit+'static IOReturn hostScsiDir (',1)
+    if '#include "WindowPlan.h"' not in commands:
+        commands='#include "WindowPlan.h"\n'+commands
     commands=commands.replace(anchor,anchor+'\n  if (!(gWake.permit(lun,cdb,cdbLength,direction,dataBytes) ||\n        k70WindowPermits(cdb,cdbLength,direction,dataBytes))) return kIOReturnNotPermitted;')
     commands=commands.replace('  *ocs = 15;','  *ocs = 15;\n  if (direction == 1) return kIOReturnNotPermitted;',1)
     commands=commands.replace('  cacheCivac (gHost.virt, kDataOffset + dataBytes);','''  uint64_t limit=(read32(gHost.hc,0)&0x01000000U)?(1ULL<<36):(1ULL<<32);
@@ -172,27 +197,7 @@ static bool hostStartQueue''',1)
     anchor='static IOReturn recordTransport'
     body=body.replace(anchor,'#include "K70HostIO.h"\n\n'+anchor,1)
     body+='\n#include "K70Takeover.inc"\n#include "Qualification.inc"\n#include "K70UfsWindow.inc"\n}\n'
-    windowpermit='''
-// The declared window widens the submit gate: a read wholly inside the declared
-// extent is permitted even though it lies outside the qualified GPT ranges. The
-// extent check is the only authority this adds; nothing else is relaxed.
-static bool k70WindowPermits(const uint8_t *cdb, unsigned cdbLength, unsigned direction,
-    uint32_t dataBytes)
-{
-  if (direction != 2U || !cdb || cdbLength < 10 || cdb[0] != 0x28) {
-    return false;
-  }
-  unsigned long long lba = ((unsigned long long) cdb[2]) << 24;
-  lba |= ((unsigned long long) cdb[3]) << 16;
-  lba |= ((unsigned long long) cdb[4]) << 8;
-  lba |= (unsigned long long) cdb[5];
-  const unsigned blocks = (((unsigned) cdb[7]) << 8) | cdb[8];
-  if (((unsigned long long) blocks) * 4096ULL != (unsigned long long) dataBytes) {
-    return false;
-  }
-  return K70Window::declared ().inside (lba, blocks);
-}
-'''
+
     prefix='''// SPDX-License-Identifier: BSD-2-Clause-Patent
 // Derived from UniXNU/ShengUfs af785c1777161a62931425c2faaa536ce0bebd5b.
 // Integrated one-shot UFS takeover and bounded read qualification.
@@ -326,7 +331,7 @@ extern "C" bool k70_ufs_window_prepare(void)
   return k70WindowHaltReport("K70 UFS window: open; halted", true);
 }
 '''
-    runtime=prefix+windowpermit+body+tail+window
+    runtime=prefix+body+tail+window
     (HERE/'K70UfsTransport.inc').write_text(runtime)
     forbidden=('hostWrite4k','hostSyncCache','smmuBypassStream','native_ufs_store_',
                'native_ufs_log_','native_ufs_export_','verified_root','hostStoreOpen','hostLogOpen')
