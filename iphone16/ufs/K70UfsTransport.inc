@@ -178,6 +178,31 @@ extern "C" void k70_ufs_readonly_qualify(void) {
   // DMA/list/route remain retained until reboot. No rollback or publication.
 }
 
+// Reports the command line the kernel actually received, then parks the CPU when
+// it mentions k70halt. This deliberately avoids the boot-argument parser so a
+// transport problem cannot masquerade as a missing argument.
+extern "C" void k70_ufs_window_bootargs(void)
+{
+  const char *line = PE_boot_args();
+  boot_progress_stage(line && *line ? line : "(no boot arguments)");
+  static const char needle[] = "k70halt";
+  bool halt = false;
+  if (line) {
+    for (const char *p = line; *p && !halt; ++p) {
+      unsigned i = 0;
+      while (needle[i] && p[i] == needle[i]) {
+        ++i;
+      }
+      halt = needle[i] == 0;
+    }
+  }
+  if (halt) {
+    for (;;) {
+      __asm__ volatile ("wfi");
+    }
+  }
+}
+
 // Freezes the machine on request so a hardware run reports its own outcome on a
 // screen that cannot scroll away. The reason becomes the last progress stage.
 static bool k70WindowHaltReport(const char *why, bool ok)

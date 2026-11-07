@@ -15,5 +15,5 @@ def install(root):
     # A declared window, when the boot arguments ask for one, keeps the request
     # list running and backs md0 on demand. Otherwise the one-shot qualification
     # runs exactly as before.
-    s=s.replace(anchor,anchor+'\n\tif(!k70_ufs_window_prepare())k70_ufs_readonly_qualify();')
+    s=s.replace(anchor,anchor+'\n\tk70_ufs_window_bootargs();\n\tif(!k70_ufs_window_prepare())k70_ufs_readonly_qualify();')
     p.write_text(s)
