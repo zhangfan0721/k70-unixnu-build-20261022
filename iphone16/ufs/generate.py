@@ -313,24 +313,27 @@ extern "C" bool k70_ufs_window_prepare(void)
   char argument[64];
   unsigned long long lba = 0;
   unsigned blocks = 0;
+  boot_progress_stage("K70W 1 enter");
   if (!PE_parse_boot_arg_str("k70rd", argument, sizeof(argument))) {
-    return k70WindowHaltReport("K70 UFS window: no k70rd argument", false);
+    return k70WindowHaltReport("K70W 2 no k70rd argument", false);
   }
+  boot_progress_stage("K70W 3 argument read");
   if (!K70Window::parseArgument(argument, &lba, &blocks)) {
-    return k70WindowHaltReport("K70 UFS window: argument refused", false);
+    return k70WindowHaltReport("K70W 4 argument refused", false);
   }
-  const char *why = "window bring-up refused";
-  boot_progress_stage("K70 UFS window bring-up");
+  boot_progress_stage("K70W 5 bring-up");
+  const char *why = "K70W 6 bring-up refused";
   if (!hostBringUp(&why)) {
     return k70WindowHaltReport(why, false);
   }
+  boot_progress_stage("K70W 7 transport up");
   if (!k70WindowOpen(lba, blocks, 0)) {
     return k70WindowHaltReport(k70WindowRefusalReason(), false);
   }
+  boot_progress_stage("K70W 8 opened");
   k70_formal_cpu_trace("UFS window base lba", lba);
   k70_formal_cpu_trace("UFS window blocks", blocks);
-  boot_progress_stage("K70 UFS window open");
-  return k70WindowHaltReport("K70 UFS window: open; halted", true);
+  return k70WindowHaltReport("K70W 9 done", true);
 }
 '''
     runtime=prefix+body+tail+window
