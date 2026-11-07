@@ -1,96 +1,102 @@
 # K70 XNU source build
 
-Stage16 is being prepared: [one virtual timer IRQ and same-PC ERET](xnu-timer-irq-checkpoint/README.md), with five isolated CI groups retaining all238 prior test instances. No stage16 hardware result has been established.
+Manual macOS CI and the pinned source tree for running iOS 16.7.16 (20H392) on the
+Redmi K70 (vermeer, SM8550) through UEFI → UniXNU → DarwinBoot → XNU.
 
-## Current checkpoint status (2026-10-30)
+- [Integration gate workflow](.github/workflows/k70-iphone16.yml)
+- [Latest storage build](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42340630197)
+- Original source-build baseline: [run 39801380604](https://github.com/xyyyds0106/k70-unixnu-build-20261022/actions/runs/39801380604), commit `ecc325019f99d9491c15893f89c5e3703543b8ae`
 
-The K70 passed stage15's bounded physical/virtual counter progression.
-Local phone evidence shows three strictly increasing samples for each counter,
-49/97-tick intervals,146 totalticks, and stable reported19,200,000Hz frequency.
-Stage14 established controlled real exception capture. Both probes halt before
-the original relocation conditional, without ERET. Stage13's caller/empty RET
-and header read remain preserved. Full XNU, drivers, scheduler and iOS userspace
-have not run; timer IRQ remains the next separately scoped hardware gate.
-Stage12 established the C prologue; stage10 established virtual entry.
-[Stage10 workflow](.github/workflows/k70-c-entry-checkpoint.yml) runs 131 test
-instances, including inherited package tests; its original successful build was
-[40802153897](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40802153897).
+Nothing in this repository is a usable operating system. Every row below is a
+checkpoint with its own scope and its own evidence, and no stage count is a
+percentage of OS readiness.
 
-Six checkpoint workflows now restore the same tested source kernel from
-[preserved original public artifacts](pinned-inputs/40518851995/README.md).
-The original ZIP and kernel SHA-256 checks remain enforced, without depending
-on an expiring Actions artifact download. Preserved bytes do not prove that a
-new macOS compilation would reproduce the same bytes.
+## Current status (2026-11-07)
 
-[Stage12](xnu-c-prologue-checkpoint/README.md) runs every prior checkpoint suite
-and the preserved-input checks: all171 test instances and19 build steps passed
-in [40846393171](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40846393171).
-Actual FD/FV/PE verification preceded one fresh-seed temporary boot. A local
-phone photo then established the bounded hardware result; private evidence
-remains local. Stage13 subsequently established the first call and return.
+The source kernel now builds with the APFS storage closure prelinked and with a
+declared read-only UFS window compiled in. **Neither has run on the phone.**
 
-[Stage13](xnu-first-call-checkpoint/README.md) passed after actual artifact
-verification and one fresh-seed temporary boot. Its27 new host tests and171
-prior regression instances all passed in19 steps in
-[40862768553](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40862768553).
-The hardware photo is local evidence, separate from those counts. Stage14
-has since established controlled real exception capture. Before deeper C
-initialization, counter progression and a separately scoped timer IRQ remain.
-Stage and
-test counts are not percentages of OS readiness.
+| Capability | State | Notes |
+| --- | --- | --- |
+| Darwin22 source kernel | ✅ | `k70-iphone16` gate, [run 42340630197](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42340630197); kernel `a946bf1b…`, 20,838,600 bytes |
+| APFS + HFS prelink set | ✅ | nine components instead of two; 13,546 rebased sites, constructor and sparse-index checks pass |
+| HFS RAM root, `rd=md0` | ✅ | root06; root authentication unchanged |
+| Read-only UFS window | 🔧 | compiled in (`_k70_ufs_window_prepare`, `_mdevadd_fetch`); never executed on hardware |
+| APFS volume mount | ❌ | needs the window to run first |
+| Original launchd / dyld cache / UI | ❌ | not started |
+
+✅ verified (CI or static evidence) 🔧 ported but unverified ❌ not available.
+
+### Why the read-only window is only 🔧
+
+`ReadOnlyPolicy::range` authorises only eleven GPT blocks today, which is why no
+root-volume read can be issued at all. The window widens that to an explicitly
+declared extent (`k70rd=0x<base>,0x<blocks>`) without touching the authentication
+path: it is published as md0 before IOKitBSDInit creates the RAM disk, so `rd=md0`
+and `bsd_rooted_ramdisk()` keep their present meaning.
+
+The code compiles, the geometry and policy have host tests, and the transport it
+reuses was qualified on hardware — but the only thing that would make this row ✅ is
+an actual read from the K70's UFS. That has not happened, and the extent itself is
+still unauthorised.
+
+## Gaps before a first boot
+
+1. **The window extent is unauthorised.** `k70rd=0x<base>,0x<blocks>`, 4 KiB blocks,
+   LUN0. A wrong extent does not fail loudly; it reads the wrong bytes.
+2. **The device qualification no longer applies.** `rootchain/verify_ufs_link.py` ties
+   every `.h`/`.inc` under `iphone16/ufs` to the patch report of the hardware round
+   that produced them. Changing that directory invalidates the earlier round, so
+   `build.py pack` refuses to emit an image until a new round exists.
+3. **The IIG toolchain fallback is dead.** The workflow restores `legacy-iig` from a
+   `trycloudflare` tunnel that no longer resolves; it works only while the branch
+   cache survives, and caches expire after seven days without access.
+4. **The mount path is not wired.** The window stops at the block-device layer; APFS
+   mounting, `vfs_init` and the root-authentication behaviour are all still unproven.
+
+## Checkpoint history
+
+| Checkpoint | Result | Evidence |
+| --- | --- | --- |
+| Stage10 | virtual entry | [40802153897](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40802153897) |
+| Stage12 | C prologue, 171 host tests | [40846393171](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40846393171) |
+| Stage13 | first call and return | [40862768553](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40862768553) |
+| Stage14 | controlled `BRK #0x4B14` exception | [40906124944](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40906124944) |
+| Stage15 | bounded counter progression | [40924679614](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40924679614) |
+| Stage16 | one virtual timer IRQ and same-PC ERET | prepared, no hardware result |
+| root06 | HFS RAM root, PID1 task and thread creation | local evidence only |
+| UFS-TAKEOVER05 | one restricted takeover, capacity/GPT, four hashes | [42207233095](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42207233095) |
+| iphone16 | APFS prelink + read-only window | [42340630197](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42340630197) |
+
+Per-checkpoint details stay with each directory (for example
+[stage16](xnu-timer-irq-checkpoint/README.md)), and six checkpoint workflows restore
+the same tested kernel from [preserved original public artifacts](pinned-inputs/40518851995/README.md).
+The original ZIP and kernel SHA-256 checks remain enforced; preserved bytes do not
+prove that a new macOS compilation reproduces them.
+
+## Repository boundaries
 
 Device tests use temporary `fastboot boot` images. Public checkpoint templates
 require a freshly generated private local seed before each boot. Private images,
-phone photos, raw phone data and seeds must stay local. Checkpoint progress is
-experimental and does not imply a usable operating system.
+phone photos, raw phone data and seeds stay local. This repository contains no
+phone partition backups, platform seed or user data, and no workflow flashes a
+partition or runs a phone.
 
-[Stage14](xnu-exception-checkpoint/README.md) passed a controlled synchronous
-`BRK #0x4B14` exception after the same bounded stage13 path. It captures the
-syndrome, triggering PC, saved state and SP0-to-SP1 switch, checks the one-shot
-contract, and halts without exception return. FAR is displayed as raw data,
-not a valid BRK fault address. Its20 new host tests and198 prior regression
-instances passed in19 steps in
-[40906124944](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40906124944).
-Actual26-file FD/FV/PE/ELF/opcode/template verification preceded one fresh-seed
-temporary boot. A local3472x4624 original photo established the bounded result;
-private image/photos stay local. It does not establish general exception return
-or recovery. Stage15 has since established counter progression; timer IRQ remains.
+Successful compilation does not establish boot, root, display, touch or GPU support.
+Separately, the connected K70 reached the UniXNU UEFI menu; that firmware test does
+not show this XNU kernel executing.
 
-[Stage15](xnu-counter-checkpoint/README.md) passed three ordered samples of
-each physical/virtual counter across two bounded intervals and stable
-firmware-reported frequency. Its20 new host tests and218 prior regression
-instances passed separately in19 steps in
-[40924679614](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/40924679614).
-Actual26-file FD/FV/PE/ELF/MRS/barrier/loop/template verification preceded ONE
-fresh-seed temporary boot. A local original photo established the bounded
-hardware result; raw samples, image and seed stay local. No timer/GIC programming,
-IRQ, absolute frequency calibration or exact virtual-offset claim is made.
+## Building
 
-## Original source-build baseline
-
-Manual macOS CI for pinned public UniXNU and Redmi K70 source repositories.
-
-The `platform` build passed on 2026-10-22: [run 39801380604](https://github.com/xyyyds0106/k70-unixnu-build-20261022/actions/runs/39801380604),
-build commit `ecc325019f99d9491c15893f89c5e3703543b8ae`.
-Compilation, real ArmDTPlatform/ArmCpu linking, source-crypto HMAC and symbol
-collection, and artifact upload completed successfully on macos-15.
-
-Run **K70 pinned source kernel** in Actions. `platform` builds the source kernel
-with real ArmDTPlatform, ArmCpu and architectural timer support; `source` builds
-the smaller source-only baseline. Logs, symbols, HMAC evidence and checksums are
-retained with the kernel candidate.
-
-This repository contains no phone partition backups, platform seed or user data.
-The workflow does not build a complete OS image, run a phone or flash partitions.
-Successful compilation does not establish K70 boot, root, display, touch or GPU support.
-Separately, the connected K70 reached the UniXNU UEFI menu. That firmware test
-does not show this XNU kernel executing.
-
-The workflow pins the device and core source revisions and records the actual
-macOS/Xcode/SDK/compiler versions for each run.
+Run **K70 pinned source kernel** in Actions. `platform` builds the source kernel with
+real ArmDTPlatform, ArmCpu and architectural timer support; `source` builds the
+smaller source-only baseline. The `k70-iphone16` gate builds the Darwin22 integration
+candidate with the storage closure. Logs, symbols, HMAC evidence and checksums are
+retained with each kernel candidate, and every workflow pins the device and core
+source revisions and records the actual macOS/Xcode/SDK/compiler versions.
 
 Public DriverKit and TrustCache header listings are fetched with the workflow's
-read-only GitHub token to avoid the shared runner's anonymous API rate limit.
-Their source tags still come from the pinned feeds, and the unchanged upstream
-header preparer verifies each downloaded file against its recorded Git blob hash.
-The token is not stored in artifacts or added to the source repositories.
+read-only GitHub token to avoid the shared runner's anonymous API rate limit. Their
+source tags still come from the pinned feeds, and the unchanged upstream header
+preparer verifies each downloaded file against its recorded Git blob hash. The token
+is not stored in artifacts or added to the source repositories.
