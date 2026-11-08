@@ -174,7 +174,19 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          "\t\t  k70_formal_cpu_trace(vfsp->vfc_name, (uint64_t)(int64_t)error); }\n"
          "\t\tvfs_rootmountfailed(mp);")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
-         'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
+         'load_init_program(proc_t p)\n{\n'
+         '\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 6; }\n'
+         '\tboot_progress_stage("load_init_program enter");')
+    # The two calls at the top of load_init_program are the only work between the
+    # last bsd_init line and the first exec, so they get their own numbers.
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);\n'
+         '\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 7; }')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) memorystatus_init_at_boot_snapshot();',
+         '\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 8; }\n'
+         '\t(void) memorystatus_init_at_boot_snapshot();')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
     path = root / name
     path.write_text('extern "C" {\n#include <kern/boot_progress.h>\n}\n' + path.read_text())

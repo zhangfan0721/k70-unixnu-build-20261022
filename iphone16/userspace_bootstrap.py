@@ -13,7 +13,7 @@ def install(root):
         '\tbool k70_ram_root = bsd_rooted_ramdisk();\n'
         '\tboot_progress_stage(k70_ram_root ? "RAM root: original rootauth exception" : "system root: original rootauth required");\n'
         '\tif (!k70_ram_root) {')
-    edit(name,'bsd_utaskbootstrap(void)\n{','bsd_utaskbootstrap(void)\n{\n\tboot_progress_stage("PID1 bootstrap enter; cloneproc next");')
+    edit(name,'bsd_utaskbootstrap(void)\n{','bsd_utaskbootstrap(void)\n{\n\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 1; }\n\tboot_progress_stage("PID1 bootstrap enter; cloneproc next");')
     edit(name,'\tthread = cloneproc(TASK_NULL, NULL, kernproc, CLONEPROC_FLAGS_MEMSTAT_INTERNAL);',
         '\tthread = cloneproc(TASK_NULL, NULL, kernproc, CLONEPROC_FLAGS_MEMSTAT_INTERNAL);\n'
         '\tboot_progress_stage("PID1 cloneproc returned; proc_find next");')
@@ -22,9 +22,25 @@ def install(root):
         '\tboot_progress_stage("PID1 clear return wait enter");\n'
         '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
         '\tboot_progress_stage("PID1 bootstrap returned");')
-    edit(name,'bsdinit_task(void)\n{','bsdinit_task(void)\n{\n\tboot_progress_stage("PID1 bsdinit_task enter");')
-    for call,label in [('ux_handler_setup();','exception setup'),('vm_init_before_launchd();','VM before launchd')]:
-        edit(name,'\t'+call,'\tboot_progress_stage("PID1 '+label+' enter");\n\t'+call+'\n\tboot_progress_stage("PID1 '+label+' returned");')
+    edit(name,'bsdinit_task(void)\n{','bsdinit_task(void)\n{\n\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 2; }\n\tboot_progress_stage("PID1 bsdinit_task enter");')
+    for idx,(call,label) in enumerate([('ux_handler_setup();','exception setup'),('vm_init_before_launchd();','VM before launchd')]):
+        edit(name,'\t'+call,'\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 3 + '+str(idx)+'; }\n\tboot_progress_stage("PID1 '+label+' enter");\n\t'+call+'\n\tboot_progress_stage("PID1 '+label+' returned");')
+    # bsd_utaskbootstrap leaves the init thread runnable and expects the
+    # scheduler to pick it up. On this port it never runs, so the boundary is
+    # named here and the boot thread yields once right after it: if the next
+    # line becomes bsdinit_task, the thread was only waiting for a chance.
+    edit(name,'\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
+        '\tboot_progress_stage("PID1 bootstrap returned");',
+        '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
+        '\tboot_progress_stage("PID1 bootstrap returned");\n'
+        '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread state", (uint64_t)(uint32_t)thread->state);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread sched pri", (uint64_t)(int64_t)thread->sched_pri);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread continuation", (uint64_t)(uintptr_t)thread->continuation);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread runq cpu", (uint64_t)(uintptr_t)thread->runq); }\n'
+        '\tboot_progress_stage("PID1 yielding to init thread");\n'
+        '\tthread_yield_internal(1);\n'
+        '\tboot_progress_stage("PID1 yield returned");')
     name='bsd/kern/kern_fork.c'
     p=root/name;p.write_text('#include <kern/boot_progress.h>\nextern void k70_formal_cpu_trace(const char *, uint64_t);\n'+p.read_text())
     edit(name,'\tresult = task_create_internal(parent_task,','\tif (parent_task == TASK_NULL) boot_progress_stage("PID1 task_create_internal enter");\n\tresult = task_create_internal(parent_task,')
@@ -45,6 +61,7 @@ def install(root):
         '\t\t\tk70_formal_cpu_trace("PID1 dyld header", load_result.dynlinker_mach_header);\n'
         '\t\t\tk70_formal_cpu_trace("PID1 dyld end", load_result.dynlinker_max_vm_addr);\n\t\t}\n\t}')
     edit(name,'\treturn execve(p, &init_exec_args, retval);',
+        '\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 9; }\n'
         '\tboot_progress_stage("PID1 execve enter");\n\tboot_progress_stage(path);\n'
         '\terror = execve(p, &init_exec_args, retval);\n'
         '\tk70_formal_cpu_trace("PID1 exec errno", (uint32_t)error);\n'
