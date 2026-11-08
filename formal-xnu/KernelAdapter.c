@@ -162,15 +162,20 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         char line[BP_MAX_COLS + 1];
         struct bp_out out;
         bp_out_begin(&out, line);
-        bp_out_puts(&out, "THREAD turn=");
-        bp_out_dec(&out, ++k70_formal_thread_turn);
-        bp_out_puts(&out, " GIC=");
-        bp_out_dec(&out, armcpu_gic_ready);
-        bp_out_puts(&out, " TIMER=");
-        bp_out_dec(&out, armcpu_timer_interrupts);
-        if (k70_formal_thread_turn >= 2) { k70_formal_milestones |= 8; }
+        uint32_t turn = ++k70_formal_thread_turn;
+        if (turn >= 2) { k70_formal_milestones |= 8; }
         if (armcpu_timer_interrupts) { k70_formal_milestones |= 16; }
-        boot_progress_stage(line);
+        /* One line per eight turns: the thread still proves scheduling, but the
+         * console stays readable for the boot's own stages. */
+        if ((turn & 7u) == 0u) {
+            bp_out_puts(&out, "THREAD turn=");
+            bp_out_dec(&out, turn);
+            bp_out_puts(&out, " GIC=");
+            bp_out_dec(&out, armcpu_gic_ready);
+            bp_out_puts(&out, " TIMER=");
+            bp_out_dec(&out, armcpu_timer_interrupts);
+            boot_progress_stage(line);
+        }
         /* Each subsequent turn requires a scheduler wakeup after one second.
          * Unlike a busy counter loop this can establish continued scheduling. */
         uint64_t deadline;
@@ -204,10 +209,7 @@ void k70_formal_thread_start(void)
     }
     if (!k70_formal_claim_worker()) { return; }
     thread_t worker = THREAD_NULL;
-    /* Parked while userland bring-up is the question: the worker only floods
-     * the console with timer turns, which hides the exec path. */
-    kern_return_t status = KERN_FAILURE;
-    (void)worker;
+    kern_return_t status = kernel_thread_start(k70_formal_worker, 0, &worker);
     if (status == KERN_SUCCESS) {
         thread_deallocate(worker);
         boot_progress_stage("diagnostic thread created; wakeups not yet verified");
