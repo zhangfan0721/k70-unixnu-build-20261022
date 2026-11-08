@@ -175,6 +175,11 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          "\t\tvfs_rootmountfailed(mp);")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
          'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
+    # The init thread's first continuation is task_wait_to_return, not
+    # bsdinit_task. One line here answers whether it starts executing at all,
+    # without reading a Mach-private structure from a BSD file.
+    edit(root, 'osfmk/kern/task.c', 'task_wait_to_return(void)\n{',
+         'task_wait_to_return(void)\n{\n\tboot_progress_stage("P1 task_wait_to_return enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
     path = root / name
     path.write_text('extern "C" {\n#include <kern/boot_progress.h>\n}\n' + path.read_text())
@@ -228,7 +233,8 @@ def integration_patch(core, source, font, staging):
                   'iokit/bsddev/IOKitBSDInit.cpp', 'bsd/kern/kern_fork.c',
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
-                  'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c'))
+                  'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
+                  'osfmk/kern/task.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()

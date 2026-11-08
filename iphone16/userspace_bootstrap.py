@@ -8,8 +8,6 @@ def install(root):
         if s.count(before)!=1:raise ValueError('Userspace anchor changed: '+before[:90])
         p.write_text(s.replace(before,after,1))
     name='bsd/kern/bsd_init.c'
-    # Reading thread->state needs the full definition, not the forward declaration.
-    p=root/name;p.write_text('#include <kern/thread.h>\n'+p.read_text())
     edit(name,'vfs_mountroot mounted; authentication pending','vfs_mountroot mounted; root policy check next')
     edit(name,'\tif (!bsd_rooted_ramdisk()) {',
         '\tbool k70_ram_root = bsd_rooted_ramdisk();\n'
@@ -35,10 +33,6 @@ def install(root):
         '\tboot_progress_stage("PID1 bootstrap returned");',
         '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
         '\tboot_progress_stage("PID1 bootstrap returned");\n'
-        '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
-        '\t  k70_formal_cpu_trace("PID1 thread state", (uint64_t)(unsigned)thread->state);\n'
-        '\t  k70_formal_cpu_trace("PID1 thread runq", (uint64_t)(unsigned long)thread->runq);\n'
-        '\t  k70_formal_cpu_trace("PID1 thread waitq", (uint64_t)(unsigned long)thread->waitq); }\n'
         '\tboot_progress_stage("PID1 yielding to init thread");\n'
         '\tthread_yield_internal(1);\n'
         '\tboot_progress_stage("PID1 yield returned");')
