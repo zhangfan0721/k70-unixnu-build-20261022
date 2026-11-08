@@ -109,6 +109,7 @@ extern "C" {
 volatile uint32_t k70_window_reads;
 volatile uint64_t k70_window_last_daif;
 volatile uint32_t k70_stage_mark;
+extern volatile uint32_t k70_pid1_ran;
 #ifdef __cplusplus
 }
 #endif
@@ -210,6 +211,8 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_formal_thread_turn);
         bp_out_puts(&out, " U");
         bp_out_dec(&out, (uint32_t)k70_window_reads);
+        bp_out_puts(&out, " R");
+        bp_out_dec(&out, (uint32_t)k70_pid1_ran);
         bp_out_puts(&out, " D");
         bp_out_hex(&out, k70_window_last_daif, 2);
         boot_progress_stage(line);

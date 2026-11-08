@@ -227,9 +227,11 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     # bsdinit_task. One line here answers whether it starts executing at all,
     # without reading a Mach-private structure from a BSD file.
     p = root / 'osfmk/kern/task.c'
-    p.write_text('#include <kern/boot_progress.h>\nvoid *k70_pid1_task;\n' + p.read_text())
+    p.write_text('#include <kern/boot_progress.h>\nvoid *k70_pid1_task;\nvolatile uint32_t k70_pid1_ran;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c', 'task_wait_to_return(void)\n{',
-         'task_wait_to_return(void)\n{\n\tboot_progress_stage("P1 task_wait_to_return enter");')
+         'task_wait_to_return(void)\n{\n'
+         '\t{ extern volatile uint32_t k70_pid1_ran; k70_pid1_ran = 1; }\n'
+         '\tboot_progress_stage("P1 task_wait_to_return enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
     path = root / name
     path.write_text('extern "C" {\n#include <kern/boot_progress.h>\n}\n' + path.read_text())
