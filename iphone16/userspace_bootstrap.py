@@ -36,7 +36,6 @@ def install(root):
         '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
         '\t  k70_formal_cpu_trace("PID1 thread state", (uint64_t)(unsigned)thread->state);\n'
         '\t  k70_formal_cpu_trace("PID1 thread runq", (uint64_t)(unsigned long)thread->runq);\n'
-        '\t  k70_formal_cpu_trace("PID1 thread cont", (uint64_t)(unsigned long)thread->continuation);\n'
         '\t  k70_formal_cpu_trace("PID1 thread waitq", (uint64_t)(unsigned long)thread->waitq); }\n'
         '\tboot_progress_stage("PID1 yielding to init thread");\n'
         '\tthread_yield_internal(1);\n'
