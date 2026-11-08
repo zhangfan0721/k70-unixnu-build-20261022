@@ -190,6 +190,13 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t  k70_formal_cpu_trace("P3 thread bound", (uint64_t)(unsigned long)k70t->bound_processor);\n'
          '\t\t  k70_formal_cpu_trace("P3 thread last cpu",\n'
          '\t\t      (uint64_t)(k70t->last_processor ? (unsigned)k70t->last_processor->cpu_id : 0xffu));\n'
+         '\t\t  k70_formal_cpu_trace("P4 thread sched pri", (uint64_t)(int64_t)k70t->sched_pri);\n'
+         '\t\t  k70_formal_cpu_trace("P4 runq cpu id",\n'
+         '\t\t      (uint64_t)(k70t->runq ? (unsigned)k70t->runq->cpu_id : 0xffu));\n'
+         '\t\t  k70_formal_cpu_trace("P4 this cpu id", (uint64_t)(unsigned)current_processor()->cpu_id);\n'
+         '\t\t  k70_formal_cpu_trace("P4 runq active pri",\n'
+         '\t\t      (uint64_t)(k70t->runq && k70t->runq->active_thread ?\n'
+         '\t\t          (int64_t)k70t->runq->active_thread->sched_pri : -1));\n'
          '\t\t  break;\n'
          '\t  } }\n}\n\nvoid __attribute__((noreturn))')
     # The wake is the suspect now: print the event the thread slept on, the
