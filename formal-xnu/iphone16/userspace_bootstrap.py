@@ -25,6 +25,17 @@ def install(root):
     edit(name,'bsdinit_task(void)\n{','bsdinit_task(void)\n{\n\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 2; }\n\tboot_progress_stage("PID1 bsdinit_task enter");')
     for idx,(call,label) in enumerate([('ux_handler_setup();','exception setup'),('vm_init_before_launchd();','VM before launchd')]):
         edit(name,'\t'+call,'\t{ extern volatile uint32_t k70_stage_mark; k70_stage_mark = 3 + '+str(idx)+'; }\n\tboot_progress_stage("PID1 '+label+' enter");\n\t'+call+'\n\tboot_progress_stage("PID1 '+label+' returned");')
+    # bsd_utaskbootstrap leaves the init thread runnable and expects the
+    # scheduler to pick it up. On this port it never runs, so the boundary is
+    # named here and the boot thread yields once right after it: if the next
+    # line becomes bsdinit_task, the thread was only waiting for a chance.
+    edit(name,'\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
+        '\tboot_progress_stage("PID1 bootstrap returned");',
+        '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
+        '\tboot_progress_stage("PID1 bootstrap returned");\n'
+        '\tboot_progress_stage("PID1 yielding to init thread");\n'
+        '\tthread_yield_internal(1);\n'
+        '\tboot_progress_stage("PID1 yield returned");')
     name='bsd/kern/kern_fork.c'
     p=root/name;p.write_text('#include <kern/boot_progress.h>\nextern void k70_formal_cpu_trace(const char *, uint64_t);\n'+p.read_text())
     edit(name,'\tresult = task_create_internal(parent_task,','\tif (parent_task == TASK_NULL) boot_progress_stage("PID1 task_create_internal enter");\n\tresult = task_create_internal(parent_task,')

@@ -122,16 +122,20 @@ void k70_formal_cpu_trace(const char *stage, uint64_t value)
      * the machine: the timer thread stops ticking and the board resets. The
      * first commands stay fully visible, the rest are sampled. */
     static unsigned k70_trace_calls;
-    unsigned call = ++k70_trace_calls;
-    /* The transport already traces every command; counting these calls keeps
-     * the request rate visible without touching the generated transport. */
+    /* Only the transport floods: one disk command emits a dozen lines and a
+     * boot reads thousands of commands. Everything else prints in full, so the
+     * PID 1 boundary lines cannot be sampled away. */
     if (stage[0] == 'U' && stage[1] == 'F' && stage[2] == 'S') {
+        unsigned call = ++k70_trace_calls;
+        if (call > 120 && (call & 63u)) {
+            k70_window_reads++;
+            return;
+        }
         k70_window_reads++;
         uint64_t daif;
         __asm__ volatile ("mrs %0, daif" : "=r" (daif));
         k70_window_last_daif = daif;
     }
-    if (call > 120 && (call & 63u)) { return; }
     if (stage[0] == 'F' && !k70_cpu_first_refusal) {
         k70_cpu_first_refusal = stage;
         k70_cpu_refusal_value = value;
