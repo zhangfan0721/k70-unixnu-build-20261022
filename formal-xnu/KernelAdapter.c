@@ -103,6 +103,13 @@ static uint64_t k70_cpu_refusal_value;
  * renderer; no MMIO, allocation, sleeping, or scheduler policy changes. */
 void k70_formal_cpu_trace(const char *stage, uint64_t value)
 {
+    /* Every trace repaints the console, and one SCSI command can emit a dozen
+     * of them. Once the boot starts reading the root volume that flood starves
+     * the machine: the timer thread stops ticking and the board resets. The
+     * first commands stay fully visible, the rest are sampled. */
+    static unsigned k70_trace_calls;
+    unsigned call = ++k70_trace_calls;
+    if (call > 240 && (call & 31u)) { return; }
     if (stage[0] == 'F' && !k70_cpu_first_refusal) {
         k70_cpu_first_refusal = stage;
         k70_cpu_refusal_value = value;
