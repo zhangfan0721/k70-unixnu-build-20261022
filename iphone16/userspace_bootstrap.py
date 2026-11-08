@@ -33,6 +33,11 @@ def install(root):
         '\tboot_progress_stage("PID1 bootstrap returned");',
         '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
         '\tboot_progress_stage("PID1 bootstrap returned");\n'
+        '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread state", (uint64_t)(unsigned)thread->state);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread runq", (uint64_t)(unsigned long)thread->runq);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread cont", (uint64_t)(unsigned long)thread->continuation);\n'
+        '\t  k70_formal_cpu_trace("PID1 thread waitq", (uint64_t)(unsigned long)thread->waitq); }\n'
         '\tboot_progress_stage("PID1 yielding to init thread");\n'
         '\tthread_yield_internal(1);\n'
         '\tboot_progress_stage("PID1 yield returned");')
