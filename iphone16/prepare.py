@@ -158,6 +158,23 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);'
          ' k70_formal_cpu_trace("vfs_mountroot failed err", (uint64_t)(int64_t)err); }\n'
          "\t\trootdevice[0] = '\\0';\n")
+    # The root mount reports which stage and which filesystem refused, so a bare
+    # errno can be attributed instead of guessed.
+    name = "bsd/vfs/vfs_subr.c"
+    edit(root, name, "\tbdevvp_rootvp = rootvp;",
+         "\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
+         "\t  k70_formal_cpu_trace(\"mountroot bdevvp ok dev\", (uint64_t)rootdev); }\n"
+         "\tbdevvp_rootvp = rootvp;")
+    # The root mount reaches MACF after a successful filesystem mount; name the
+    # step that refuses so ENODEV is not the only thing on screen.
+    edit(root, "bsd/vfs/vfs_subr.c", "\t\t\terror = VFS_ROOT(mp, &vp, ctx);",
+         "\t\t\terror = VFS_ROOT(mp, &vp, ctx);\n"
+         "\t\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
+         "\t\t\t  k70_formal_cpu_trace(\"mountroot VFS_ROOT err\", (uint64_t)(int64_t)error); }")
+    edit(root, "bsd/vfs/vfs_subr.c", "\t\t\terror = vnode_label(mp, NULL, vp, NULL, 0, ctx);",
+         "\t\t\terror = vnode_label(mp, NULL, vp, NULL, 0, ctx);\n"
+         "\t\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
+         "\t\t\t  k70_formal_cpu_trace(\"mountroot vnode_label err\", (uint64_t)(int64_t)error); }")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
          'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
