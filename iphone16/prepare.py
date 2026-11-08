@@ -121,7 +121,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
              'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c')
     for name in files:
         p = root / name
-        p.write_text('#include <kern/boot_progress.h>\n' + p.read_text())
+        p.write_text('#include <kern/boot_progress.h>\ntask_t k70_pid1_task;\n' + p.read_text())
     name = 'osfmk/arm/arm_init.c'
     edit(root, name, '\tarm_setup_pre_sign();',
          '\textern void k70_formal_c_entry(void *);\n\tk70_formal_c_entry(args);\n\tarm_setup_pre_sign();')
@@ -199,16 +199,30 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t          (int64_t)k70t->runq->active_thread->sched_pri : -1));\n'
          '\t\t  break;\n'
          '\t  } }\n}\n\nvoid __attribute__((noreturn))')
+
     # The wake is the suspect now: print the event the thread slept on, the
     # event that is woken, and how many threads the wakeup actually released.
     edit(root, 'osfmk/kern/task.c',
          '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n\t\tthread_wakeup(task_get_return_wait_event(task));',
          '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n'
          '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+         '\t\t  extern task_t k70_pid1_task; k70_pid1_task = task;\n'
          '\t\t  int k70woke = thread_wakeup(task_get_return_wait_event(task));\n'
          '\t\t  k70_formal_cpu_trace("P2 wake event", (uint64_t)(unsigned long)task_get_return_wait_event(task));\n'
          '\t\t  k70_formal_cpu_trace("P2 woke threads", (uint64_t)(unsigned)k70woke);\n'
          '\t\t  k70_formal_cpu_trace("P2 returnwait flags", (uint64_t)task->t_returnwaitflags); }')
+    # Does the scheduler ever receive this thread? A runnable thread that the
+    # run queue never sees and one that is inserted but never chosen need
+    # different fixes, and only a counter in thread_setrun tells them apart.
+    edit(root, 'osfmk/kern/sched_prim.c',
+         '\tprocessor_t                     processor = PROCESSOR_NULL;\n\tprocessor_set_t         pset;',
+         '\tprocessor_t                     processor = PROCESSOR_NULL;\n\tprocessor_set_t         pset;\n'
+         '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+         '\t  extern task_t k70_pid1_task;\n'
+         '\t  static unsigned k70_setrun_hits;\n'
+         '\t  if (k70_pid1_task && thread->task == k70_pid1_task) {\n'
+         '\t\t  k70_setrun_hits++;\n'
+         '\t\t  k70_formal_cpu_trace("P5 setrun pid1", (uint64_t)k70_setrun_hits); } }')
     # The init thread's first continuation is task_wait_to_return, not
     # bsdinit_task. One line here answers whether it starts executing at all,
     # without reading a Mach-private structure from a BSD file.
