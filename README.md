@@ -10,7 +10,7 @@ UEFI firmware → UniXNU → DarwinBoot → patched XNU → IPSW userspace.
 - [Build](https://unixnu.com/zh/building)
 - Device repository: [UniXNU-vermeer](https://github.com/mansar1337/UniXNU-vermeer)
 - [Integration gate workflow](.github/workflows/k70-iphone16.yml)
-- [Latest storage build](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42340630197)
+- [Latest storage build](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42462954404)
 - Original source-build baseline: [run 39801380604](https://github.com/xyyyds0106/k70-unixnu-build-20261022/actions/runs/39801380604), commit `ecc325019f99d9491c15893f89c5e3703543b8ae`
 
 ## Prerequisites
@@ -36,7 +36,7 @@ Nothing in this repository is a usable operating system. Every row below is a
 checkpoint with its own scope and its own evidence, and no stage count is a
 percentage of OS readiness.
 
-## Bring-up stages (2026-11-07)
+## Bring-up stages (2026-11-08)
 
 The rows follow the [bring-up order](https://unixnu.com/zh/porting/bring-up) the
 documentation defines, so every line here has a counterpart there.
@@ -48,44 +48,94 @@ documentation defines, so every line here has a counterpart there.
 | 3. Payload | ✅ | `kernel.macho` and its ADT sidecar are read and hash-checked |
 | 4. DarwinBoot | ✅ | `DARWINBOOT:` base/entry/framebuffer lines, EL1, kernel entered |
 | 5. Kernel entry | ✅ | XNU prints its version, pexpert matches the ADT, GIC and timer run, PID 1 task and thread exist |
-| 6. Storage and root volume | 🔧 | the read-only UFS window reads real media and claims `md0`; **there is no root volume on the device yet** |
-| 7. Userland | ❌ | `launchd` has never run; the HFS RAM disk carries only the two diagnostic files |
+| 6. Storage and root volume | ✅ | a real HFS+ volume in the userdata gap is the root filesystem: `vfs_mountroot mounted; root policy check next`, `root filesystem mount result value=0x0` |
+| 7. Userland | 🔧 | PID 1 exists and `bsd_init` completes; the kernel then reads `/sbin/launchd` from the root and the board resets before any exec result is printed |
 
 ✅ verified on the phone or in CI · 🔧 implemented and partly verified · ❌ not available.
 
-### Stage 6 is the only 🔧
+### Stage 6: a real root filesystem, served read-only from media
 
-Neither missing piece is a kernel question any more.
+Two separate results carry this row.
 
-The window proves the read path. On 2026-11-07 the phone read the first 512 KiB of
-LBA 211008 through the transport and produced
-`814fb8a9 37515cf0 cd1b10f0 b6870163 9da6e939 4e679fd4 5164783f` — byte for byte the
-hash recorded read-only on 2026-11-03. `mdevadd_fetch(0, …)` then returned a device,
-so the window is `md0` and `rd=md0` points at UFS instead of RAM.
+**The window reads the volume.** `k70rd=0x33840,0x240000` declares 2,359,296 blocks
+(9 GiB) starting at LBA 211008. `mdevadd_fetch(0, …)` turns that extent into a BSD
+device (`dev_t 0x10`, not `md0`), and the first 512 KiB that come back hash to
+`d82ff631 35e98d07 6d442cfb afe43d00 c10da229 4f3a6ffa` — the same blocks read on the
+host from the same image.
 
-What is missing is content and a mounted filesystem:
+**HFS+ mounts it as the root.** With `rootdevice` unset, `vfs_mountroot` tries each
+registered filesystem in turn. APFS rejects the extent (`apfs value=0x4f`), HFS accepts
+it, and the boot continues with `bsd_init: calling VFS_ROOT?`. The HFS path needs no
+IOMedia: it consumes the BSD device that the fetch callback registered.
 
-1. **No iOS root is on the device.** The window can read any authorised extent, but
-   the APFS volumes of 20H392 are not on it. Placing them means writing 8002 MiB into
-   the 9 GiB gap at LBA 211008, which needs its own authorisation.
-2. **The APFS prelink set does not boot yet.** Prelinking the original
-   `com.apple.kec.corecrypto` next to the kernel's own source corecrypto runs two
-   instances, and the first hardware round ended in `Kernel instruction fetch abort`.
-   `k70nocc14=1` now leaves initialisation to the kext; that is under test.
+The volume itself is built offline and written into the 9 GiB gap between LBA 211008
+and LBA 2570303, which held no partition before:
 
-## Gaps before a first boot
+1. `7z x` the 20H392 OS volume (APFS, 5.25 GiB) into a staging tree.
+2. Trim what early boot cannot need — `LinguisticData`, `PreinstalledAssetsV2`,
+   `Assistant` — and add the dyld shared cache extracted from the SystemCryptex
+   (`System/Library/Caches/com.apple.dyld`, 2,485 MiB, 50 files).
+3. `mkfs.hfsplus -b 4096` an 9 GiB image, then populate it with `hfsplus addall`
+   in verified chunks. The stock tool descends symlinks and guesses modes, so the
+   local copy uses `lstat`, `makeSymlink` and the real mode of each entry.
+4. `dd` the image to LBA 211008 from recovery, then read the head back and compare.
 
-1. **No iOS root is staged.** The APFS volumes must be written into the 9 GiB gap at
-   LBA 211008 (8002 MiB) before any mount can succeed. A wrong extent does not fail
-   loudly; it reads the wrong bytes.
-2. **The APFS prelink set is unproven.** Two corecrypto instances collided on the
-   first attempt. `k70nocc14=1` is the current answer and it has not yet run.
+### Stage 7: PID 1 runs, the first exec does not yet report
+
+The console reaches, in this order:
+
+```
+vfs_mountroot mounted; root policy check next
+bsd_init: calling bsd_utaskbootstrap?
+PID1 bootstrap enter; cloneproc next
+PID1 task_create_internal enter
+PID1 bootstrap returned
+bsd_init: done?
+```
+
+After that the transport starts reading files from the root — thousands of SCSI
+commands — and two things happen together: the timer thread's once-per-second line
+stops, and about five seconds later the board resets with no panic text on screen.
+The probe placed immediately before `execve(p, &init_exec_args, retval)`
+(`PID1 execve enter`, followed by the path and then the errno) has never appeared,
+so no exec result has been observed either way.
+
+What that does **not** say: whether `execve` returned an error, whether it succeeded
+and the process died later, or whether the reset came from a panic that never reached
+the console. Those are the three remaining possibilities and this row exists to
+separate them.
+
+Two changes are already in the tree for that purpose. The console trace is sampled
+after the first 240 lines (one line in 32), because every trace line repaints the
+framebuffer and a single SCSI command emits a dozen of them — the same starvation a
+comparable port hit and fixed by capping its status redraws. And a failed `execve`
+now parks the CPU with the errno on screen instead of returning.
+
+The launch parameters that matter for this stage, all recorded with their reason:
+
+| Argument | Why |
+| --- | --- |
+| `k70rd=0x33840,0x240000` | declares the root volume extent |
+| `k70nocc14=1` | leaves corecrypto initialisation to the prelinked kext only |
+| `unentitled_ios_sim_launch=1` | the `XNU_TARGET_OS_OSX` build rejects an iOS binary whose initial exec carries no spawn platform unless this switch is set |
+| ADT `darwinboot-memory-size=0x80000000` | 2 GiB owned window; the default runs out of memory around launchd |
+| ADT `/defaults/vmm-present=0` | no hypervisor is present, and the watchdog path assumes one otherwise |
+
+## Gaps before userland
+
+1. **The first exec has no reported result.** See stage 7: the reset arrives before
+   the probe prints. Until an errno or a userland line appears, no claim about
+   `launchd` is possible.
+2. **The staging tree is a subset.** It carries `launchd`, `dyld`, the dyld shared
+   cache, `Frameworks`, `CoreServices`, `LaunchDaemons`, `Extensions` and a
+   skeleton `/private/var`. It has no Data volume, no trust cache and no AppOS
+   cryptex, so even a successful exec would meet missing pieces immediately.
 3. **The IIG toolchain fallback is dead.** The workflow restores `legacy-iig` from a
    `trycloudflare` tunnel that no longer resolves; it works only while the branch
    cache survives, and caches expire after seven days without access.
-4. **The mount path is not wired for iOS.** The window stops at the block-device
-   layer; APFS mounting, `vfs_init` and the root-authentication behaviour are still
-   proven only against the HFS RAM disk.
+4. **The root is read-only.** Nothing in the image is written back. Writes are a
+   separate change with its own risk, and they are not needed to find out what the
+   first exec returns.
 
 ## Checkpoint history
 
@@ -99,8 +149,11 @@ What is missing is content and a mounted filesystem:
 | Stage16 | one virtual timer IRQ and same-PC ERET | prepared, no hardware result |
 | root06 | HFS RAM root, PID1 task and thread creation | local evidence only |
 | window01 | read-only UFS window reads LBA 211008, digests match the 2026-11-03 baseline | local evidence only |
+| hfsroot01 | 9 GiB HFS+ root in the userdata gap mounts: `vfs_mountroot mounted` | local evidence only |
+| pid1-01 | PID 1 created, `bsd_init: done`; reset arrives before any exec result | local evidence only |
 | UFS-TAKEOVER05 | one restricted takeover, capacity/GPT, four hashes | [42207233095](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42207233095) |
 | iphone16 | APFS prelink + read-only window | [42340630197](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42340630197) |
+| iphone16-root | APFS prelink with the HFS root path in the same component set | [42462954404](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42462954404) |
 
 Per-checkpoint details stay with each directory (for example
 [stage16](xnu-timer-irq-checkpoint/README.md)), and six checkpoint workflows restore
@@ -132,5 +185,4 @@ source revisions and records the actual macOS/Xcode/SDK/compiler versions.
 Public DriverKit and TrustCache header listings are fetched with the workflow's
 read-only GitHub token to avoid the shared runner's anonymous API rate limit. Their
 source tags still come from the pinned feeds, and the unchanged upstream header
-preparer verifies each downloaded file against its recorded Git blob hash. The token
-is not stored in artifacts or added to the source repositories.
+preparer verifies each one.
