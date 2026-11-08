@@ -178,6 +178,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     # The init thread's first continuation is task_wait_to_return, not
     # bsdinit_task. One line here answers whether it starts executing at all,
     # without reading a Mach-private structure from a BSD file.
+    p = root / 'osfmk/kern/task.c'
+    p.write_text('#include <kern/boot_progress.h>\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c', 'task_wait_to_return(void)\n{',
          'task_wait_to_return(void)\n{\n\tboot_progress_stage("P1 task_wait_to_return enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
