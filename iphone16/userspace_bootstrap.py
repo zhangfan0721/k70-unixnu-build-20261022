@@ -37,6 +37,7 @@ def install(root):
         '\tthread_yield_internal(1);\n'
         '\tboot_progress_stage("PID1 yield returned");')
     name='bsd/kern/kern_fork.c'
+    p=root/name;p.write_text('#include <kern/boot_progress.h>\nextern void k70_formal_cpu_trace(const char *, uint64_t);\n'+p.read_text())
     edit(name,'\tresult = task_create_internal(parent_task,','\tif (parent_task == TASK_NULL) boot_progress_stage("PID1 task_create_internal enter");\n\tresult = task_create_internal(parent_task,')
     edit(name,'\t    child_task);\n\tif (result != KERN_SUCCESS)',
         '\t    child_task);\n\tif (parent_task == TASK_NULL) k70_formal_cpu_trace("PID1 task status", (uint32_t)result);\n\tif (result != KERN_SUCCESS)')
