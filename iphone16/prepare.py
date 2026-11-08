@@ -175,6 +175,16 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          "\t\tvfs_rootmountfailed(mp);")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
          'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
+    # The wake is the suspect now: print the event the thread slept on, the
+    # event that is woken, and how many threads the wakeup actually released.
+    edit(root, 'osfmk/kern/task.c',
+         '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n\t\tthread_wakeup(task_get_return_wait_event(task));',
+         '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n'
+         '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+         '\t\t  int k70woke = thread_wakeup(task_get_return_wait_event(task));\n'
+         '\t\t  k70_formal_cpu_trace("P2 wake event", (uint64_t)(unsigned long)task_get_return_wait_event(task));\n'
+         '\t\t  k70_formal_cpu_trace("P2 woke threads", (uint64_t)(unsigned)k70woke);\n'
+         '\t\t  k70_formal_cpu_trace("P2 returnwait flags", (uint64_t)task->t_returnwaitflags); }')
     # The init thread's first continuation is task_wait_to_return, not
     # bsdinit_task. One line here answers whether it starts executing at all,
     # without reading a Mach-private structure from a BSD file.
