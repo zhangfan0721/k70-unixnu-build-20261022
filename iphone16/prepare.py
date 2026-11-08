@@ -220,7 +220,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
          '\t  extern void *k70_pid1_task;\n'
          '\t  static unsigned k70_setrun_hits;\n'
-         '\t  if (k70_pid1_task && (void *)thread->task == k70_pid1_task) {\n'
+         '\t  if (k70_pid1_task && (void *)thread->t_task == k70_pid1_task) {\n'
          '\t\t  k70_setrun_hits++;\n'
          '\t\t  k70_formal_cpu_trace("P5 setrun pid1", (uint64_t)k70_setrun_hits); } }')
     # The init thread's first continuation is task_wait_to_return, not
