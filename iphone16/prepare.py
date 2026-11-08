@@ -175,6 +175,23 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          "\t\tvfs_rootmountfailed(mp);")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
          'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
+    # After the clear, look at where the init thread actually sits: its state,
+    # the run queue it belongs to and the processor it is bound to. A thread
+    # parked on a processor that never came online never runs, and one CPU is
+    # registered on this port.
+    edit(root, 'osfmk/kern/task.c',
+         '\tis_write_unlock(task->itk_space);\n\t}\n}\n\nvoid __attribute__((noreturn))',
+         '\tis_write_unlock(task->itk_space);\n\t}\n'
+         '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+         '\t  thread_t k70t;\n'
+         '\t  queue_iterate(&task->threads, k70t, thread_t, task_threads) {\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread state", (uint64_t)(unsigned)k70t->state);\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread runq", (uint64_t)(unsigned long)k70t->runq);\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread bound", (uint64_t)(unsigned long)k70t->bound_processor);\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread last cpu",\n'
+         '\t\t      (uint64_t)(k70t->last_processor ? (unsigned)k70t->last_processor->cpu_id : 0xffu));\n'
+         '\t\t  break;\n'
+         '\t  } }\n}\n\nvoid __attribute__((noreturn))')
     # The wake is the suspect now: print the event the thread slept on, the
     # event that is woken, and how many threads the wakeup actually released.
     edit(root, 'osfmk/kern/task.c',
