@@ -99,6 +99,12 @@ void k70_formal_early(void *opaque);
 static const char *k70_cpu_first_refusal;
 static uint64_t k70_cpu_refusal_value;
 
+/* Written from the window fetch path (K70UfsWindow.inc) and read by the timer
+ * thread. Volatile scalars only: no locks, no allocation, no output. */
+volatile uint32_t k70_window_reads;
+volatile uint64_t k70_window_last_daif;
+volatile uint32_t k70_stage_mark;
+
 /* Called by the formal ArmCpu BUILD COPY. Uses the existing nonblocking
  * renderer; no MMIO, allocation, sleeping, or scheduler policy changes. */
 void k70_formal_cpu_trace(const char *stage, uint64_t value)
@@ -109,7 +115,15 @@ void k70_formal_cpu_trace(const char *stage, uint64_t value)
      * first commands stay fully visible, the rest are sampled. */
     static unsigned k70_trace_calls;
     unsigned call = ++k70_trace_calls;
-    if (call > 240 && (call & 31u)) { return; }
+    /* The transport already traces every command; counting these calls keeps
+     * the request rate visible without touching the generated transport. */
+    if (stage[0] == 'U' && stage[1] == 'F' && stage[2] == 'S') {
+        k70_window_reads++;
+        uint64_t daif;
+        __asm__ volatile ("mrs %0, daif" : "=r" (daif));
+        k70_window_last_daif = daif;
+    }
+    if (call > 120 && (call & 63u)) { return; }
     if (stage[0] == 'F' && !k70_cpu_first_refusal) {
         k70_cpu_first_refusal = stage;
         k70_cpu_refusal_value = value;
@@ -169,14 +183,22 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         char line[BP_MAX_COLS + 1];
         struct bp_out out;
         bp_out_begin(&out, line);
-        bp_out_puts(&out, "THREAD turn=");
-        bp_out_dec(&out, ++k70_formal_thread_turn);
-        bp_out_puts(&out, " GIC=");
-        bp_out_dec(&out, armcpu_gic_ready);
-        bp_out_puts(&out, " TIMER=");
-        bp_out_dec(&out, armcpu_timer_interrupts);
+        k70_formal_thread_turn++;
         if (k70_formal_thread_turn >= 2) { k70_formal_milestones |= 8; }
         if (armcpu_timer_interrupts) { k70_formal_milestones |= 16; }
+        /* One line per second, fixed width, no per-command output. It answers
+         * the only question a reset leaves open: were timer interrupts still
+         * arriving, and how far had the boot got. */
+        bp_out_puts(&out, "S");
+        bp_out_dec(&out, k70_stage_mark);
+        bp_out_puts(&out, " T");
+        bp_out_dec(&out, (uint32_t)armcpu_timer_interrupts);
+        bp_out_puts(&out, " H");
+        bp_out_dec(&out, (uint32_t)k70_formal_thread_turn);
+        bp_out_puts(&out, " U");
+        bp_out_dec(&out, (uint32_t)k70_window_reads);
+        bp_out_puts(&out, " D");
+        bp_out_hex(&out, k70_window_last_daif, 2);
         boot_progress_stage(line);
         /* Each subsequent turn requires a scheduler wakeup after one second.
          * Unlike a busy counter loop this can establish continued scheduling. */
