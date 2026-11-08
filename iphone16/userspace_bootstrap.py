@@ -47,7 +47,9 @@ def install(root):
     edit(name,'\treturn execve(p, &init_exec_args, retval);',
         '\tboot_progress_stage("PID1 execve enter");\n\tboot_progress_stage(path);\n'
         '\terror = execve(p, &init_exec_args, retval);\n'
-        '\tk70_formal_cpu_trace("PID1 exec errno", (uint32_t)error);\n\treturn error;')
+        '\tk70_formal_cpu_trace("PID1 exec errno", (uint32_t)error);\n'
+        '\tif (error) { boot_progress_stage("PID1 exec failed; halted"); for(;;) { __asm__ volatile("wfi"); } }\n'
+        '\tboot_progress_stage("PID1 exec returned 0; entering userland");\n\treturn error;')
     p=root/name;s=p.read_text();start=s.index('\nload_init_program_at_path(');end=s.index('\nstatic const char * init_programs',start)
     body=s[start:end]
     if body.count('\t\treturn error;')!=4:raise ValueError('Initial exec copyout paths changed')

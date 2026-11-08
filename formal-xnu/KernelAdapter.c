@@ -204,7 +204,10 @@ void k70_formal_thread_start(void)
     }
     if (!k70_formal_claim_worker()) { return; }
     thread_t worker = THREAD_NULL;
-    kern_return_t status = kernel_thread_start(k70_formal_worker, 0, &worker);
+    /* Parked while userland bring-up is the question: the worker only floods
+     * the console with timer turns, which hides the exec path. */
+    kern_return_t status = KERN_FAILURE;
+    (void)worker;
     if (status == KERN_SUCCESS) {
         thread_deallocate(worker);
         boot_progress_stage("diagnostic thread created; wakeups not yet verified");
