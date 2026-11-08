@@ -8,6 +8,8 @@ def install(root):
         if s.count(before)!=1:raise ValueError('Userspace anchor changed: '+before[:90])
         p.write_text(s.replace(before,after,1))
     name='bsd/kern/bsd_init.c'
+    # Reading thread->state needs the full definition, not the forward declaration.
+    p=root/name;p.write_text('#include <kern/thread.h>\n'+p.read_text())
     edit(name,'vfs_mountroot mounted; authentication pending','vfs_mountroot mounted; root policy check next')
     edit(name,'\tif (!bsd_rooted_ramdisk()) {',
         '\tbool k70_ram_root = bsd_rooted_ramdisk();\n'
