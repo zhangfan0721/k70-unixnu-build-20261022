@@ -121,7 +121,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
              'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c')
     for name in files:
         p = root / name
-        p.write_text('#include <kern/boot_progress.h>\ntask_t k70_pid1_task;\n' + p.read_text())
+        p.write_text('#include <kern/boot_progress.h>\n' + p.read_text())
     name = 'osfmk/arm/arm_init.c'
     edit(root, name, '\tarm_setup_pre_sign();',
          '\textern void k70_formal_c_entry(void *);\n\tk70_formal_c_entry(args);\n\tarm_setup_pre_sign();')
@@ -206,7 +206,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n\t\tthread_wakeup(task_get_return_wait_event(task));',
          '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n'
          '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
-         '\t\t  extern task_t k70_pid1_task; k70_pid1_task = task;\n'
+         '\t\t  extern void *k70_pid1_task; k70_pid1_task = (void *)task;\n'
          '\t\t  int k70woke = thread_wakeup(task_get_return_wait_event(task));\n'
          '\t\t  k70_formal_cpu_trace("P2 wake event", (uint64_t)(unsigned long)task_get_return_wait_event(task));\n'
          '\t\t  k70_formal_cpu_trace("P2 woke threads", (uint64_t)(unsigned)k70woke);\n'
@@ -218,16 +218,16 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tprocessor_t                     processor = PROCESSOR_NULL;\n\tprocessor_set_t         pset;',
          '\tprocessor_t                     processor = PROCESSOR_NULL;\n\tprocessor_set_t         pset;\n'
          '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
-         '\t  extern task_t k70_pid1_task;\n'
+         '\t  extern void *k70_pid1_task;\n'
          '\t  static unsigned k70_setrun_hits;\n'
-         '\t  if (k70_pid1_task && thread->task == k70_pid1_task) {\n'
+         '\t  if (k70_pid1_task && (void *)thread->task == k70_pid1_task) {\n'
          '\t\t  k70_setrun_hits++;\n'
          '\t\t  k70_formal_cpu_trace("P5 setrun pid1", (uint64_t)k70_setrun_hits); } }')
     # The init thread's first continuation is task_wait_to_return, not
     # bsdinit_task. One line here answers whether it starts executing at all,
     # without reading a Mach-private structure from a BSD file.
     p = root / 'osfmk/kern/task.c'
-    p.write_text('#include <kern/boot_progress.h>\n' + p.read_text())
+    p.write_text('#include <kern/boot_progress.h>\nvoid *k70_pid1_task;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c', 'task_wait_to_return(void)\n{',
          'task_wait_to_return(void)\n{\n\tboot_progress_stage("P1 task_wait_to_return enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
