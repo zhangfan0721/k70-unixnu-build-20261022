@@ -167,14 +167,12 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          "\tbdevvp_rootvp = rootvp;")
     # The root mount reaches MACF after a successful filesystem mount; name the
     # step that refuses so ENODEV is not the only thing on screen.
-    edit(root, "bsd/vfs/vfs_subr.c", "\t\t\terror = VFS_ROOT(mp, &vp, ctx);",
-         "\t\t\terror = VFS_ROOT(mp, &vp, ctx);\n"
-         "\t\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
-         "\t\t\t  k70_formal_cpu_trace(\"mountroot VFS_ROOT err\", (uint64_t)(int64_t)error); }")
-    edit(root, "bsd/vfs/vfs_subr.c", "\t\t\terror = vnode_label(mp, NULL, vp, NULL, 0, ctx);",
-         "\t\t\terror = vnode_label(mp, NULL, vp, NULL, 0, ctx);\n"
-         "\t\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
-         "\t\t\t  k70_formal_cpu_trace(\"mountroot vnode_label err\", (uint64_t)(int64_t)error); }")
+    # One line per filesystem that refused the root, named after the filesystem
+    # itself: the trace label is vfc_name, so "apfs value=0x13" is unambiguous.
+    edit(root, "bsd/vfs/vfs_subr.c", "\t\tvfs_rootmountfailed(mp);",
+         "\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
+         "\t\t  k70_formal_cpu_trace(vfsp->vfc_name, (uint64_t)(int64_t)error); }\n"
+         "\t\tvfs_rootmountfailed(mp);")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
          'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
