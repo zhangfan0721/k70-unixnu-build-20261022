@@ -99,11 +99,19 @@ void k70_formal_early(void *opaque);
 static const char *k70_cpu_first_refusal;
 static uint64_t k70_cpu_refusal_value;
 
-/* Written from the window fetch path (K70UfsWindow.inc) and read by the timer
- * thread. Volatile scalars only: no locks, no allocation, no output. */
+/* Written from XNU's C sources and read by the timer thread. This file is
+ * included into a C++ translation unit, so the definitions need C linkage or
+ * the injected extern declarations resolve to a different symbol and every
+ * stage mark silently disappears. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 volatile uint32_t k70_window_reads;
 volatile uint64_t k70_window_last_daif;
 volatile uint32_t k70_stage_mark;
+#ifdef __cplusplus
+}
+#endif
 
 /* Called by the formal ArmCpu BUILD COPY. Uses the existing nonblocking
  * renderer; no MMIO, allocation, sleeping, or scheduler policy changes. */
@@ -162,6 +170,7 @@ static int k70_formal_claim_worker(void)
  * had another opportunity to run. Reads existing RAM counters only. */
 void k70_formal_cpu_summary(void)
 {
+    k70_stage_mark = k70_stage_mark ? k70_stage_mark : 100;  /* adapter can write it */
     k70_formal_cpu_trace("late platform configured", armdt_platform_configured);
     k70_formal_cpu_trace("late CPU nubs", armdt_platform_cpu_count);
     k70_formal_cpu_trace("late CPU registered", armcpu_registered);
