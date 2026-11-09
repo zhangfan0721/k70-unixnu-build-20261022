@@ -305,6 +305,17 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tlocal_pv_free = &pmap_get_cpu_data()->pv_free;\n\t\t\tpv_entry_t **pv_h = pai_to_pvh(pai);',
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 39; }\n'
          '\t\t\tlocal_pv_free = &pmap_get_cpu_data()->pv_free;\n\t\t\tpv_entry_t **pv_h = pai_to_pvh(pai);')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\t\twhile (new_allocated_pves < 2) {',
+         '\t\t\t\t{ extern volatile uint32_t k70_stage, k70_pv_loops, k70_pv_status, k70_pv_count;\n'
+         '\t\t\t\t  extern void *k70_pv_cpu(void);\n'
+         '\t\t\t\t  k70_pv_loops++; k70_stage = 40;\n'
+         '\t\t\t\t  k70_pv_count = (uint32_t)local_pv_free->count; }\n'
+         '\t\t\t\twhile (new_allocated_pves < 2) {')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\t\t\tif (pv_status == PV_ALLOC_FAIL) {\n\t\t\t\t\t\tbreak;',
+         '\t\t\t\t\t{ extern volatile uint32_t k70_stage, k70_pv_status; k70_pv_status = (uint32_t)pv_status; k70_stage = 41; }\n'
+         '\t\t\t\t\tif (pv_status == PV_ALLOC_FAIL) {\n\t\t\t\t\t\tbreak;')
     # 30/31: pmap_enter takes its own lock and may expand the page tables first.
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
@@ -409,6 +420,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_fix_count;\n'
                  'volatile uint64_t k70_ptte;\n'
                  'volatile uint32_t k70_free_pages;\n'
+                 'volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
