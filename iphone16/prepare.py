@@ -299,6 +299,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t  extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
          '\t  extern volatile uint32_t k70_plevel, k70_proot;\n'
          '\t  k70_pv = (uint64_t)v; k70_pmin = (uint64_t)pmap->min; k70_pmax = (uint64_t)pmap->max;\n'
+         '\t  { extern volatile uint64_t k70_ptte; k70_ptte = (uint64_t)(unsigned long)pmap->tte; }\n'
          '\t  k70_plevel = pt_attr_leaf_level(pt_attr); k70_proot = pt_attr->pta_root_level; }\n'
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;')
     edit(root, 'osfmk/arm/pmap/pmap.c',
@@ -389,6 +390,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_plevel, k70_proot, k70_pdump;\n'
                  'volatile uint64_t k70_va_bits, k70_va_max;\n'
                  'volatile uint32_t k70_fix_count;\n'
+                 'volatile uint64_t k70_ptte;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',

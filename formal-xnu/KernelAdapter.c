@@ -121,6 +121,7 @@ extern volatile uint32_t k70_tt_fail, k70_tt_pre;
 extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;
 extern volatile uint64_t k70_va_bits, k70_va_max;
 extern volatile uint32_t k70_fix_count;
+extern volatile uint64_t k70_ptte;
 extern volatile uint32_t k70_plevel, k70_proot, k70_pdump;
 #ifdef __cplusplus
 }
@@ -230,15 +231,16 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_fix_count);
         if (k70_tt_fail != 0) {
             void k70_formal_cpu_trace(const char *, uint64_t);
-            switch ((unsigned)(k70_formal_thread_turn % 6u)) {
+            switch ((unsigned)(k70_formal_thread_turn % 7u)) {
             case 0u: k70_formal_cpu_trace("Z1 pmap v", k70_pv); break;
             case 1u: k70_formal_cpu_trace("Z2 pmap min", k70_pmin); break;
             case 2u: k70_formal_cpu_trace("Z3 pmap max", k70_pmax); break;
             case 3u: k70_formal_cpu_trace("Z4 levels leaf/root",
                          ((uint64_t)k70_plevel << 8) | (uint64_t)k70_proot); break;
             case 4u: k70_formal_cpu_trace("Z5 tt attempts", (uint64_t)k70_tt_fail); break;
-            default: k70_formal_cpu_trace("Z6 va bits/max",
+            case 5u: k70_formal_cpu_trace("Z6 va bits/max",
                          (k70_va_bits << 56) | (k70_va_max >> 8)); break;
+            default: k70_formal_cpu_trace("Z7 pmap root tte", k70_ptte); break;
             }
         }
         bp_out_puts(&out, " D");
