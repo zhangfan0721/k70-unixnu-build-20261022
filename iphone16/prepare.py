@@ -301,6 +301,10 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 37; }\n'
          '\t\t\tpv_status = pv_alloc(pmap, pai, lock_mode, options, &new_pve_p[new_allocated_pves]);\n'
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 38; }')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\tlocal_pv_free = &pmap_get_cpu_data()->pv_free;\n\t\t\tpv_entry_t **pv_h = pai_to_pvh(pai);',
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 39; }\n'
+         '\t\t\tlocal_pv_free = &pmap_get_cpu_data()->pv_free;\n\t\t\tpv_entry_t **pv_h = pai_to_pvh(pai);')
     # 30/31: pmap_enter takes its own lock and may expand the page tables first.
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
