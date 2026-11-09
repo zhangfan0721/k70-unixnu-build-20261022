@@ -268,6 +268,9 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t{ extern volatile uint32_t k70_stage; k70_stage = 27; }\n'
          '\t\tm = vm_page_lookup(cur_object, vm_object_trunc_page(cur_offset));')
     edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tk r = vm_fault_enter(m,'.replace('\tk r','\tkr'),
+         '\t\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 28; }\n\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,')
+    edit(root, 'osfmk/vm/vm_fault.c',
          '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,',
          '\t\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 28; }\n'
          '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,')
