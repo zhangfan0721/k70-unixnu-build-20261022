@@ -261,6 +261,15 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly',
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 26; }\n'
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly')
+    # The user pmap bounds decide whether the page table walk can ever succeed:
+    # pmap_ttne rejects any address outside [min, max). A zero max makes every
+    # walk fail, the expand loop retry forever and the page table pages run out.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\tp->max = pmap_user_va_size(p);',
+         '\tp->max = pmap_user_va_size(p);\n'
+         '\t{ extern volatile uint64_t k70_va_bits, k70_va_max;\n'
+         '\t  k70_va_bits = (uint64_t)pmap_user_va_bits(p); k70_va_max = (uint64_t)p->max;\n'
+         '\t  if (p->max == 0) { p->max = (1ULL << (64 - T0SZ_BOOT)); k70_va_max = (uint64_t)p->max; } }')
     # 35: count the expand retries and keep the last status. A loop that expands
     # successfully but still finds no pte spins forever with every counter frozen.
     edit(root, 'osfmk/arm/pmap/pmap.c',
@@ -376,6 +385,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
                  'volatile uint32_t k70_plevel, k70_proot, k70_pdump;\n'
+                 'volatile uint64_t k70_va_bits, k70_va_max;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
