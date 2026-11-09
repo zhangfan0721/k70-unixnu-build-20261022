@@ -124,6 +124,7 @@ extern volatile uint32_t k70_fix_count;
 extern volatile uint64_t k70_ptte;
 extern volatile uint32_t k70_free_pages;
 extern volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;
+extern volatile uint32_t k70_wire_rc;
 extern volatile uint32_t k70_plevel, k70_proot, k70_pdump;
 #ifdef __cplusplus
 }
@@ -228,6 +229,8 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_window_reads);
         bp_out_puts(&out, " G");
         bp_out_dec(&out, (uint32_t)k70_stage);
+        bp_out_puts(&out, " W");
+        bp_out_dec(&out, (uint32_t)k70_wire_rc);
         bp_out_puts(&out, " T");
         bp_out_dec(&out, (uint32_t)k70_tt_fail);
         bp_out_dec(&out, (uint32_t)k70_fix_count);

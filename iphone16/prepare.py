@@ -185,6 +185,17 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t(void) memorystatus_init_at_boot_snapshot();',
          '\t(void) memorystatus_init_at_boot_snapshot();\n'
          '\t{ extern volatile uint32_t k70_stage; k70_stage = 9; }')
+    # The argv block is written by copyout, which faults in the init task's map. That
+    # fault path runs with preemption disabled, where pmap cannot refill its PV free
+    # list, so the page never becomes resident. Fault it in from this thread instead,
+    # where preemption is enabled and the same pmap calls can allocate.
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);\n'
+         '\t{ extern volatile uint32_t k70_stage; extern kern_return_t vm_map_wire_kernel(vm_map_t, vm_map_offset_t, vm_map_offset_t, vm_prot_t, vm_tag_t, boolean_t);\n'
+         '\t  kern_return_t k70_wr = vm_map_wire_kernel(map, (vm_map_offset_t)scratch_addr,\n'
+         '\t      (vm_map_offset_t)(scratch_addr + map_page_size), VM_PROT_READ | VM_PROT_WRITE, VM_KERN_MEMORY_NONE, TRUE);\n'
+         '\t  extern volatile uint32_t k70_wire_rc; k70_wire_rc = (uint32_t)k70_wr; }')
     mark = '{ extern volatile uint32_t k70_stage; k70_stage = %d; }'
     edit(root, 'bsd/kern/kern_exec.c',
          '\tint retval[2];\n\tint error;\n\tstruct execve_args init_exec_args;\n\tuser_addr_t argv0 = USER_ADDR_NULL, argv1 = USER_ADDR_NULL;',
@@ -421,6 +432,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint64_t k70_ptte;\n'
                  'volatile uint32_t k70_free_pages;\n'
                  'volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;\n'
+                 'volatile uint32_t k70_wire_rc;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
