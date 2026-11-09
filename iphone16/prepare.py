@@ -252,6 +252,15 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tvm_object_paging_begin(object);\n\n\tset_thread_pagein_error(cthread, 0);',
          '\tvm_object_paging_begin(object);\n'
          '\t{ extern volatile uint32_t k70_stage; k70_stage = 21; }\n\n\tset_thread_pagein_error(cthread, 0);')
+    # 25/26: the shared-to-exclusive upgrade that a write fault needs.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\tif (object_lock_type == OBJECT_LOCK_SHARED) {\n\t\t\tobject_lock_type = OBJECT_LOCK_EXCLUSIVE;',
+         '\t\t{ extern volatile uint32_t k70_stage; k70_stage = 25; }\n'
+         '\t\tif (object_lock_type == OBJECT_LOCK_SHARED) {\n\t\t\tobject_lock_type = OBJECT_LOCK_EXCLUSIVE;')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly',
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 26; }\n'
+         '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly')
     # The lookup is the last thing before 21, so mark its result explicitly.
     edit(root, 'osfmk/vm/vm_fault.c',
          '\t    &real_map,\n\t    &object_is_contended);',
