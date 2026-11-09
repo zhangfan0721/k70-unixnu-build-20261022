@@ -261,11 +261,24 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_f0, k70_f2, k70_f3, k70_f5;\n'
                  'volatile int32_t k70_f1;\n'
                  'volatile uint32_t k70_b_iter;\n'
-                 'volatile int32_t k70_b_wr, k70_b_br;\n' + p.read_text())
+                 'volatile int32_t k70_b_wr, k70_b_br;\n' 
+                 'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' + p.read_text())
+    edit(root, 'osfmk/kern/task.c',
+         '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
+         '\tis_write_lock(task->itk_space);\n\tk70_p6 = 1;\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {')
+    edit(root, 'osfmk/kern/task.c',
+         '\tis_write_unlock(task->itk_space);\n\tturnstile_cleanup();',
+         '\tk70_p7 = 1;\n\tis_write_unlock(task->itk_space);\n\tturnstile_cleanup();')
+    edit(root, 'osfmk/kern/task.c',
+         '\tthread_bootstrap_return();\n}',
+         '\tk70_p8 = 1;\n\tthread_bootstrap_return();\n}')
     edit(root, 'osfmk/kern/task.c', 'task_wait_to_return(void)\n{',
          'task_wait_to_return(void)\n{\n'
          '\t{ extern volatile uint32_t k70_pid1_ran; k70_pid1_ran = 1; }\n'
          '\tboot_progress_stage("P1 task_wait_to_return enter");')
+    # BSD: bsdinit_task reached, which is the last boundary before launchd.
+    edit(root, 'bsd/kern/bsd_init.c', 'bsdinit_task(void)\n{',
+         'bsdinit_task(void)\n{\n\t{ extern volatile uint32_t k70_bsd; k70_bsd = 1; }')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
     path = root / name
     path.write_text('extern "C" {\n#include <kern/boot_progress.h>\n}\n' + path.read_text())
