@@ -252,6 +252,11 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tvm_object_paging_begin(object);\n\n\tset_thread_pagein_error(cthread, 0);',
          '\tvm_object_paging_begin(object);\n'
          '\t{ extern volatile uint32_t k70_stage; k70_stage = 21; }\n\n\tset_thread_pagein_error(cthread, 0);')
+    # The lookup is the last thing before 21, so mark its result explicitly.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t    &real_map,\n\t    &object_is_contended);',
+         '\t    &real_map,\n\t    &object_is_contended);\n'
+         '\t{ extern volatile uint32_t k70_stage, k70_fault_kr; k70_fault_kr = (uint32_t)kr; k70_stage = 24; }')
     edit(root, 'osfmk/vm/vm_fault.c',
          '\tresult_page = VM_PAGE_NULL;\n\tkr = vm_fault_page(object, offset, fault_type,',
          '\tresult_page = VM_PAGE_NULL;\n'
@@ -312,7 +317,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile int32_t k70_b_wr, k70_b_br;\n' 
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
-                 'volatile uint32_t k70_faults;\n'
+                 'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',

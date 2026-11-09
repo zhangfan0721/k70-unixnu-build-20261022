@@ -116,7 +116,7 @@ extern volatile uint32_t k70_b_iter;
 extern volatile int32_t k70_b_wr, k70_b_br;
 extern volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;
 extern volatile uint32_t k70_stage, k70_exec_errno;
-extern volatile uint32_t k70_faults;
+extern volatile uint32_t k70_faults, k70_fault_kr;
 #ifdef __cplusplus
 }
 #endif
@@ -243,6 +243,8 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_hex(&out, k70_exec_errno, 2);
         bp_out_puts(&out, " V");
         bp_out_dec(&out, (uint32_t)k70_faults);
+        bp_out_puts(&out, " K");
+        bp_out_dec(&out, (uint32_t)k70_fault_kr);
         bp_out_puts(&out, " D");
         bp_out_hex(&out, k70_window_last_daif, 2);
         boot_progress_stage(line);
