@@ -185,17 +185,6 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t(void) memorystatus_init_at_boot_snapshot();',
          '\t(void) memorystatus_init_at_boot_snapshot();\n'
          '\t{ extern volatile uint32_t k70_stage; k70_stage = 9; }')
-    # The argv block is written by copyout, which faults in the init task's map. That
-    # fault path runs with preemption disabled, where pmap cannot refill its PV free
-    # list, so the page never becomes resident. Fault it in from this thread instead,
-    # where preemption is enabled and the same pmap calls can allocate.
-    edit(root, 'bsd/kern/kern_exec.c',
-         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);',
-         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);\n'
-         '\t{ extern volatile uint32_t k70_stage; extern kern_return_t vm_map_wire_kernel(vm_map_t, vm_map_offset_t, vm_map_offset_t, vm_prot_t, vm_tag_t, boolean_t);\n'
-         '\t  kern_return_t k70_wr = vm_map_wire_kernel(map, (vm_map_offset_t)scratch_addr,\n'
-         '\t      (vm_map_offset_t)(scratch_addr + map_page_size), VM_PROT_READ | VM_PROT_WRITE, VM_KERN_MEMORY_NONE, TRUE);\n'
-         '\t  extern volatile uint32_t k70_wire_rc; k70_wire_rc = (uint32_t)k70_wr; }')
     mark = '{ extern volatile uint32_t k70_stage; k70_stage = %d; }'
     edit(root, 'bsd/kern/kern_exec.c',
          '\tint retval[2];\n\tint error;\n\tstruct execve_args init_exec_args;\n\tuser_addr_t argv0 = USER_ADDR_NULL, argv1 = USER_ADDR_NULL;',
@@ -301,29 +290,17 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tcur_m = m;\n'
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 32; }\n'
          '\t\t\tm = vm_page_grab_options(grab_options);')
-    # The three numbers the fault has to be judged by: the startup phase, and the
-    # preemption state right after pmap_unlock, which decides whether the allocator
-    # may take the VM path at all.
+    # One value only, sampled exactly where pv_alloc has dropped both locks and is
+    # about to ask the VM for a page: the startup phase, the preemption level and
+    # whether preemption is enabled.
     edit(root, 'osfmk/arm/pmap/pmap_data.c',
-         '\t/* Drop the lock during page allocation since that can take a while. */\n\tpvh_unlock(pai);\n\tif (pmap != NULL) {\n\t\tpmap_unlock(pmap, lock_mode);\n\t}',
-         '\t/* Drop the lock during page allocation since that can take a while. */\n\tpvh_unlock(pai);\n\tif (pmap != NULL) {\n\t\tpmap_unlock(pmap, lock_mode);\n\t}\n'
-         '\t{ extern volatile uint32_t k70_pre_level, k70_pre_enabled, k70_startup, k70_pmap_pre;\n'
+         '\tif ((kr = pve_feed_page(alloc_flags)) == KERN_SUCCESS) {',
+         '\t{ extern volatile uint32_t k70_startup, k70_pre_level, k70_pre_enabled;\n'
          '\t  extern unsigned int startup_phase;\n'
-         '\t  k70_pre_level = (uint32_t)get_preemption_level();\n'
-         '\t  k70_pre_enabled = (uint32_t)preemption_enabled();\n'
          '\t  k70_startup = (uint32_t)startup_phase;\n'
-         '\t  k70_pmap_pre = (uint32_t)pmap_is_preemptible(); }')
-    # Where inside the allocator we stop: feed page, the grab loop, its exit.
-    edit(root, 'osfmk/arm/pmap/pmap_data.c',
-         '\tkr = pmap_pages_alloc_zeroed(&pa, PAGE_SIZE, alloc_flags);',
-         '\t{ extern volatile uint32_t k70_feed_stage; k70_feed_stage = 1; }\n'
-         '\tkr = pmap_pages_alloc_zeroed(&pa, PAGE_SIZE, alloc_flags);\n'
-         '\t{ extern volatile uint32_t k70_feed_stage; k70_feed_stage = 2; }')
-    edit(root, 'osfmk/arm/pmap/pmap_data.c',
-         '\t\twhile ((mem = vm_page_grab()) == VM_PAGE_NULL) {',
-         '\t\t{ extern volatile uint32_t k70_feed_stage, k70_grab_free; extern unsigned int vm_page_free_count;\n'
-         '\t\t  k70_feed_stage = 3; k70_grab_free = (uint32_t)vm_page_free_count; }\n'
-         '\t\twhile ((mem = vm_page_grab()) == VM_PAGE_NULL) {')
+         '\t  k70_pre_level = (uint32_t)get_preemption_level();\n'
+         '\t  k70_pre_enabled = (uint32_t)preemption_enabled(); }\n'
+         '\tif ((kr = pve_feed_page(alloc_flags)) == KERN_SUCCESS) {')
     # 36: the pte loop finished and a leaf entry was found. Everything after this
     # point is bookkeeping that can allocate or lock, so the boundary matters.
     edit(root, 'osfmk/arm/pmap/pmap.c',
@@ -446,6 +423,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile int32_t k70_b_wr, k70_b_br;\n' 
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
+                 'volatile uint32_t k70_startup, k70_pre_level, k70_pre_enabled;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
@@ -455,9 +433,6 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint64_t k70_ptte;\n'
                  'volatile uint32_t k70_free_pages;\n'
                  'volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;\n'
-                 'volatile uint32_t k70_wire_rc;\n'
-                 'volatile uint32_t k70_pre_level, k70_pre_enabled, k70_startup, k70_pmap_pre;\n'
-                 'volatile uint32_t k70_feed_stage, k70_grab_free, k70_grab_loops;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
