@@ -242,6 +242,25 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;',
          '\t\t\tk70_f5 = task->t_returnwaitflags;\n'
          '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;')
+    # Stages 20 to 24: how far the fault gets. vm_fault itself is entered, so the
+    # question is which wait inside it never returns.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\tfault_type = original_fault_type;\n\tmap = original_map;\n\tvm_map_lock_read(map);',
+         '\tfault_type = original_fault_type;\n\tmap = original_map;\n\tvm_map_lock_read(map);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 20; }')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\tvm_object_paging_begin(object);\n\n\tset_thread_pagein_error(cthread, 0);',
+         '\tvm_object_paging_begin(object);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 21; }\n\n\tset_thread_pagein_error(cthread, 0);')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\tresult_page = VM_PAGE_NULL;\n\tkr = vm_fault_page(object, offset, fault_type,',
+         '\tresult_page = VM_PAGE_NULL;\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 22; }\n'
+         '\tkr = vm_fault_page(object, offset, fault_type,')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t    &error_code, map->no_zero_fill,\n\t    &fault_info);',
+         '\t    &error_code, map->no_zero_fill,\n\t    &fault_info);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 23; }')
     # Count the faults: the copyout into the new task hangs, and a fault storm at
     # one address and no fault at all mean very different things.
     edit(root, 'osfmk/vm/vm_fault.c',
