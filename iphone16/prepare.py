@@ -261,6 +261,22 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly',
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 26; }\n'
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly')
+    # 32: the copy-on-write page grab inside the fast path, which asks the free
+    # list for a page and can block there.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\tcur_m = m;\n\t\t\tm = vm_page_grab_options(grab_options);',
+         '\t\t\tcur_m = m;\n'
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 32; }\n'
+         '\t\t\tm = vm_page_grab_options(grab_options);')
+    # 30/31: pmap_enter takes its own lock and may expand the page tables first.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 30; }\n'
+         '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\twhile ((pte_p = pmap_pte(pmap, v)) == PT_ENTRY_NULL) {',
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 31; }\n'
+         '\twhile ((pte_p = pmap_pte(pmap, v)) == PT_ENTRY_NULL) {')
     # 27: the paging reference taken just before the fast path hands the page to
     # pmap; 28: entering vm_fault_enter itself.
     edit(root, 'osfmk/vm/vm_fault.c',
@@ -412,7 +428,7 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c'))
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/arm/pmap/pmap.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
