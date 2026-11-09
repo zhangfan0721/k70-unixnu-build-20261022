@@ -226,14 +226,16 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_puts(&out, " T");
         bp_out_dec(&out, (uint32_t)k70_tt_fail);
         bp_out_dec(&out, (uint32_t)k70_tt_pre);
-        bp_out_puts(&out, " X");
-        {
-            uint32_t rot = (uint32_t)k70_formal_thread_turn % 3u;
-            bp_out_hex(&out, rot == 0u ? k70_pv : (rot == 1u ? k70_pmin : k70_pmax), 16);
+        if (k70_pdump == 0 && k70_tt_fail != 0) {
+            k70_pdump = 1;
+            void k70_formal_cpu_trace(const char *, uint64_t);
+            k70_formal_cpu_trace("Z1 pmap v", k70_pv);
+            k70_formal_cpu_trace("Z2 pmap min", k70_pmin);
+            k70_formal_cpu_trace("Z3 pmap max", k70_pmax);
+            k70_formal_cpu_trace("Z4 levels leaf/root",
+                ((uint64_t)k70_plevel << 8) | (uint64_t)k70_proot);
+            k70_formal_cpu_trace("Z5 tt attempts", (uint64_t)k70_tt_fail);
         }
-        bp_out_puts(&out, " Y");
-        bp_out_dec(&out, k70_plevel);
-        bp_out_dec(&out, k70_proot);
         bp_out_puts(&out, " D");
         bp_out_hex(&out, k70_window_last_daif, 2);
         boot_progress_stage(line);
