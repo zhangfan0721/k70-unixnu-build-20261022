@@ -284,7 +284,11 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     # 30/31: pmap_enter takes its own lock and may expand the page tables first.
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
-         '\t{ extern volatile uint32_t k70_stage; k70_stage = 30; }\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 30;\n'
+         '\t  extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
+         '\t  extern volatile uint32_t k70_plevel, k70_proot;\n'
+         '\t  k70_pv = (uint64_t)v; k70_pmin = (uint64_t)pmap->min; k70_pmax = (uint64_t)pmap->max;\n'
+         '\t  k70_plevel = pt_attr_leaf_level(pt_attr); k70_proot = pt_attr->pta_root_level; }\n'
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;')
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\twhile ((pte_p = pmap_pte(pmap, v)) == PT_ENTRY_NULL) {',
@@ -370,6 +374,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
+                 'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
+                 'volatile uint32_t k70_plevel, k70_proot, k70_pdump;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',

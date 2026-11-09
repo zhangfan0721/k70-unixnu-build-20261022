@@ -118,6 +118,8 @@ extern volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;
 extern volatile uint32_t k70_stage, k70_exec_errno;
 extern volatile uint32_t k70_faults, k70_fault_kr;
 extern volatile uint32_t k70_tt_fail, k70_tt_pre;
+extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;
+extern volatile uint32_t k70_plevel, k70_proot, k70_pdump;
 #ifdef __cplusplus
 }
 #endif
@@ -235,6 +237,25 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_puts(&out, " T");
         bp_out_dec(&out, (uint32_t)k70_tt_fail);
         bp_out_dec(&out, (uint32_t)k70_tt_pre);
+        if (k70_pdump == 0 && k70_tt_fail != 0) {
+            k70_pdump = 1;
+            char extra[BP_MAX_COLS + 1];
+            struct bp_out eo;
+            bp_out_begin(&eo, extra);
+            bp_out_puts(&eo, "CPU: pmap v=0x");
+            bp_out_hex(&eo, k70_pv, 16);
+            bp_out_puts(&eo, " min=0x");
+            bp_out_hex(&eo, k70_pmin, 16);
+            boot_progress_stage(extra);
+            bp_out_begin(&eo, extra);
+            bp_out_puts(&eo, "CPU: pmap max=0x");
+            bp_out_hex(&eo, k70_pmax, 16);
+            bp_out_puts(&eo, " leaf=");
+            bp_out_dec(&eo, k70_plevel);
+            bp_out_puts(&eo, " root=");
+            bp_out_dec(&eo, k70_proot);
+            boot_progress_stage(extra);
+        }
         bp_out_puts(&out, " V");
         bp_out_dec(&out, (uint32_t)k70_faults);
         bp_out_puts(&out, " D");
