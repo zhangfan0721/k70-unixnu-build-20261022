@@ -290,6 +290,17 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tcur_m = m;\n'
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 32; }\n'
          '\t\t\tm = vm_page_grab_options(grab_options);')
+    # 36: the pte loop finished and a leaf entry was found. Everything after this
+    # point is bookkeeping that can allocate or lock, so the boundary matters.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\tif (options & PMAP_OPTIONS_NOENTER) {',
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 36; }\n'
+         '\tif (options & PMAP_OPTIONS_NOENTER) {')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\tpv_status = pv_alloc(pmap, pai, lock_mode, options, &new_pve_p[new_allocated_pves]);',
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 37; }\n'
+         '\t\t\tpv_status = pv_alloc(pmap, pai, lock_mode, options, &new_pve_p[new_allocated_pves]);\n'
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 38; }')
     # 30/31: pmap_enter takes its own lock and may expand the page tables first.
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
