@@ -174,7 +174,17 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          "\t\t  k70_formal_cpu_trace(vfsp->vfc_name, (uint64_t)(int64_t)error); }\n"
          "\t\tvfs_rootmountfailed(mp);")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
-         'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
+         'load_init_program(proc_t p)\n{\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 7; }\n'
+         '\tboot_progress_stage("load_init_program enter");')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 8; }')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) memorystatus_init_at_boot_snapshot();',
+         '\t(void) memorystatus_init_at_boot_snapshot();\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 9; }')
     # After the clear, look at where the init thread actually sits: its state,
     # the run queue it belongs to and the processor it is bound to. A thread
     # parked on a processor that never came online never runs, and one CPU is
@@ -263,7 +273,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_b_iter;\n'
                  'volatile int32_t k70_b_wr, k70_b_br;\n' 
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
-                 'volatile uint32_t k70_q1, k70_q2, k70_q3, k70_q4;\n' + p.read_text())
+                 'volatile uint32_t k70_stage, k70_exec_errno;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
          '\tis_write_lock(task->itk_space);\n\tk70_p6 = 1;\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {')

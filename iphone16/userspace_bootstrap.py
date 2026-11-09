@@ -22,19 +22,18 @@ def install(root):
         '\tboot_progress_stage("PID1 clear return wait enter");\n'
         '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
         '\tboot_progress_stage("PID1 bootstrap returned");')
-    edit(name,'bsdinit_task(void)\n{','bsdinit_task(void)\n{\n\tboot_progress_stage("PID1 bsdinit_task enter");')
-    steps = [('ux_handler_setup();', 'exception setup', 1),
-             ('vm_init_before_launchd();', 'VM before launchd', 2)]
-    for call, label, bit in steps:
-        edit(name, '\t' + call,
-             '\t{ extern volatile uint32_t k70_q1, k70_q2, k70_q3, k70_q4; k70_q%d = 1; }\n' % bit +
-             '\tboot_progress_stage("PID1 ' + label + ' enter");\n\t' + call + '\n'
-             '\tboot_progress_stage("PID1 ' + label + ' returned");')
-    # q3 just before the init program is loaded, q4 when it returns.
+    mark = "{ extern volatile uint32_t k70_stage; k70_stage = %d; }"
+    edit(name, 'bsdinit_task(void)\n{',
+         'bsdinit_task(void)\n{\n\t' + (mark % 1) + '\n\tboot_progress_stage("PID1 bsdinit_task enter");')
+    edit(name, '\tprocess_name("init", p);', '\t' + (mark % 2) + '\n\tprocess_name("init", p);')
+    edit(name, '\tux_handler_setup();',
+         '\t' + (mark % 3) + '\n\tboot_progress_stage("PID1 exception setup enter");\n\tux_handler_setup();\n'
+         '\t' + (mark % 4) + '\n\tboot_progress_stage("PID1 exception setup returned");')
+    edit(name, '\tvm_init_before_launchd();',
+         '\tboot_progress_stage("PID1 VM before launchd enter");\n\tvm_init_before_launchd();\n'
+         '\t' + (mark % 5) + '\n\tboot_progress_stage("PID1 VM before launchd returned");')
     edit(name, '\tload_init_program(p);',
-         '\t{ extern volatile uint32_t k70_q1, k70_q2, k70_q3, k70_q4; k70_q3 = 1; }\n'
-         '\tload_init_program(p);\n'
-         '\t{ extern volatile uint32_t k70_q1, k70_q2, k70_q3, k70_q4; k70_q4 = 1; }')
+         '\t' + (mark % 6) + '\n\tload_init_program(p);')
     # bsd_utaskbootstrap leaves the init thread runnable and expects the
     # scheduler to pick it up. On this port it never runs, so the boundary is
     # named here and the boot thread yields once right after it: if the next
@@ -66,8 +65,10 @@ def install(root):
         '\t\t\tk70_formal_cpu_trace("PID1 dyld header", load_result.dynlinker_mach_header);\n'
         '\t\t\tk70_formal_cpu_trace("PID1 dyld end", load_result.dynlinker_max_vm_addr);\n\t\t}\n\t}')
     edit(name,'\treturn execve(p, &init_exec_args, retval);',
+        '\t{ extern volatile uint32_t k70_stage; k70_stage = 10; }\n'
         '\tboot_progress_stage("PID1 execve enter");\n\tboot_progress_stage(path);\n'
         '\terror = execve(p, &init_exec_args, retval);\n'
+        '\t{ extern volatile uint32_t k70_stage, k70_exec_errno; k70_stage = 11; k70_exec_errno = (uint32_t)error; }\n'
         '\tk70_formal_cpu_trace("PID1 exec errno", (uint32_t)error);\n'
         '\tif (error) { boot_progress_stage("PID1 exec failed; halted"); for(;;) { __asm__ volatile("wfi"); } }\n'
         '\tboot_progress_stage("PID1 exec returned 0; entering userland");\n\treturn error;')
