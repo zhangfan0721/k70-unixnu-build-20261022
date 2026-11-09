@@ -266,7 +266,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\twhile (pmap_tt_allocate(pmap, &tt_p, ttlevel + 1, ((options & PMAP_TT_ALLOCATE_NOWAIT)? PMAP_PAGES_ALLOCATE_NOWAIT : 0)) != KERN_SUCCESS) {',
          '\t\t\twhile (pmap_tt_allocate(pmap, &tt_p, ttlevel + 1, ((options & PMAP_TT_ALLOCATE_NOWAIT)? PMAP_PAGES_ALLOCATE_NOWAIT : 0)) != KERN_SUCCESS) {\n'
          '\t\t\t\t{ extern volatile uint32_t k70_tt_fail, k70_tt_pre, k70_stage;\n'
-         '\t\t\t\t  k70_tt_fail++; k70_tt_pre = (uint32_t)pmap_is_preemptible(); k70_stage = 34; }')
+         '\t\t\t\t  k70_tt_fail++; k70_tt_pre = (uint32_t)preemption_enabled(); k70_stage = 34; }')
     # 32: the copy-on-write page grab inside the fast path, which asks the free
     # list for a page and can block there.
     edit(root, 'osfmk/vm/vm_fault.c',
