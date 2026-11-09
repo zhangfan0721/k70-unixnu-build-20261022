@@ -23,8 +23,18 @@ def install(root):
         '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
         '\tboot_progress_stage("PID1 bootstrap returned");')
     edit(name,'bsdinit_task(void)\n{','bsdinit_task(void)\n{\n\tboot_progress_stage("PID1 bsdinit_task enter");')
-    for call,label in [('ux_handler_setup();','exception setup'),('vm_init_before_launchd();','VM before launchd')]:
-        edit(name,'\t'+call,'\tboot_progress_stage("PID1 '+label+' enter");\n\t'+call+'\n\tboot_progress_stage("PID1 '+label+' returned");')
+    steps = [('ux_handler_setup();', 'exception setup', 1),
+             ('vm_init_before_launchd();', 'VM before launchd', 2)]
+    for call, label, bit in steps:
+        edit(name, '\t' + call,
+             '\t{ extern volatile uint32_t k70_q1, k70_q2, k70_q3, k70_q4; k70_q%d = 1; }\n' % bit +
+             '\tboot_progress_stage("PID1 ' + label + ' enter");\n\t' + call + '\n'
+             '\tboot_progress_stage("PID1 ' + label + ' returned");')
+    # q3 just before the init program is loaded, q4 when it returns.
+    edit(name, '\tload_init_program(p);',
+         '\t{ extern volatile uint32_t k70_q1, k70_q2, k70_q3, k70_q4; k70_q3 = 1; }\n'
+         '\tload_init_program(p);\n'
+         '\t{ extern volatile uint32_t k70_q1, k70_q2, k70_q3, k70_q4; k70_q4 = 1; }')
     # bsd_utaskbootstrap leaves the init thread runnable and expects the
     # scheduler to pick it up. On this port it never runs, so the boundary is
     # named here and the boot thread yields once right after it: if the next
