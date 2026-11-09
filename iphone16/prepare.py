@@ -185,6 +185,18 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t(void) memorystatus_init_at_boot_snapshot();',
          '\t(void) memorystatus_init_at_boot_snapshot();\n'
          '\t{ extern volatile uint32_t k70_stage; k70_stage = 9; }')
+    mark = '{ extern volatile uint32_t k70_stage; k70_stage = %d; }'
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\tint retval[2];\n\tint error;\n\tstruct execve_args init_exec_args;\n\tuser_addr_t argv0 = USER_ADDR_NULL, argv1 = USER_ADDR_NULL;',
+         '\t' + (mark % 10) + '\n'
+         '\tint retval[2];\n\tint error;\n\tstruct execve_args init_exec_args;\n\tuser_addr_t argv0 = USER_ADDR_NULL, argv1 = USER_ADDR_NULL;')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\tscratch_addr = USER_ADDR_ALIGN(scratch_addr + path_length, sizeof(user_addr_t));',
+         '\t' + (mark % 11) + '\n'
+         '\tscratch_addr = USER_ADDR_ALIGN(scratch_addr + path_length, sizeof(user_addr_t));')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\tset_security_token(p);',
+         '\t' + (mark % 12) + '\n\tset_security_token(p);\n\t' + (mark % 13))
     # After the clear, look at where the init thread actually sits: its state,
     # the run queue it belongs to and the processor it is bound to. A thread
     # parked on a processor that never came online never runs, and one CPU is

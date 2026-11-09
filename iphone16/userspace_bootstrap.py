@@ -65,10 +65,10 @@ def install(root):
         '\t\t\tk70_formal_cpu_trace("PID1 dyld header", load_result.dynlinker_mach_header);\n'
         '\t\t\tk70_formal_cpu_trace("PID1 dyld end", load_result.dynlinker_max_vm_addr);\n\t\t}\n\t}')
     edit(name,'\treturn execve(p, &init_exec_args, retval);',
-        '\t{ extern volatile uint32_t k70_stage; k70_stage = 10; }\n'
+        '\t{ extern volatile uint32_t k70_stage; k70_stage = 14; }\n'
         '\tboot_progress_stage("PID1 execve enter");\n\tboot_progress_stage(path);\n'
         '\terror = execve(p, &init_exec_args, retval);\n'
-        '\t{ extern volatile uint32_t k70_stage, k70_exec_errno; k70_stage = 11; k70_exec_errno = (uint32_t)error; }\n'
+        '\t{ extern volatile uint32_t k70_stage, k70_exec_errno; k70_stage = 15; k70_exec_errno = (uint32_t)error; }\n'
         '\tk70_formal_cpu_trace("PID1 exec errno", (uint32_t)error);\n'
         '\tif (error) { boot_progress_stage("PID1 exec failed; halted"); for(;;) { __asm__ volatile("wfi"); } }\n'
         '\tboot_progress_stage("PID1 exec returned 0; entering userland");\n\treturn error;')
