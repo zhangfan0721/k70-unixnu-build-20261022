@@ -242,6 +242,13 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;',
          '\t\t\tk70_f5 = task->t_returnwaitflags;\n'
          '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;')
+    # Count the faults: the copyout into the new task hangs, and a fault storm at
+    # one address and no fault at all mean very different things.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\treturn vm_fault_internal(map, vaddr, fault_type, change_wiring, wire_tag,',
+         '\t{ extern volatile uint32_t k70_faults; extern volatile uint64_t k70_fault_addr;\n'
+         '\t  k70_faults++; k70_fault_addr = (uint64_t)vaddr; }\n'
+         '\treturn vm_fault_internal(map, vaddr, fault_type, change_wiring, wire_tag,')
     # F2/F3: what the flags look like around the clear in the FINAL branch.
     edit(root, 'osfmk/kern/task.c',
          '\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAIT;',
@@ -285,7 +292,9 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_b_iter;\n'
                  'volatile int32_t k70_b_wr, k70_b_br;\n' 
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
-                 'volatile uint32_t k70_stage, k70_exec_errno;\n' + p.read_text())
+                 'volatile uint32_t k70_stage, k70_exec_errno;\n'
+                 'volatile uint32_t k70_faults;\n'
+                 'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
          '\tis_write_lock(task->itk_space);\n\tk70_p6 = 1;\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {')
@@ -357,7 +366,7 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c'))
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
