@@ -261,6 +261,12 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly',
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 26; }\n'
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly')
+    # 34: the page table allocation that fails and then waits forever.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\twhile (pmap_tt_allocate(pmap, &tt_p, ttlevel + 1, ((options & PMAP_TT_ALLOCATE_NOWAIT)? PMAP_PAGES_ALLOCATE_NOWAIT : 0)) != KERN_SUCCESS) {',
+         '\t\t\twhile (pmap_tt_allocate(pmap, &tt_p, ttlevel + 1, ((options & PMAP_TT_ALLOCATE_NOWAIT)? PMAP_PAGES_ALLOCATE_NOWAIT : 0)) != KERN_SUCCESS) {\n'
+         '\t\t\t\t{ extern volatile uint32_t k70_tt_fail, k70_tt_pre, k70_stage;\n'
+         '\t\t\t\t  k70_tt_fail++; k70_tt_pre = (uint32_t)pmap_is_preemptible(); k70_stage = 34; }')
     # 32: the copy-on-write page grab inside the fast path, which asks the free
     # list for a page and can block there.
     edit(root, 'osfmk/vm/vm_fault.c',
@@ -356,6 +362,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
+                 'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
