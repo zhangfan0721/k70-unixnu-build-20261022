@@ -261,6 +261,16 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly',
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 26; }\n'
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly')
+    # 27: the paging reference taken just before the fast path hands the page to
+    # pmap; 28: entering vm_fault_enter itself.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\tm = vm_page_lookup(cur_object, vm_object_trunc_page(cur_offset));',
+         '\t\t{ extern volatile uint32_t k70_stage; k70_stage = 27; }\n'
+         '\t\tm = vm_page_lookup(cur_object, vm_object_trunc_page(cur_offset));')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,',
+         '\t\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 28; }\n'
+         '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,')
     # The lookup is the last thing before 21, so mark its result explicitly.
     edit(root, 'osfmk/vm/vm_fault.c',
          '\t    &real_map,\n\t    &object_is_contended);',
