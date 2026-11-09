@@ -290,17 +290,6 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tcur_m = m;\n'
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 32; }\n'
          '\t\t\tm = vm_page_grab_options(grab_options);')
-    # One value only, sampled exactly where pv_alloc has dropped both locks and is
-    # about to ask the VM for a page: the startup phase, the preemption level and
-    # whether preemption is enabled.
-    edit(root, 'osfmk/arm/pmap/pmap_data.c',
-         '\tif ((kr = pve_feed_page(alloc_flags)) == KERN_SUCCESS) {',
-         '\t{ extern volatile uint32_t k70_startup, k70_pre_level, k70_pre_enabled;\n'
-         '\t  extern unsigned int startup_phase;\n'
-         '\t  k70_startup = (uint32_t)startup_phase;\n'
-         '\t  k70_pre_level = (uint32_t)get_preemption_level();\n'
-         '\t  k70_pre_enabled = (uint32_t)preemption_enabled(); }\n'
-         '\tif ((kr = pve_feed_page(alloc_flags)) == KERN_SUCCESS) {')
     # 36: the pte loop finished and a leaf entry was found. Everything after this
     # point is bookkeeping that can allocate or lock, so the boundary matters.
     edit(root, 'osfmk/arm/pmap/pmap.c',
@@ -423,7 +412,6 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile int32_t k70_b_wr, k70_b_br;\n' 
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
-                 'volatile uint32_t k70_startup, k70_pre_level, k70_pre_enabled;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
@@ -505,8 +493,7 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/arm/pmap/pmap.c',
-                  'osfmk/arm/pmap/pmap_data.c'))
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/arm/pmap/pmap.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()

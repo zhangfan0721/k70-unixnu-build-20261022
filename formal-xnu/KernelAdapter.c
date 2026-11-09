@@ -116,6 +116,7 @@ extern volatile uint32_t k70_b_iter;
 extern volatile int32_t k70_b_wr, k70_b_br;
 extern volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;
 extern volatile uint32_t k70_stage, k70_exec_errno;
+extern unsigned int startup_phase;
 extern volatile uint32_t k70_startup, k70_pre_level, k70_pre_enabled;
 extern volatile uint32_t k70_faults, k70_fault_kr;
 extern volatile uint32_t k70_tt_fail, k70_tt_pre;
@@ -232,6 +233,8 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_window_reads);
         bp_out_puts(&out, " G");
         bp_out_dec(&out, (uint32_t)k70_stage);
+        bp_out_puts(&out, " S");
+        bp_out_dec(&out, (uint32_t)startup_phase);
         bp_out_puts(&out, " S");
         bp_out_dec(&out, (uint32_t)k70_startup);
         bp_out_puts(&out, "/");
