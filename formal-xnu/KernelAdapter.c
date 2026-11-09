@@ -120,6 +120,7 @@ extern volatile uint32_t k70_faults, k70_fault_kr;
 extern volatile uint32_t k70_tt_fail, k70_tt_pre;
 extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;
 extern volatile uint64_t k70_va_bits, k70_va_max;
+extern volatile uint32_t k70_fix_count;
 extern volatile uint32_t k70_plevel, k70_proot, k70_pdump;
 #ifdef __cplusplus
 }
@@ -226,7 +227,7 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_stage);
         bp_out_puts(&out, " T");
         bp_out_dec(&out, (uint32_t)k70_tt_fail);
-        bp_out_dec(&out, (uint32_t)k70_tt_pre);
+        bp_out_dec(&out, (uint32_t)k70_fix_count);
         if (k70_tt_fail != 0) {
             void k70_formal_cpu_trace(const char *, uint64_t);
             switch ((unsigned)(k70_formal_thread_turn % 6u)) {
