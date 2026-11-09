@@ -261,6 +261,13 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly',
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 26; }\n'
          '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly')
+    # 35: count the expand retries and keep the last status. A loop that expands
+    # successfully but still finds no pte spins forever with every counter frozen.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\tkr = pmap_expand(pmap, v, options, pt_attr_leaf_level(pt_attr));',
+         '\t\t{ extern volatile uint32_t k70_tt_fail; k70_tt_fail++; }\n'
+         '\t\tkr = pmap_expand(pmap, v, options, pt_attr_leaf_level(pt_attr));\n'
+         '\t\t{ extern volatile uint32_t k70_tt_pre; k70_tt_pre = (uint32_t)kr; }')
     # 34: the page table allocation that fails and then waits forever.
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\t\t\twhile (pmap_tt_allocate(pmap, &tt_p, ttlevel + 1, ((options & PMAP_TT_ALLOCATE_NOWAIT)? PMAP_PAGES_ALLOCATE_NOWAIT : 0)) != KERN_SUCCESS) {',
