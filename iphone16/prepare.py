@@ -207,10 +207,25 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n'
          '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
          '\t\t  extern void *k70_pid1_task; k70_pid1_task = (void *)task;\n'
+         '\t\t  extern volatile uint32_t k70_f0, k70_f2, k70_f3, k70_f5;\n'
+         '\t\t  extern volatile int32_t k70_f1;\n'
+         '\t\t  k70_f0 = task->t_returnwaitflags;\n'
          '\t\t  int k70woke = thread_wakeup(task_get_return_wait_event(task));\n'
+         '\t\t  k70_f1 = k70woke;\n'
          '\t\t  k70_formal_cpu_trace("P2 wake event", (uint64_t)(unsigned long)task_get_return_wait_event(task));\n'
          '\t\t  k70_formal_cpu_trace("P2 woke threads", (uint64_t)(unsigned)k70woke);\n'
          '\t\t  k70_formal_cpu_trace("P2 returnwait flags", (uint64_t)task->t_returnwaitflags); }')
+    # F5: the flags just before the FINAL branch finishes.
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;',
+         '\t\t\tk70_f5 = task->t_returnwaitflags;\n'
+         '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;')
+    # F2/F3: what the flags look like around the clear in the FINAL branch.
+    edit(root, 'osfmk/kern/task.c',
+         '\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAIT;',
+         '\t\tk70_f2 = task->t_returnwaitflags;\n'
+         '\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAIT;\n'
+         '\t\tk70_f3 = task->t_returnwaitflags;')
     # Does the scheduler ever receive this thread? A runnable thread that the
     # run queue never sees and one that is inserted but never chosen need
     # different fixes, and only a counter in thread_setrun tells them apart.
@@ -222,12 +237,31 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t  static unsigned k70_setrun_hits;\n'
          '\t  if (k70_pid1_task && (void *)thread->t_tro->tro_task == k70_pid1_task) {\n'
          '\t\t  k70_setrun_hits++;\n'
-         '\t\t  k70_formal_cpu_trace("P5 setrun pid1", (uint64_t)k70_setrun_hits); } }')
+         '\t\t  if (k70_setrun_hits <= 3) {\n'
+         '\t\t\t  k70_formal_cpu_trace("P5 setrun pid1", (uint64_t)k70_setrun_hits); } } }')
+    # B: the wait and the block results, counted where the init thread waits.
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\twaitq_assert_wait64(&turnstile->ts_waitq,',
+         '\t\t\tk70_b_iter++;\n'
+         '\t\t\twait_result_t k70_wr = waitq_assert_wait64(&turnstile->ts_waitq,')
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\t    THREAD_UNINT, TIMEOUT_WAIT_FOREVER);',
+         '\t\t\t    THREAD_UNINT, TIMEOUT_WAIT_FOREVER);\n'
+         '\t\t\tk70_b_wr = (int32_t)k70_wr;')
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\tthread_block(THREAD_CONTINUE_NULL);',
+         '\t\t\tk70_b_br = (int32_t)thread_block(THREAD_CONTINUE_NULL);')
     # The init thread's first continuation is task_wait_to_return, not
     # bsdinit_task. One line here answers whether it starts executing at all,
     # without reading a Mach-private structure from a BSD file.
     p = root / 'osfmk/kern/task.c'
-    p.write_text('#include <kern/boot_progress.h>\nvoid *k70_pid1_task;\nvolatile uint32_t k70_pid1_ran;\n' + p.read_text())
+    p.write_text('#include <kern/boot_progress.h>\n'
+                 'void *k70_pid1_task;\n'
+                 'volatile uint32_t k70_pid1_ran;\n'
+                 'volatile uint32_t k70_f0, k70_f2, k70_f3, k70_f5;\n'
+                 'volatile int32_t k70_f1;\n'
+                 'volatile uint32_t k70_b_iter;\n'
+                 'volatile int32_t k70_b_wr, k70_b_br;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c', 'task_wait_to_return(void)\n{',
          'task_wait_to_return(void)\n{\n'
          '\t{ extern volatile uint32_t k70_pid1_ran; k70_pid1_ran = 1; }\n'

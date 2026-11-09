@@ -110,6 +110,10 @@ volatile uint32_t k70_window_reads;
 volatile uint64_t k70_window_last_daif;
 volatile uint32_t k70_stage_mark;
 extern volatile uint32_t k70_pid1_ran;
+extern volatile uint32_t k70_f0, k70_f2, k70_f3, k70_f5;
+extern volatile int32_t k70_f1;
+extern volatile uint32_t k70_b_iter;
+extern volatile int32_t k70_b_wr, k70_b_br;
 #ifdef __cplusplus
 }
 #endif
@@ -213,6 +217,18 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_window_reads);
         bp_out_puts(&out, " R");
         bp_out_dec(&out, (uint32_t)k70_pid1_ran);
+        bp_out_puts(&out, " F");
+        bp_out_hex(&out, k70_f2, 2);
+        bp_out_puts(&out, "/");
+        bp_out_hex(&out, k70_f3, 2);
+        bp_out_puts(&out, "/");
+        bp_out_hex(&out, k70_f5, 2);
+        bp_out_puts(&out, " B");
+        bp_out_dec(&out, (uint32_t)k70_b_iter);
+        bp_out_puts(&out, "/");
+        bp_out_dec(&out, (uint32_t)k70_b_wr);
+        bp_out_puts(&out, "/");
+        bp_out_dec(&out, (uint32_t)k70_b_br);
         bp_out_puts(&out, " D");
         bp_out_hex(&out, k70_window_last_daif, 2);
         boot_progress_stage(line);
