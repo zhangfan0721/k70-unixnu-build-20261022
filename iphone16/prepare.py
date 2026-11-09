@@ -301,6 +301,29 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tcur_m = m;\n'
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 32; }\n'
          '\t\t\tm = vm_page_grab_options(grab_options);')
+    # The three numbers the fault has to be judged by: the startup phase, and the
+    # preemption state right after pmap_unlock, which decides whether the allocator
+    # may take the VM path at all.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\t/* Drop the lock during page allocation since that can take a while. */\n\tpvh_unlock(pai);\n\tif (pmap != NULL) {\n\t\tpmap_unlock(pmap, lock_mode);\n\t}',
+         '\t/* Drop the lock during page allocation since that can take a while. */\n\tpvh_unlock(pai);\n\tif (pmap != NULL) {\n\t\tpmap_unlock(pmap, lock_mode);\n\t}\n'
+         '\t{ extern volatile uint32_t k70_pre_level, k70_pre_enabled, k70_startup, k70_pmap_pre;\n'
+         '\t  extern unsigned int startup_phase;\n'
+         '\t  k70_pre_level = (uint32_t)get_preemption_level();\n'
+         '\t  k70_pre_enabled = (uint32_t)preemption_enabled();\n'
+         '\t  k70_startup = (uint32_t)startup_phase;\n'
+         '\t  k70_pmap_pre = (uint32_t)pmap_is_preemptible(); }')
+    # Where inside the allocator we stop: feed page, the grab loop, its exit.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tkr = pmap_pages_alloc_zeroed(&pa, PAGE_SIZE, alloc_flags);',
+         '\t{ extern volatile uint32_t k70_feed_stage; k70_feed_stage = 1; }\n'
+         '\tkr = pmap_pages_alloc_zeroed(&pa, PAGE_SIZE, alloc_flags);\n'
+         '\t{ extern volatile uint32_t k70_feed_stage; k70_feed_stage = 2; }')
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\t\twhile ((mem = vm_page_grab()) == VM_PAGE_NULL) {',
+         '\t\t{ extern volatile uint32_t k70_feed_stage, k70_grab_free; extern unsigned int vm_page_free_count;\n'
+         '\t\t  k70_feed_stage = 3; k70_grab_free = (uint32_t)vm_page_free_count; }\n'
+         '\t\twhile ((mem = vm_page_grab()) == VM_PAGE_NULL) {')
     # 36: the pte loop finished and a leaf entry was found. Everything after this
     # point is bookkeeping that can allocate or lock, so the boundary matters.
     edit(root, 'osfmk/arm/pmap/pmap.c',
@@ -433,6 +456,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_free_pages;\n'
                  'volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;\n'
                  'volatile uint32_t k70_wire_rc;\n'
+                 'volatile uint32_t k70_pre_level, k70_pre_enabled, k70_startup, k70_pmap_pre;\n'
+                 'volatile uint32_t k70_feed_stage, k70_grab_free, k70_grab_loops;\n'
                  'volatile uint64_t k70_fault_addr;\n' + p.read_text())
     edit(root, 'osfmk/kern/task.c',
          '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
@@ -505,7 +530,8 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/arm/pmap/pmap.c'))
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/arm/pmap/pmap.c',
+                  'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()

@@ -125,6 +125,8 @@ extern volatile uint64_t k70_ptte;
 extern volatile uint32_t k70_free_pages;
 extern volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;
 extern volatile uint32_t k70_wire_rc;
+extern volatile uint32_t k70_pre_level, k70_pre_enabled, k70_startup, k70_pmap_pre;
+extern volatile uint32_t k70_feed_stage, k70_grab_free;
 extern volatile uint32_t k70_plevel, k70_proot, k70_pdump;
 #ifdef __cplusplus
 }
@@ -236,7 +238,7 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_fix_count);
         if (k70_tt_fail != 0) {
             void k70_formal_cpu_trace(const char *, uint64_t);
-            switch ((unsigned)(k70_formal_thread_turn % 9u)) {
+            switch ((unsigned)(k70_formal_thread_turn % 12u)) {
             case 0u: k70_formal_cpu_trace("Z1 pmap v", k70_pv); break;
             case 1u: k70_formal_cpu_trace("Z2 pmap min", k70_pmin); break;
             case 2u: k70_formal_cpu_trace("Z3 pmap max", k70_pmax); break;
@@ -247,8 +249,14 @@ static void k70_formal_worker(void *argument, wait_result_t result)
                          (k70_va_bits << 56) | (k70_va_max >> 8)); break;
             case 6u: k70_formal_cpu_trace("Z7 pmap root tte", k70_ptte); break;
             case 7u: k70_formal_cpu_trace("Z8 free pages", (uint64_t)k70_free_pages); break;
-            default: k70_formal_cpu_trace("Z9 pv loops/status/count",
+            case 8u: k70_formal_cpu_trace("Z9 pv loops/status/count",
                          ((uint64_t)k70_pv_loops << 40) | ((uint64_t)k70_pv_status << 20) | (uint64_t)k70_pv_count); break;
+            case 9u: k70_formal_cpu_trace("ZA preempt level/enabled",
+                         ((uint64_t)k70_pre_level << 32) | (uint64_t)k70_pre_enabled); break;
+            case 10u: k70_formal_cpu_trace("ZB startup/pmap_preemptible",
+                         ((uint64_t)k70_startup << 32) | (uint64_t)k70_pmap_pre); break;
+            default: k70_formal_cpu_trace("ZC feed stage/free",
+                         ((uint64_t)k70_feed_stage << 40) | (uint64_t)k70_grab_free); break;
             }
         }
         bp_out_puts(&out, " D");
