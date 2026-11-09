@@ -226,15 +226,16 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_puts(&out, " T");
         bp_out_dec(&out, (uint32_t)k70_tt_fail);
         bp_out_dec(&out, (uint32_t)k70_tt_pre);
-        if (k70_pdump == 0 && k70_tt_fail != 0) {
-            k70_pdump = 1;
+        if (k70_tt_fail != 0) {
             void k70_formal_cpu_trace(const char *, uint64_t);
-            k70_formal_cpu_trace("Z1 pmap v", k70_pv);
-            k70_formal_cpu_trace("Z2 pmap min", k70_pmin);
-            k70_formal_cpu_trace("Z3 pmap max", k70_pmax);
-            k70_formal_cpu_trace("Z4 levels leaf/root",
-                ((uint64_t)k70_plevel << 8) | (uint64_t)k70_proot);
-            k70_formal_cpu_trace("Z5 tt attempts", (uint64_t)k70_tt_fail);
+            switch ((unsigned)(k70_formal_thread_turn % 5u)) {
+            case 0u: k70_formal_cpu_trace("Z1 pmap v", k70_pv); break;
+            case 1u: k70_formal_cpu_trace("Z2 pmap min", k70_pmin); break;
+            case 2u: k70_formal_cpu_trace("Z3 pmap max", k70_pmax); break;
+            case 3u: k70_formal_cpu_trace("Z4 levels leaf/root",
+                         ((uint64_t)k70_plevel << 8) | (uint64_t)k70_proot); break;
+            default: k70_formal_cpu_trace("Z5 tt attempts", (uint64_t)k70_tt_fail); break;
+            }
         }
         bp_out_puts(&out, " D");
         bp_out_hex(&out, k70_window_last_daif, 2);
