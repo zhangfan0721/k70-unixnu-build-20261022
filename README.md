@@ -36,7 +36,7 @@ Nothing in this repository is a usable operating system. Every row below is a
 checkpoint with its own scope and its own evidence, and no stage count is a
 percentage of OS readiness.
 
-## Bring-up stages (2026-11-08)
+## Bring-up stages (2026-11-10)
 
 The rows follow the [bring-up order](https://unixnu.com/zh/porting/bring-up) the
 documentation defines, so every line here has a counterpart there.
@@ -49,7 +49,7 @@ documentation defines, so every line here has a counterpart there.
 | 4. DarwinBoot | ✅ | `DARWINBOOT:` base/entry/framebuffer lines, EL1, kernel entered |
 | 5. Kernel entry | ✅ | XNU prints its version, pexpert matches the ADT, GIC and timer run, PID 1 task and thread exist |
 | 6. Storage and root volume | ✅ | a real HFS+ volume in the userdata gap is the root filesystem: `vfs_mountroot mounted; root policy check next`, `root filesystem mount result value=0x0` |
-| 7. Userland | 🔧 | PID 1 exists and `bsd_init` completes; the kernel then reads `/sbin/launchd` from the root and the board resets before any exec result is printed |
+| 7. Userland | 🔧 | PID 1 runs its first continuation, `bsdinit_task` reaches `load_init_program`, and the first user page fault of the argv copyout stalls inside `pmap` before any exec result exists. The board does not reset |
 
 ✅ verified on the phone or in CI · 🔧 implemented and partly verified · ❌ not available.
 
@@ -80,36 +80,13 @@ and LBA 2570303, which held no partition before:
    local copy uses `lstat`, `makeSymlink` and the real mode of each entry.
 4. `dd` the image to LBA 211008 from recovery, then read the head back and compare.
 
-### Stage 7: PID 1 runs, the first exec does not yet report
+### Stage 7: the first exec has no result
 
-The console reaches, in this order:
-
-```
-vfs_mountroot mounted; root policy check next
-bsd_init: calling bsd_utaskbootstrap?
-PID1 bootstrap enter; cloneproc next
-PID1 task_create_internal enter
-PID1 bootstrap returned
-bsd_init: done?
-```
-
-After that the transport starts reading files from the root — thousands of SCSI
-commands — and two things happen together: the timer thread's once-per-second line
-stops, and about five seconds later the board resets with no panic text on screen.
-The probe placed immediately before `execve(p, &init_exec_args, retval)`
-(`PID1 execve enter`, followed by the path and then the errno) has never appeared,
-so no exec result has been observed either way.
-
-What that does **not** say: whether `execve` returned an error, whether it succeeded
-and the process died later, or whether the reset came from a panic that never reached
-the console. Those are the three remaining possibilities and this row exists to
-separate them.
-
-Two changes are already in the tree for that purpose. The console trace is sampled
-after the first 240 lines (one line in 32), because every trace line repaints the
-framebuffer and a single SCSI command emits a dozen of them — the same starvation a
-comparable port hit and fixed by capping its status redraws. And a failed `execve`
-now parks the CPU with the errno on screen instead of returning.
+Earlier revisions of this row said the board reset five seconds after the
+transport began reading files, and that the exec probe never printed. Both
+observations were real, but the cause was elsewhere: the console had scrolled
+the probe away, and the kernel had stalled rather than reset. The measured
+state follows.
 
 The launch parameters that matter for this stage, all recorded with their reason:
 
@@ -121,11 +98,37 @@ The launch parameters that matter for this stage, all recorded with their reason
 | ADT `darwinboot-memory-size=0x80000000` | 2 GiB owned window; the default runs out of memory around launchd |
 | ADT `/defaults/vmm-present=0` | no hypervisor is present, and the watchdog path assumes one otherwise |
 
+### Stage 7: where the first user page stops
+
+The row above is no longer "a reset before the probe prints". PID 1 runs, and the
+kernel stops on the very first user mapping it tries to create.
+
+| Question | Answer measured on the phone |
+| --- | --- |
+| Does the PID 1 thread run? | yes: a flag written in its first instruction reads 1 |
+| How far does it get? | `task_wait_to_return` then `bsdinit_task` then `load_init_program` |
+| What stops it? | the `copyout` of the init path faults in the new task map at VA `0x1000` |
+| Is it spinning? | no: the timer thread keeps printing one status line per second |
+| pmap bounds and levels | `min=0`, `max=0x4000000000`, root table `0xfffffff04d653800`, leaf 3 / root 1 |
+| Free memory | `vm_page_free_count = 0x7e73c`, about 2 GiB, so not exhaustion |
+
+The fault walks the whole way into `pmap_enter`: the leaf entry is found, the pv hash
+lock is taken, and then the per-cpu pv free list has to be refilled. That refill drops
+the pmap lock and asks for a page, but the fault path runs with preemption disabled,
+where the allocator refuses to allocate, so the retry never completes.
+
+Two things found on the way stay in the tree. A user pmap was created with a zero
+upper bound, so every walk failed and the page-table expand loop consumed pages until
+it blocked. And the question "does the PID 1 thread run at all" was answered only
+after the busy console was quieted: the thread had been running the whole time.
+
 ## Gaps before userland
 
-1. **The first exec has no reported result.** See stage 7: the reset arrives before
-   the probe prints. Until an errno or a userland line appears, no claim about
-   `launchd` is possible.
+1. **The first exec has no reported result.** See stage 7: the argv page fault never
+   completes, so `execve` is never reached and there is no errno to print. The next
+   step is either a page the fault already finds resident, or a pv refill that works
+   with preemption disabled. Wiring the page from the boot thread was tried and the
+   board reset, so the wire tag it passed is the first suspect.
 2. **The staging tree is a subset.** It carries `launchd`, `dyld`, the dyld shared
    cache, `Frameworks`, `CoreServices`, `LaunchDaemons`, `Extensions` and a
    skeleton `/private/var`. It has no Data volume, no trust cache and no AppOS
@@ -151,6 +154,7 @@ The launch parameters that matter for this stage, all recorded with their reason
 | window01 | read-only UFS window reads LBA 211008, digests match the 2026-11-03 baseline | local evidence only |
 | hfsroot01 | 9 GiB HFS+ root in the userdata gap mounts: `vfs_mountroot mounted` | local evidence only |
 | pid1-01 | PID 1 created, `bsd_init: done`; reset arrives before any exec result | local evidence only |
+| pid1-02 | PID 1 thread runs; `bsdinit_task` reaches `load_init_program`; the first user fault stalls in the pmap pv refill | local evidence only |
 | UFS-TAKEOVER05 | one restricted takeover, capacity/GPT, four hashes | [42207233095](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42207233095) |
 | iphone16 | APFS prelink + read-only window | [42340630197](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42340630197) |
 | iphone16-root | APFS prelink with the HFS root path in the same component set | [42462954404](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42462954404) |
