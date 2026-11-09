@@ -294,6 +294,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
          '\t{ extern volatile uint32_t k70_stage; k70_stage = 30;\n'
+         '\t  if (pmap->max == 0) { pmap->min = 0; pmap->max = (1ULL << (64 - T0SZ_BOOT)); }\n'
          '\t  extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
          '\t  extern volatile uint32_t k70_plevel, k70_proot;\n'
          '\t  k70_pv = (uint64_t)v; k70_pmin = (uint64_t)pmap->min; k70_pmax = (uint64_t)pmap->max;\n'
