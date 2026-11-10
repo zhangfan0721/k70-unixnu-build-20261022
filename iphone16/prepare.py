@@ -298,6 +298,24 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tkr = pve_feed_page(alloc_flags);\n'
          '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 2; }\n'
          '\tif (kr == KERN_SUCCESS) {')
+    # pv_alloc starts with pv_list_alloc, which touches per-cpu data and a global
+    # batch lock. Mark the entry, the per-cpu lookup and the batch fetch.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tassert((pvepp != NULL) && (*pvepp == PV_ENTRY_NULL));\n\n\tif (pmap != NULL) {\n\t\tpmap_assert_locked(pmap, lock_mode);',
+         '\tassert((pvepp != NULL) && (*pvepp == PV_ENTRY_NULL));\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 7; }\n\n'
+         '\tif (pmap != NULL) {\n\t\tpmap_assert_locked(pmap, lock_mode);')
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tpmap_cpu_data_t *pmap_cpu_data = pmap_get_cpu_data();\n\tpv_free_list_alloc(&pmap_cpu_data->pv_free, pvepp);',
+         '\tpmap_cpu_data_t *pmap_cpu_data = pmap_get_cpu_data();\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 8; }\n'
+         '\tpv_free_list_alloc(&pmap_cpu_data->pv_free, pvepp);\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 9; }')
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tpv_entry_t *new_batch = pv_free_array_get_batch();',
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 10; }\n'
+         '\tpv_entry_t *new_batch = pv_free_array_get_batch();\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 11; }')
     # The tail of pv_alloc re-acquires two locks after the page feed. Mark each
     # acquisition so the last value names the one that never completes.
     edit(root, 'osfmk/arm/pmap/pmap_data.c',
