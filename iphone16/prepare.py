@@ -196,7 +196,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tscratch_addr = USER_ADDR_ALIGN(scratch_addr + path_length, sizeof(user_addr_t));')
     edit(root, 'bsd/kern/kern_exec.c',
          '\tset_security_token(p);',
-         '\t' + (mark % 12) + '\n\tset_security_token(p);\n\t' + (mark % 13))
+         '\t' + (mark % 16) + '\n\tset_security_token(p);\n\t' + (mark % 17))
     # After the clear, look at where the init thread actually sits: its state,
     # the run queue it belongs to and the processor it is bound to. A thread
     # parked on a processor that never came online never runs, and one CPU is
@@ -461,7 +461,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
                  'volatile uint32_t k70_pv_stage;\n'
                  'volatile uint32_t k70_wire_rc;\n'
-                 'volatile uint32_t k70_copy_rc;\n'
+                 'volatile int32_t k70_copy_rc = -1;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
