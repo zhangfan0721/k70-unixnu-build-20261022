@@ -355,7 +355,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     # 30/31: pmap_enter takes its own lock and may expand the page tables first.
     edit(root, 'osfmk/arm/pmap/pmap.c',
          '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
-         '\t{ extern volatile uint32_t k70_stage; k70_stage = 30;\n'
+         '\t{ extern volatile uint32_t k70_stage, k70_pv_stage; k70_stage = 30; k70_pv_stage = 0;\n'
          '\t  if (pmap->max == 0) { pmap->min = 0; pmap->max = (1ULL << (64 - T0SZ_BOOT));\n'
          '\t      { extern volatile uint32_t k70_fix_count; k70_fix_count++; } }\n'
          '\t  extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
