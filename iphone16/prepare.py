@@ -436,6 +436,11 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t{ extern volatile uint32_t k70_pid1_ran; k70_pid1_ran = 1; }\n'
          '\tboot_progress_stage("P1 task_wait_to_return enter");')
     # BSD: bsdinit_task reached, which is the last boundary before launchd.
+    # The port never advances startup_phase past its sentinel, so pmap_is_preemptible()
+    # takes its early-boot exception everywhere and the page allocator believes it may
+    # sleep inside a fault. Declare the phase this code actually runs in.
+    edit(root, 'bsd/kern/bsd_init.c', 'bsdinit_task(void)\n{',
+         'bsdinit_task(void)\n{\n\t{ extern int startup_phase; startup_phase = 16; }')
     edit(root, 'bsd/kern/bsd_init.c', 'bsdinit_task(void)\n{',
          'bsdinit_task(void)\n{\n\t{ extern volatile uint32_t k70_bsd; k70_bsd = 1; }\n'
          '\tboot_progress_stage("Q0 bsdinit_task enter");')
