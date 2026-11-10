@@ -292,15 +292,26 @@ extern "C" void k70_ufs_window_bootargs(void)
   boot_progress_stage(line && *line ? line : "(no boot arguments)");
 }
 
-// Freezes the machine on request so a hardware run reports its own outcome on a
-// screen that cannot scroll away. The reason becomes the last progress stage.
+// An explicitly requested window must open before BSD can continue. On
+// failure, stop only our own transfer list through its existing guarded path.
 static bool k70WindowHaltReport(const char *why, bool ok)
 {
-  // Every outcome names itself on the console; k70halt additionally parks the
-  // CPU so the line cannot scroll away.
+  if (!ok) {
+    gHost.ready = false;
+    gHost.poisoned = true;
+    if (gOwnStarted) {
+      const char *endReason = "own list stop failed";
+      if (hostEnd(&endReason)) {
+        boot_progress_stage("K70W own list stopped");
+      } else {
+        boot_progress_stage(endReason);
+      }
+    }
+    boot_progress_stage("K70W STOP");
+  }
   boot_progress_stage(why);
   char halt[8];
-  if (PE_parse_boot_arg_str("k70halt", halt, sizeof(halt)) && halt[0] == '1') {
+  if (!ok || (PE_parse_boot_arg_str("k70halt", halt, sizeof(halt)) && halt[0] == '1')) {
     for (;;) {
       __asm__ volatile ("wfi");
     }
@@ -315,7 +326,8 @@ extern "C" bool k70_ufs_window_prepare(void)
   unsigned blocks = 0;
   boot_progress_stage("K70W 1 enter");
   if (!PE_parse_boot_arg_str("k70rd", argument, sizeof(argument))) {
-    return k70WindowHaltReport("K70W 2 no k70rd argument", false);
+    boot_progress_stage("K70W 2 no k70rd argument");
+    return false;
   }
   boot_progress_stage("K70W 3 argument read");
   if (!K70Window::parseArgument(argument, &lba, &blocks)) {
