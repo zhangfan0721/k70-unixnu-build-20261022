@@ -298,6 +298,17 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tkr = pve_feed_page(alloc_flags);\n'
          '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 2; }\n'
          '\tif (kr == KERN_SUCCESS) {')
+    # The argv block is written with copyout, whose fault path stalls inside pmap in
+    # this port. Fault the page in from here instead, where preemption is enabled and
+    # the same pmap calls complete.
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);\n'
+         '\t{ extern kern_return_t vm_map_wire_kernel(vm_map_t, vm_map_offset_t, vm_map_offset_t, vm_prot_t, vm_tag_t, boolean_t);\n'
+         '\t  extern volatile uint32_t k70_wire_rc;\n'
+         '\t  k70_wire_rc = (uint32_t)vm_map_wire_kernel(map, (vm_map_offset_t)scratch_addr,\n'
+         '\t      (vm_map_offset_t)(scratch_addr + map_page_size),\n'
+         '\t      VM_PROT_READ | VM_PROT_WRITE, VM_KERN_MEMORY_BSD, FALSE); }')
     # pv_alloc starts with pv_list_alloc, which touches per-cpu data and a global
     # batch lock. Mark the entry, the per-cpu lookup and the batch fetch.
     edit(root, 'osfmk/arm/pmap/pmap_data.c',
@@ -449,6 +460,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
                  'volatile uint32_t k70_pv_stage;\n'
+                 'volatile uint32_t k70_wire_rc;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
