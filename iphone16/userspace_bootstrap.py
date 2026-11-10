@@ -24,7 +24,9 @@ def install(root):
         '\tboot_progress_stage("PID1 bootstrap returned");')
     mark = "{ extern volatile uint32_t k70_stage; k70_stage = %d; }"
     edit(name, 'bsdinit_task(void)\n{',
-         'bsdinit_task(void)\n{\n\t' + (mark % 1) + '\n\tboot_progress_stage("PID1 bsdinit_task enter");')
+         'bsdinit_task(void)\n{\n\t' + (mark % 1) + '\n'
+         '\t{ extern int startup_phase; startup_phase = 16; }\n'
+         '\tboot_progress_stage("PID1 bsdinit_task enter; startup phase advanced");')
     edit(name, '\tprocess_name("init", p);', '\t' + (mark % 2) + '\n\tprocess_name("init", p);')
     edit(name, '\tux_handler_setup();',
          '\t' + (mark % 3) + '\n\tboot_progress_stage("PID1 exception setup enter");\n\tux_handler_setup();\n'
