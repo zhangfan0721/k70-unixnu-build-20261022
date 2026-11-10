@@ -25,8 +25,7 @@ def install(root):
     mark = "{ extern volatile uint32_t k70_stage; k70_stage = %d; }"
     edit(name, 'bsdinit_task(void)\n{',
          'bsdinit_task(void)\n{\n\t' + (mark % 1) + '\n'
-         '\tstartup_phase = STARTUP_SUB_EARLY_BOOT;\n'
-         '\tboot_progress_stage("PID1 bsdinit_task enter; startup phase advanced");')
+         '\tboot_progress_stage("PID1 bsdinit_task enter");')
     edit(name, '\tprocess_name("init", p);', '\t' + (mark % 2) + '\n\tprocess_name("init", p);')
     edit(name, '\tux_handler_setup();',
          '\t' + (mark % 3) + '\n\tboot_progress_stage("PID1 exception setup enter");\n\tux_handler_setup();\n'

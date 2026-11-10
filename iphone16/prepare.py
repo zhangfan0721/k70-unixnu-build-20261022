@@ -290,6 +290,14 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t\t\tcur_m = m;\n'
          '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 32; }\n'
          '\t\t\tm = vm_page_grab_options(grab_options);')
+    # pv_alloc never returns, and its tail re-acquires two locks. Mark every step so
+    # the last one reached names the exact blocking call.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tif ((kr = pve_feed_page(alloc_flags)) == KERN_SUCCESS) {',
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 1; }\n'
+         '\tkr = pve_feed_page(alloc_flags);\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 2; }\n'
+         '\tif (kr == KERN_SUCCESS) {')
     # 36: the pte loop finished and a leaf entry was found. Everything after this
     # point is bookkeeping that can allocate or lock, so the boundary matters.
     edit(root, 'osfmk/arm/pmap/pmap.c',
@@ -412,6 +420,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile int32_t k70_b_wr, k70_b_br;\n' 
                  'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
+                 'volatile uint32_t k70_pv_stage;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
@@ -493,7 +502,8 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/arm/pmap/pmap.c'))
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/arm/pmap/pmap.c',
+                  'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
