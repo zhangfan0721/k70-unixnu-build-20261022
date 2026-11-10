@@ -119,6 +119,7 @@ extern volatile uint32_t k70_stage, k70_exec_errno;
 extern unsigned int startup_phase;
 extern volatile uint32_t k70_pv_stage;
 extern volatile uint32_t k70_wire_rc;
+extern volatile uint32_t k70_copy_rc;
 boolean_t preemption_enabled(void);
 int get_preemption_level(void);
 extern volatile uint32_t k70_faults, k70_fault_kr;
@@ -239,6 +240,8 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_dec(&out, (uint32_t)k70_pv_stage);
         bp_out_puts(&out, " W");
         bp_out_dec(&out, (uint32_t)k70_wire_rc);
+        bp_out_puts(&out, " C");
+        bp_out_dec(&out, (uint32_t)k70_copy_rc);
         bp_out_puts(&out, "/");
         bp_out_dec(&out, (uint32_t)preemption_enabled());
         bp_out_puts(&out, "/");

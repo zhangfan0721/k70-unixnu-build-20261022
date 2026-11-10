@@ -461,6 +461,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
                  'volatile uint32_t k70_stage, k70_exec_errno;\n'
                  'volatile uint32_t k70_pv_stage;\n'
                  'volatile uint32_t k70_wire_rc;\n'
+                 'volatile uint32_t k70_copy_rc;\n'
                  'volatile uint32_t k70_faults, k70_fault_kr;\n'
                  'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
                  'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'

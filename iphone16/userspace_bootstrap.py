@@ -76,7 +76,13 @@ def install(root):
     p=root/name;s=p.read_text();start=s.index('\nload_init_program_at_path(');end=s.index('\nstatic const char * init_programs',start)
     body=s[start:end]
     if body.count('\t\treturn error;')!=4:raise ValueError('Initial exec copyout paths changed')
-    body=body.replace('\t\treturn error;','\t\tk70_formal_cpu_trace("PID1 copyout errno", (uint32_t)error);\n\t\treturn error;')
+    body=body.replace('\t\treturn error;','\t\t{ extern volatile uint32_t k70_copy_rc; k70_copy_rc = (uint32_t)error; }\n'
+        '\t\tk70_formal_cpu_trace("PID1 copyout errno", (uint32_t)error);\n\t\treturn error;')
+    # Bracket the first copyout so the status line shows whether it returns at all.
+    body=body.replace('\terror = copyout(path, argv0, path_length);',
+        '\t{ extern volatile uint32_t k70_stage; k70_stage = 12; }\n'
+        '\terror = copyout(path, argv0, path_length);\n'
+        '\t{ extern volatile uint32_t k70_stage, k70_copy_rc; k70_copy_rc = (uint32_t)error; k70_stage = 13; }', 1)
     p.write_text(s[:start]+body+s[end:])
     declaration='extern void k70_user_trap(unsigned,int,uint64_t,uint64_t,uint64_t);\n'
     name='bsd/dev/arm/systemcalls.c';p=root/name;p.write_text('#include <stdint.h>\n'+declaration+p.read_text())
