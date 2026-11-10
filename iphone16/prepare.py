@@ -298,6 +298,16 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tkr = pve_feed_page(alloc_flags);\n'
          '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 2; }\n'
          '\tif (kr == KERN_SUCCESS) {')
+    # The tail of pv_alloc re-acquires two locks after the page feed. Mark each
+    # acquisition so the last value names the one that never completes.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tif (pmap != NULL) {\n\t\tpmap_lock(pmap, lock_mode);\n\t}\n\tpvh_lock(pai);',
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 3; }\n'
+         '\tif (pmap != NULL) {\n'
+         '\t\tpmap_lock(pmap, lock_mode);\n'
+         '\t\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 4; }\n\t}\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 5; }\n\tpvh_lock(pai);\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 6; }')
     # 36: the pte loop finished and a leaf entry was found. Everything after this
     # point is bookkeeping that can allocate or lock, so the boundary matters.
     edit(root, 'osfmk/arm/pmap/pmap.c',
