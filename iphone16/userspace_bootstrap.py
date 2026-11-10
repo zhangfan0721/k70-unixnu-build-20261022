@@ -1,5 +1,6 @@
 """Expose the real bootstrap/exec boundaries using the existing display path."""
 from pathlib import Path
+from copyout_diagnostics import FIRST_COPY, install as install_copyout_diagnostics
 HERE=Path(__file__).resolve().parent
 
 def install(root):
@@ -82,11 +83,7 @@ def install(root):
     first_copyout = '\terror = copyout(path, argv0, path_length);'
     if body.count(first_copyout) != 1:
         raise ValueError('First init copyout anchor changed')
-    body=body.replace(first_copyout,
-        '\textern volatile int32_t k70_copy_rc;\n'
-        '\textern volatile uint32_t k70_stage;\n'
-        '\tk70_copy_rc = -2;\n\tk70_stage = 12;\n' +
-        first_copyout + '\n\tk70_copy_rc = error;\n\tk70_stage = 13;')
+    body=body.replace(first_copyout, FIRST_COPY)
     p.write_text(s[:start]+body+s[end:])
     declaration='extern void k70_user_trap(unsigned,int,uint64_t,uint64_t,uint64_t);\n'
     name='bsd/dev/arm/systemcalls.c';p=root/name;p.write_text('#include <stdint.h>\n'+declaration+p.read_text())
@@ -98,3 +95,4 @@ def install(root):
         '\tk70_user_trap(1, proc_pid(current_proc()), get_saved_state_pc(state), get_saved_state_cpsr(state), get_saved_state_svc_number(state));\n\tint call_number = get_saved_state_svc_number(state);')
     name='pexpert/arm/k70_formal_diag.c';p=root/name
     p.write_text(p.read_text()+'\n'+(HERE/'UserBootstrap.c').read_text())
+    install_copyout_diagnostics(root)

@@ -74,6 +74,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
         'pexpert/arm/FramebufferGuard.h': (FORMAL / 'FramebufferGuard.h').read_text(),
         'pexpert/arm/BootstrapMap.h': (FORMAL / 'BootstrapMap.h').read_text(),
         'osfmk/arm64/k70_formal_entry.s': (FORMAL / 'EntryDiagnostics.s').read_text(),
+        'osfmk/kern/k70_copyout_diag.h': (HERE / 'CopyoutDiagnostics.h').read_text(),
     }
     for name, text in additions.items():
         path = root / name
@@ -81,7 +82,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
         if path.exists():
             raise ValueError('Unexpected existing diagnostic source: ' + name)
         path.write_text(text)
-    edit(root, 'osfmk/kern/Makefile', '\tbacktrace.h \\\n', '\tbacktrace.h \\\n\tboot_progress.h \\\n')
+    edit(root, 'osfmk/kern/Makefile', '\tbacktrace.h \\\n',
+         '\tbacktrace.h \\\n\tboot_progress.h \\\n\tk70_copyout_diag.h \\\n')
     diag = root / 'pexpert/arm/k70_formal_diag.c'
     diag.write_text(replace_once(diag.read_text(),
         'PE_init_platform(FALSE) returned; native XNU C',
@@ -538,7 +540,8 @@ def integration_patch(core, source, font, staging):
                   'makedefs/MakeInc.kernel', 'makedefs/MakeInc.rule', 'makedefs/MakeInc.def', 'osfmk/kern/Makefile', 'osfmk/kern/ast.c', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
-                  'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
+                  'osfmk/arm64/sleh.c', 'osfmk/arm64/copyio.c', 'osfmk/arm64/machine_routines_asm.s',
+                  'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
                   'iokit/bsddev/IOKitBSDInit.cpp', 'bsd/kern/kern_fork.c',
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
