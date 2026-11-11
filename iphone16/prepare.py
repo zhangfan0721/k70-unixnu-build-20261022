@@ -23,7 +23,7 @@ BASE_PATCHES = (
     'local-availability', 'cxx-flag-dependencies', 'kernel-sdk-root',
     'non-apple-cache-monitor', 'native-4k-bootstrap-capacity',
     'non-apple-pmap-field', 'armvirt-platform-personality',
-    'architectural-timer-entry', 'native-dt-panic-region',
+    'architectural-timer-entry', 'native-arm-pan', 'native-dt-panic-region',
     'native-quiet-managed-page-report', 'source-corecrypto14-bootstrap',
     'source-pthread-bootstrap', 'non-apple-iommu-bootstrap',
 )
@@ -624,6 +624,13 @@ def retarget_scripts(core, device, tree):
         if name == 'build-xnu-4k-baseline.sh':
             text = replace_once(text, ' "$ROOT"/kits/NativePrelink/patches/*.patch', '')
             text = text.replace('.unstripped.noctf', '.unstripped')
+            # Enable PAN instructions without changing the compiler's base CPU
+            # or enabling unrelated instructions for the BCM2837 build target.
+            pan_flags = 'EXTRA_CFLAGS="$EXTRA_CFLAGS -DXNU_NATIVE_PAN=$NATIVE_PAN"'
+            text = replace_once(text, pan_flags, pan_flags + '''
+if [ "$NATIVE_PAN" = "1" ]; then
+  EXTRA_CFLAGS="$EXTRA_CFLAGS -Xclang -target-feature -Xclang +pan"
+fi''')
         p.write_text(text)
     shutil.copy2(FORMAL / 'macho_asm.py', tree / 'scripts/k70_macho_asm.py')
     shutil.copy2(HERE / 'cpu_start_trace.py', tree / 'scripts/iphone16_cpu_start_trace.py')

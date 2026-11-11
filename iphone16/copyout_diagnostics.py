@@ -195,8 +195,8 @@ def install(root):
         ('\tresult = copy_validate(', '\t', 'VALIDATING', True),
         ('\t    COPYIO_OUT | COPYIO_ALLOW_KERNEL_TO_KERNEL);\n', '\t', 'VALIDATED', False),
         ('\t\treturn copyout_kern(', '\t\t', 'KERNEL', True),
-        ('\tresult = _bcopyout(', '\t', 'DISPATCH', True),
-        ('\tuser_access_disable();\n', '\t', 'LEAF_RETURNED', True),
+        ('\tuser_access_enable();\n', '\t', 'DISPATCH', True),
+        ('\tuser_access_disable();\n', '\t', 'LEAF_RETURNED', False),
     ):
         record = indent + 'if (k70_trace) {\n'
         if phase == 'VALIDATED':

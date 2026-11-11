@@ -149,7 +149,7 @@ def main():
     kernel = importlib.import_module('unixnu.kernel')
     parsed = config.parse_config((HERE / 'device/configs/vermeer16_defconfig').read_text())
     required = {'XNU_SOURCE_CORECRYPTO14', 'XNU_SOURCE_PTHREAD', 'XNU_ARM_DT_PLATFORM',
-                'XNU_ARMCPU', 'XNU_NATIVE_ARCH_TIMER', 'XNU_DT_PANIC_REGION'}
+                'XNU_ARMCPU', 'XNU_NATIVE_ARCH_TIMER', 'XNU_NATIVE_PAN', 'XNU_DT_PANIC_REGION'}
     if {k for k, v in parsed.items() if v is True} != required or parsed.get('XNU_CRYPTO_BOOTSTRAP') != 'source':
         raise ValueError('Unexpected integration configuration')
     if args.check:
@@ -193,6 +193,9 @@ def main():
             '-miphoneos-version-min=16.0' not in value or '-DXNU_TARGET_OS_OSX' in value
             for value in flags.values()) or '-DXNU_TARGET_OS_IOS' not in flags['.CFLAGS']:
         raise ValueError('Actual compile/link flags do not identify the iOS16 target')
+    if '-DXNU_NATIVE_PAN=1' not in flags['.CFLAGS'].split() or \
+            '-Xclang -target-feature -Xclang +pan' not in flags['.CFLAGS']:
+        raise ValueError('Actual iOS16 kernel flags do not enable native PAN')
     source = ctx.tree / KERNEL
     report = verify_kernel(source) | {'unixnu': adapter.CORE, 'xnu': adapter.XNU,
         'source_device': adapter.DEVICE, 'feeds': feeds, 'configuration': parsed,
