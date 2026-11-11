@@ -27,21 +27,35 @@ int main(void) {
   .caller = UINT64_C(0xfffffff00738bc60), .ppnum = 0x891984,
   .pvh = 2, .ptep = base, .pmap = base + 8, .stage = 12,
   .owner = K70_PMAP_USER, .pte_read = 1,
+  .va = UINT64_C(0xfffffff0011a0000), .va_read = 1,
+  .free_caller = UINT64_C(0xfffffff007338c58),
  };
  const char *expected[] = {
-  "PMAP UP=fffffff00738bc60 G=000000000000000c",
-  "PMAP PPN=0000000000891984 PVH=0000000000000002",
+  "PMAP VA=fffffff0011a0000 PPN=0000000000891984",
+  "PMAP F=fffffff007338c58 UP=fffffff00738bc60",
   "PMAP OWNER=USER MAP=fffffff001000008",
   "PMAP PTEP=fffffff001000000 PTE=0000000000000000",
  };
- for (unsigned row = 5; row <= 8; row++) {
+ for (unsigned row = 0; row < 4; row++) {
   struct kf_line line = {0};
   kf_pmap_line(&line, &pmap, row);
-  assert(strcmp((const char *)line.data, expected[row - 5]) == 0);
+  assert(strcmp((const char *)line.data, expected[row]) == 0);
  }
- struct kf_line unreadable = {0};
+ assert(kf_pmap_leaf_va(base, base + 0xd00) == pmap.va);
+ assert(kf_pmap_leaf_va(base + 4096, base + 0xd00) == 0);
+ assert(kf_pmap_leaf_va(0, base + 0xd00) == 0);
+ assert(kf_pmap_leaf_va(base, base + 0xd01) == 0);
+ struct kf_line unavailable_va = {0}, unavailable_f = {0}, unreadable = {0};
+ pmap.va_read = 0;
+ pmap.free_caller = 0;
+ kf_pmap_line(&unavailable_va, &pmap, 0);
+ kf_pmap_line(&unavailable_f, &pmap, 1);
+ assert(strcmp((const char *)unavailable_va.data,
+     "PMAP VA=UNAVAIL PPN=0000000000891984") == 0);
+ assert(strcmp((const char *)unavailable_f.data,
+     "PMAP F=UNAVAIL UP=fffffff00738bc60") == 0);
  pmap.pte_read = 0;
- kf_pmap_line(&unreadable, &pmap, 8);
+ kf_pmap_line(&unreadable, &pmap, 3);
  assert(strcmp((const char *)unreadable.data,
      "PMAP PTEP=fffffff001000000 PTE=UNREADABLE") == 0);
  struct kf_state s={0};

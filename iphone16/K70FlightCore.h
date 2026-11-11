@@ -12,7 +12,19 @@ struct kf_pmap_assert {
  uint64_t pte;
  uint32_t ppnum, stage;
  unsigned owner, pte_read, pending;
+ /* Who submitted the free list, and where the surviving mapping points. */
+ uintptr_t free_caller, va;
+ unsigned va_read;
 };
+/* For the verified 4 KiB kernel leaf table, each 8-byte PTE describes 4 KiB. */
+static inline uintptr_t kf_pmap_leaf_va(uintptr_t base, uintptr_t ptep)
+{
+ if (base < UINT64_C(0xffff000000000000) || (base & 0x1fffff) ||
+     ptep < UINT64_C(0xffff000000000000) || (ptep & 7)) {
+  return 0;
+ }
+ return base + ((ptep & 0xfff) / 8) * 0x1000;
+}
 struct kf_state {
  uintptr_t target,stack_low,stack_high,thread,caller,detail,bt[KF_FRAMES];
  uint64_t sequence,terminal_sequence,wait_state,allocation;

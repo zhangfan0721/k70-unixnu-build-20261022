@@ -52,11 +52,55 @@ def install(root):
     path.write_text(text)
     path=root/'osfmk/arm/pmap/pmap.c'
     text='#include <kern/K70Flight.h>\n'+path.read_text()
+    signature='void\npmap_assert_free(ppnum_t ppnum)\n{'
+    text=replace(text,signature,
+        'static __attribute__((noinline)) void\npmap_assert_free_recorded(ppnum_t ppnum, '
+        'uintptr_t caller, uintptr_t free_caller)\n{')
+    start=text.index('pmap_assert_free_recorded(')
+    end=text.index('\n#endif',start)
+    body=text[start:end]
+    body=replace(body,'\t\tpmap_t pmap = ptep_get_pmap(first_ptep);',
+        '\t\tconst pt_desc_t *ptd = ptep_get_ptd(first_ptep);\n'
+        '\t\tpmap_t pmap = ptd->pmap;')
     anchor='\t\tpanic("%s: Found at least one mapping to %#llx. First PTEP (%p) is a "'
-    text=replace(text,anchor,'''\t\tk70_flight_pmap_assert((uintptr_t)__builtin_return_address(0), ppnum,
-\t\t    (uintptr_t)*pvh, (uintptr_t)first_ptep, (uintptr_t)pmap,
-\t\t    pmap == kernel_pmap ? K70_PMAP_KERNEL : pmap ? K70_PMAP_USER : K70_PMAP_UNKNOWN);
+    body=replace(body,anchor,'''\t\t/* Reuse the descriptor already resolved for the original panic.
+\t\t * Pass a field address only. The recorder can decline to read it. */
+\t\tuintptr_t va_base_field = 0;
+\t\tif (pmap != NULL && pmap == kernel_pmap && PAGE_SHIFT == 12 &&
+\t\t    pt_attr_leaf_shift(pmap_get_pt_attr(kernel_pmap)) == 12) {
+\t\t\tva_base_field = (uintptr_t)&ptd->va[0];
+\t\t}
+\t\tk70_flight_pmap_assert(caller, ppnum, (uintptr_t)*pvh,
+\t\t    (uintptr_t)first_ptep, (uintptr_t)pmap,
+\t\t    pmap == kernel_pmap ? K70_PMAP_KERNEL : pmap ? K70_PMAP_USER : K70_PMAP_UNKNOWN,
+\t\t    free_caller, va_base_field);
 \t\tpanic(K70_PMAP_ASSERT_PREFIX "%#llx. First PTEP (%p) is a "''')
+    wrappers='''
+
+void
+pmap_assert_free(ppnum_t ppnum)
+{
+\tpmap_assert_free_recorded(ppnum, (uintptr_t)__builtin_return_address(0), 0);
+}
+
+void
+k70_pmap_assert_free_from_list(uint32_t ppnum, uintptr_t free_caller)
+{
+\tpmap_assert_free_recorded(ppnum, (uintptr_t)__builtin_return_address(0), free_caller);
+}
+'''
+    text=text[:start]+body+wrappers+text[end:]
+    path.write_text(text)
+    path=root/'osfmk/vm/vm_resident.c'
+    text='#include <kern/K70Flight.h>\n'+path.read_text()
+    start=text.index('\nvoid\nvm_page_free_list(')
+    end=text.index('\n}',start)
+    body=replace(text[start:end],'\t\t\t\tASSERT_PMAP_FREE(mem);',
+        '#if MACH_ASSERT\n'
+        '\t\t\t\tk70_pmap_assert_free_from_list(VM_PAGE_GET_PHYS_PAGE(mem),\n'
+        '\t\t\t\t    (uintptr_t)__builtin_return_address(0));\n'
+        '#endif')
+    text=text[:start]+body+text[end:]
     path.write_text(text)
     path=root/'osfmk/kern/sched_prim.c'
     text='#include <kern/K70Flight.h>\n'+path.read_text()

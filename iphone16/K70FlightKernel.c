@@ -74,7 +74,8 @@ void k70_flight_leave(unsigned call,uint64_t result) {
 }
 
 void k70_flight_pmap_assert(uintptr_t caller, uint32_t ppnum, uintptr_t pvh,
-    uintptr_t ptep, uintptr_t pmap, enum k70_pmap_owner owner)
+    uintptr_t ptep, uintptr_t pmap, enum k70_pmap_owner owner,
+    uintptr_t free_caller, uintptr_t va_base_field)
 {
  uint64_t mask = kf_mask();
  struct kf_pmap_assert *record = &k70_flight_state.pmap_assert;
@@ -87,6 +88,12 @@ void k70_flight_pmap_assert(uintptr_t caller, uint32_t ppnum, uintptr_t pvh,
   record->pmap = pmap;
   record->owner = owner;
   record->stage = k70_stage;
+  record->free_caller = free_caller;
+  if ((va_base_field & 7) == 0 && kf_readable(va_base_field)) {
+   uintptr_t base = *(const volatile uintptr_t *)va_base_field;
+   record->va = kf_pmap_leaf_va(base, ptep);
+  }
+  record->va_read = record->va != 0;
   /* An aligned PTE cannot cross a page. Reuse the bounded read probe. */
   record->pte_read = (ptep & 7) == 0 && kf_readable(ptep);
   if (record->pte_read) {
