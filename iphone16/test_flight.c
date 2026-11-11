@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include "K70Flight.h"
 #include "K70FlightCore.h"
 #include "K70FlightScreen.h"
 static uintptr_t frames[32];
@@ -21,6 +23,27 @@ static int probe(uint64_t va,uint64_t *pa,void *ctx) {
  *pa=m->pa+va-m->va;return 1;
 }
 int main(void) {
+ struct kf_pmap_assert pmap = {
+  .caller = UINT64_C(0xfffffff00738bc60), .ppnum = 0x891984,
+  .pvh = 2, .ptep = base, .pmap = base + 8, .stage = 12,
+  .owner = K70_PMAP_USER, .pte_read = 1,
+ };
+ const char *expected[] = {
+  "PMAP UP=fffffff00738bc60 G=000000000000000c",
+  "PMAP PPN=0000000000891984 PVH=0000000000000002",
+  "PMAP OWNER=USER MAP=fffffff001000008",
+  "PMAP PTEP=fffffff001000000 PTE=0000000000000000",
+ };
+ for (unsigned row = 5; row <= 8; row++) {
+  struct kf_line line = {0};
+  kf_pmap_line(&line, &pmap, row);
+  assert(strcmp((const char *)line.data, expected[row - 5]) == 0);
+ }
+ struct kf_line unreadable = {0};
+ pmap.pte_read = 0;
+ kf_pmap_line(&unreadable, &pmap, 8);
+ assert(strcmp((const char *)unreadable.data,
+     "PMAP PTEP=fffffff001000000 PTE=UNREADABLE") == 0);
  struct kf_state s={0};
  for(unsigned i=0;i<16;i++){frames[i*2]=base+(i+1)*16;frames[i*2+1]=UINT64_C(0xfffffff007000000)+i*4;}
  kf_begin(&s,0x100,base,sizeof(frames));

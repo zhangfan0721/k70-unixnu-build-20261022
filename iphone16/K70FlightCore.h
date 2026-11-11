@@ -7,10 +7,17 @@
 enum {KF_NONE, KF_WAIT, KF_PANIC};
 enum {KF_BAD_FRAME=1, KF_UNREADABLE=2, KF_BAD_CHAIN=4, KF_TRUNCATED=8, KF_BAD_PC=16, KF_REENTRANT=32};
 struct kf_call {uint64_t in_sequence,out_sequence,result,argument;};
+struct kf_pmap_assert {
+ uintptr_t thread, caller, pvh, ptep, pmap;
+ uint64_t pte;
+ uint32_t ppnum, stage;
+ unsigned owner, pte_read, pending;
+};
 struct kf_state {
  uintptr_t target,stack_low,stack_high,thread,caller,detail,bt[KF_FRAMES];
  uint64_t sequence,terminal_sequence,wait_state,allocation;
  struct kf_call calls[4];
+ struct kf_pmap_assert pmap_assert;
  unsigned active,call,terminal_call,kind,flags,bt_count,allocation_seen,nested;
 };
 typedef int (*kf_read_pair)(uintptr_t,uintptr_t *,uintptr_t *,void *);

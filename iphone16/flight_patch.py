@@ -50,6 +50,14 @@ def install(root):
     anchor='    uint64_t panic_options_mask, void *panic_data_ptr, unsigned long panic_caller)\n{'
     text=replace(text,anchor,anchor+'\n\tk70_flight_panic(panic_format_str, (uintptr_t)panic_caller, (uintptr_t)__builtin_frame_address(0));')
     path.write_text(text)
+    path=root/'osfmk/arm/pmap/pmap.c'
+    text='#include <kern/K70Flight.h>\n'+path.read_text()
+    anchor='\t\tpanic("%s: Found at least one mapping to %#llx. First PTEP (%p) is a "'
+    text=replace(text,anchor,'''\t\tk70_flight_pmap_assert((uintptr_t)__builtin_return_address(0), ppnum,
+\t\t    (uintptr_t)*pvh, (uintptr_t)first_ptep, (uintptr_t)pmap,
+\t\t    pmap == kernel_pmap ? K70_PMAP_KERNEL : pmap ? K70_PMAP_USER : K70_PMAP_UNKNOWN);
+\t\tpanic(K70_PMAP_ASSERT_PREFIX "%#llx. First PTEP (%p) is a "''')
+    path.write_text(text)
     path=root/'osfmk/kern/sched_prim.c'
     text='#include <kern/K70Flight.h>\n'+path.read_text()
     start=text.index('\nthread_block_reason(\n');end=text.index('\nwait_result_t\nthread_block_parameter',start)

@@ -10,6 +10,7 @@
 static struct kf_state k70_flight_state;
 static struct kf_screen k70_flight_screen;
 static volatile unsigned k70_flight_inside;
+extern volatile uint32_t k70_stage;
 static uint64_t kf_mask(void) {
  uint64_t daif;__asm__ volatile("mrs %0, daif\n\tmsr daifset, #15":"=r"(daif)::"memory");return daif;
 }
@@ -71,8 +72,53 @@ void k70_flight_leave(unsigned call,uint64_t result) {
  if(!k70_flight_inside){k70_flight_inside=1;kf_leave(&k70_flight_state,(uintptr_t)current_thread(),call,result);kf_paint();k70_flight_inside=0;}
  kf_restore(mask);
 }
+
+void k70_flight_pmap_assert(uintptr_t caller, uint32_t ppnum, uintptr_t pvh,
+    uintptr_t ptep, uintptr_t pmap, enum k70_pmap_owner owner)
+{
+ uint64_t mask = kf_mask();
+ struct kf_pmap_assert *record = &k70_flight_state.pmap_assert;
+ if (!k70_flight_inside && k70_flight_state.kind != KF_PANIC && !record->pending) {
+  record->thread = (uintptr_t)current_thread();
+  record->caller = caller;
+  record->ppnum = ppnum;
+  record->pvh = pvh;
+  record->ptep = ptep;
+  record->pmap = pmap;
+  record->owner = owner;
+  record->stage = k70_stage;
+  /* An aligned PTE cannot cross a page. Reuse the bounded read probe. */
+  record->pte_read = (ptep & 7) == 0 && kf_readable(ptep);
+  if (record->pte_read) {
+   record->pte = *(const volatile uint64_t *)ptep;
+  }
+  record->pending = 1;
+ }
+ kf_restore(mask);
+}
+
+static int kf_pmap_assert_matches(const char *format, uintptr_t thread,
+    const struct kf_pmap_assert *record)
+{
+ static const char prefix[] = K70_PMAP_ASSERT_PREFIX;
+ if (!format || thread != record->thread) {
+  return 0;
+ }
+ for (unsigned i = 0; i < sizeof(prefix) - 1; i++) {
+  if (format[i] != prefix[i]) {
+   return 0;
+  }
+ }
+ return 1;
+}
+
 void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
  uint64_t mask=kf_mask();
+ struct kf_pmap_assert *record = &k70_flight_state.pmap_assert;
+ if (k70_flight_state.kind != KF_PANIC && record->pending &&
+     !kf_pmap_assert_matches(format, (uintptr_t)current_thread(), record)) {
+  record->pending = 0;
+ }
  if(k70_flight_inside){if(k70_flight_state.kind!=KF_PANIC){k70_flight_state.kind=KF_PANIC;k70_flight_state.detail=(uintptr_t)format;k70_flight_state.caller=caller;}else{k70_flight_state.nested++;}k70_flight_state.flags|=KF_REENTRANT;kf_restore(mask);return;}
  if(!k70_flight_inside){k70_flight_inside=1;kf_terminal(&k70_flight_state,KF_PANIC,k70_flight_state.active?(uintptr_t)current_thread():0,(uintptr_t)format,caller,0,fp,kf_kernel_pair,0);kf_paint();k70_flight_inside=0;}
  kf_restore(mask);

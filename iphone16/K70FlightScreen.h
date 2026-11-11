@@ -19,6 +19,36 @@ static inline void kf_hex(struct kf_line *l,uint64_t v) {
  for(int n=15;n>=0 && l->used<KF_COLS;n--)l->data[l->used++]=digits[(v>>(n*4))&15];
  l->data[l->used]=0;
 }
+
+static inline void kf_pmap_line(struct kf_line *line,
+    const struct kf_pmap_assert *record, unsigned row)
+{
+ switch (row) {
+ case 5:
+  kf_text(line, "PMAP UP="); kf_hex(line, record->caller);
+  kf_text(line, " G="); kf_hex(line, record->stage);
+  break;
+ case 6:
+  kf_text(line, "PMAP PPN="); kf_hex(line, record->ppnum);
+  kf_text(line, " PVH="); kf_hex(line, record->pvh);
+  break;
+ case 7:
+  kf_text(line, "PMAP OWNER=");
+  kf_text(line, record->owner == K70_PMAP_KERNEL ? "KERNEL" :
+      record->owner == K70_PMAP_USER ? "USER" : "UNKNOWN");
+  kf_text(line, " MAP="); kf_hex(line, record->pmap);
+  break;
+ case 8:
+  kf_text(line, "PMAP PTEP="); kf_hex(line, record->ptep);
+  kf_text(line, " PTE=");
+  if (record->pte_read) {
+   kf_hex(line, record->pte);
+  } else {
+   kf_text(line, "UNREADABLE");
+  }
+  break;
+ }
+}
 static inline int kf_screen_bind(struct kf_screen *s,uintptr_t va,uint64_t pa,unsigned w,unsigned h,
  unsigned stride,unsigned depth,k70_probe probe,void *ctx) {
  s->bound=0;
@@ -53,6 +83,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row==2){kf_text(&l,"THREAD=");kf_hex(&l,r->thread);kf_text(&l," TARGET=");kf_hex(&l,r->target);}
   else if(row==3){kf_text(&l,"CALLER=");kf_hex(&l,r->caller);kf_text(&l," DETAIL=");kf_hex(&l,r->detail);}
   else if(row==4){kf_text(&l,"BT_FLAGS=");kf_hex(&l,r->flags);kf_text(&l," WAIT_STATE=");kf_hex(&l,r->wait_state);}
+  else if(row>=5 && row<=8 && r->kind==KF_PANIC && r->pmap_assert.pending){kf_pmap_line(&l,&r->pmap_assert,row);}
   else if(row>=5 && row<=8){unsigned n=row-5;kf_text(&l,"CALL");char id[2]={(char)('1'+n),0};kf_text(&l,id);kf_text(&l," IN=");kf_hex(&l,r->calls[n].in_sequence);kf_text(&l," OUT=");kf_hex(&l,r->calls[n].out_sequence);kf_text(&l," RET=");kf_hex(&l,r->calls[n].result);}
   else if(row>=9 && row<=14){unsigned n=(row-9)*2;kf_text(&l,"BT ");kf_hex(&l,r->bt_count>n?r->bt[n]:0);kf_text(&l," ");kf_hex(&l,r->bt_count>n+1?r->bt[n+1]:0);}
   else if(row==15){kf_text(&l,"CONTROLLER PTR=");kf_hex(&l,r->allocation);kf_text(&l,r->allocation_seen?" RETURNED":" NOT RETURNED");}
