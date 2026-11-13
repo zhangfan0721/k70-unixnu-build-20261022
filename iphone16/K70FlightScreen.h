@@ -4,7 +4,7 @@
 #include "K70FlightCore.h"
 #include "FramebufferGuard.h"
 #include "Font.h"
-#define KF_ROWS 18
+#define KF_ROWS 23
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
 struct kf_screen {uintptr_t va;uint64_t pa;unsigned width,height,stride,scale,top,cols,bound;};
@@ -17,6 +17,11 @@ static inline void kf_text(struct kf_line *l,const char *s) {
 static inline void kf_hex(struct kf_line *l,uint64_t v) {
  static const char digits[]="0123456789abcdef";
  for(int n=15;n>=0 && l->used<KF_COLS;n--)l->data[l->used++]=digits[(v>>(n*4))&15];
+ l->data[l->used]=0;
+}
+static inline void kf_hex8(struct kf_line *l,uint64_t v) {
+ static const char digits[]="0123456789abcdef";
+ for(int n=7;n>=0 && l->used<KF_COLS;n--)l->data[l->used++]=digits[(v>>(n*4))&15];
  l->data[l->used]=0;
 }
 
@@ -51,6 +56,36 @@ static inline void kf_pmap_line(struct kf_line *line,
    kf_text(line, "UNREADABLE");
   }
   break;
+ }
+}
+/* Defined flag bits of the implemented page-flag set. */
+#define KF_FLAGS_DEFINED 0xffu
+static inline void kf_orig_line(struct kf_line *line,
+    const struct kf_pmap_assert *record, unsigned row)
+{
+ const struct k70_dw_snapshot *s=&record->orig;
+ if(!record->orig_published){kf_text(line,"ORIGv2 UNAVAIL");return;}
+ const char *st=s->status==K70_ORIG_HIT?"HIT":s->status==K70_ORIG_OVERFLOW?"OVERFLOW":"UNAVAIL";
+ switch(row) {
+ case 0:
+  kf_text(line,"ORIGv2 ");kf_text(line,st);kf_text(line," E=");kf_hex(line,s->epoch);
+  kf_text(line," I=");kf_hex8(line,s->rec.dw_index);kf_text(line," N=");kf_hex8(line,s->dw_count);
+  kf_text(line," R=");
+  if(s->reason==K70_R_BAD_COUNT){kf_text(line,"BAD_CNT");}else{kf_hex8(line,s->reason);}
+  break;
+ case 1:
+  kf_text(line,"PMAP ORIG DW_CALLER=");kf_hex(line,s->dw_caller);break;
+ case 2:
+  kf_text(line,"PMAP ORIG OBJ=");kf_hex(line,s->rec.object);
+  kf_text(line," OFF=");kf_hex(line,s->rec.offset);break;
+ case 3:
+  kf_text(line,"PMAP ORIG P=");kf_hex8(line,s->rec.ppn);kf_text(line," D=");kf_hex8(line,s->rec.dw_mask);
+  kf_text(line," W=");kf_hex8(line,s->rec.wire_count);kf_text(line," F=");kf_hex8(line,s->rec.flags);
+  kf_text(line," K=");kf_hex8(line,s->rec.reserved);break;
+ default:
+  kf_text(line,"PMAP ORIG BATCH=");kf_hex8(line,s->reserved);
+  kf_text(line," UKN=");
+  kf_text(line,((KF_FLAGS_DEFINED & ~s->rec.reserved)!=0)?"1":"0");break;
  }
 }
 static inline int kf_screen_bind(struct kf_screen *s,uintptr_t va,uint64_t pa,unsigned w,unsigned h,
@@ -92,6 +127,9 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row>=9 && row<=14){unsigned n=(row-9)*2;kf_text(&l,"BT ");kf_hex(&l,r->bt_count>n?r->bt[n]:0);kf_text(&l," ");kf_hex(&l,r->bt_count>n+1?r->bt[n+1]:0);}
   else if(row==15){kf_text(&l,"CONTROLLER PTR=");kf_hex(&l,r->allocation);kf_text(&l,r->allocation_seen?" RETURNED":" NOT RETURNED");}
   else if(row==16){kf_text(&l,"1=PARENT 2=VECTORS 3=LOCK 4=MAX_CPUS");}
+  else if(row>=18 && row<=22){
+   if(r->kind==KF_PANIC && r->pmap_assert.pending)kf_orig_line(&l,&r->pmap_assert,row-18);
+  }
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
   for(unsigned col=0;col<s->cols;col++)kf_cell(s,row,col,col<l.used?l.data[col]:' ');
  }

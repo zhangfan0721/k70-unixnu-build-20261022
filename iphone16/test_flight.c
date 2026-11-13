@@ -90,5 +90,61 @@ int main(void) {
  m.valid=0;uint32_t saved=allocation[pixels];assert(!kf_screen_draw(&screen,&s,probe,&m));assert(allocation[pixels]==saved);
  FILE *f=fopen("flight-screen.ppm","wb");assert(f);fprintf(f,"P6\n%u %u\n255\n",width,height);
  for(size_t i=1;i<=pixels;i++){uint32_t v=allocation[i];unsigned char p[3]={(unsigned char)(v>>16),(unsigned char)(v>>8),(unsigned char)v};assert(fwrite(p,1,3,f)==3);}fclose(f);free(allocation);
- puts("PASS: return values, thread filter, wait/resume, panic priority, bounded/failed frame reads, independent guarded framebuffer stores");
+ /* ORIG v2 rows published by value inside the PMAP acceptance branch. */
+ struct kf_pmap_assert origrec = {0};
+ origrec.orig_published = 1;
+ origrec.orig.status = K70_ORIG_HIT;
+ origrec.orig.reason = K70_R_NONE;
+ origrec.orig.epoch = UINT64_C(0x0000000100000005);
+ origrec.orig.dw_count = 5;
+ origrec.orig.rec.dw_index = 0x1234;
+ origrec.orig.dw_caller = UINT64_C(0xfffffff007390f10);
+ origrec.orig.rec.object = UINT64_C(0xffffff0000000000);
+ origrec.orig.rec.offset = UINT64_C(0x0000000000000099);
+ origrec.orig.rec.ppn = 0x891994;
+ origrec.orig.rec.dw_mask = 0x40;
+ origrec.orig.rec.wire_count = 3;
+ origrec.orig.rec.flags = 0;
+ origrec.orig.rec.reserved = K70_DW_PF_KNOWN;
+ struct kf_line o18 = {0}, o19 = {0}, o20 = {0}, o21 = {0}, o22 = {0};
+ kf_orig_line(&o18, &origrec, 0);
+ kf_orig_line(&o19, &origrec, 1);
+ kf_orig_line(&o20, &origrec, 2);
+ kf_orig_line(&o21, &origrec, 3);
+ kf_orig_line(&o22, &origrec, 4);
+ assert(strcmp((const char *)o18.data,
+     "ORIGv2 HIT E=0000000100000005 I=00001234 N=00000005 R=00000000") == 0);
+ assert(strcmp((const char *)o19.data,
+     "PMAP ORIG DW_CALLER=fffffff007390f10") == 0);
+ assert(strcmp((const char *)o20.data,
+     "PMAP ORIG OBJ=ffffff0000000000 OFF=0000000000000099") == 0);
+ assert(strcmp((const char *)o21.data,
+     "PMAP ORIG P=00891994 D=00000040 W=00000003 F=00000000 K=000000ff") == 0);
+ assert(strcmp((const char *)o22.data,
+     "PMAP ORIG BATCH=00000000 UKN=0") == 0);
+ /* BAD_COUNT keeps the raw u32 pattern and the BAD marker on a HIT row. */
+ origrec.orig.reason = K70_R_BAD_COUNT;
+ origrec.orig.dw_count = 0xffffffffu;
+ origrec.orig.reserved = K70_DWC_BAD;
+ origrec.orig.rec.flags = 0xffffffffu;
+ origrec.orig.rec.reserved = 0x0fu;
+ struct kf_line bad18 = {0}, bad22 = {0};
+ kf_orig_line(&bad18, &origrec, 0);
+ kf_orig_line(&bad22, &origrec, 4);
+ assert(strcmp((const char *)bad18.data,
+     "ORIGv2 HIT E=0000000100000005 I=00001234 N=ffffffff R=BAD_CNT") == 0);
+ assert(strcmp((const char *)bad22.data,
+     "PMAP ORIG BATCH=00000001 UKN=1") == 0);
+ /* FLAGS_DEFINED semantics: UKN means "some defined bit is unknown", not "unknown bit is 1". */
+ struct kf_pmap_assert fz = {0};
+ fz.orig_published = 1;
+ struct kf_line u1 = {0}, u2 = {0}, u3 = {0};
+ fz.orig.rec.flags = 0; fz.orig.rec.reserved = 0; kf_orig_line(&u1, &fz, 4);
+ fz.orig.rec.flags = 0; fz.orig.rec.reserved = KF_FLAGS_DEFINED; kf_orig_line(&u2, &fz, 4);
+ fz.orig.rec.flags = 5; fz.orig.rec.reserved = 0x0f; kf_orig_line(&u3, &fz, 4);
+ assert(strstr((const char *)u1.data, "UKN=1") != NULL);
+ assert(strstr((const char *)u2.data, "UKN=0") != NULL);
+ assert(strstr((const char *)u3.data, "UKN=1") != NULL);
+
+ puts("PASS: return values, thread filter, wait/resume, panic priority, bounded/failed frame reads, independent guarded framebuffer stores, ORIG v2 rows and flags-known");
 }

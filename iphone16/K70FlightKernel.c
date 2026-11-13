@@ -11,6 +11,18 @@ static struct kf_state k70_flight_state;
 static struct kf_screen k70_flight_screen;
 static volatile unsigned k70_flight_inside;
 extern volatile uint32_t k70_stage;
+/* Bounded by-value copies of the origin snapshot. Volatile word stores keep the
+ * emergency recorder free of FP/SIMD register usage (no FP context in panic). */
+static void kf_copy_orig(struct k70_dw_snapshot *dst, const struct k70_dw_snapshot *src) {
+ volatile uint32_t *d=(volatile uint32_t *)dst;
+ const volatile uint32_t *s=(const volatile uint32_t *)src;
+ for(unsigned i=0;i<sizeof(*dst)/sizeof(uint32_t);i++)d[i]=s[i];
+}
+static void kf_clear_orig(struct k70_dw_snapshot *dst) {
+ volatile uint32_t *d=(volatile uint32_t *)dst;
+ for(unsigned i=0;i<sizeof(*dst)/sizeof(uint32_t);i++)d[i]=0;
+}
+
 static uint64_t kf_mask(void) {
  uint64_t daif;__asm__ volatile("mrs %0, daif\n\tmsr daifset, #15":"=r"(daif)::"memory");return daif;
 }
@@ -75,7 +87,8 @@ void k70_flight_leave(unsigned call,uint64_t result) {
 
 void k70_flight_pmap_assert(uintptr_t caller, uint32_t ppnum, uintptr_t pvh,
     uintptr_t ptep, uintptr_t pmap, enum k70_pmap_owner owner,
-    uintptr_t free_caller, uintptr_t va_base_field)
+    uintptr_t free_caller, uintptr_t va_base_field,
+    const struct k70_dw_snapshot *snap)
 {
  uint64_t mask = kf_mask();
  struct kf_pmap_assert *record = &k70_flight_state.pmap_assert;
@@ -99,6 +112,18 @@ void k70_flight_pmap_assert(uintptr_t caller, uint32_t ppnum, uintptr_t pvh,
   if (record->pte_read) {
    record->pte = *(const volatile uint64_t *)ptep;
   }
+  if (snap) {
+   kf_copy_orig(&record->orig, snap);
+  } else {
+   /* Legacy no-diagnostic entry: publish an explicit UNAVAIL state.
+    * Volatile word stores keep adjacent 32-bit fields from merging into one
+    * 8-byte SIMD store (no FP/SIMD registers in the emergency recorder). */
+   volatile uint32_t *kf_o = (volatile uint32_t *)&record->orig;
+   kf_clear_orig(&record->orig);
+   kf_o[0] = K70_ORIG_UNAVAIL;   /* status */
+   kf_o[1] = K70_R_INVALID_TOK;  /* reason */
+  }
+  record->orig_published = 1;
   record->pending = 1;
  }
  kf_restore(mask);
@@ -125,6 +150,7 @@ void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
  if (k70_flight_state.kind != KF_PANIC && record->pending &&
      !kf_pmap_assert_matches(format, (uintptr_t)current_thread(), record)) {
   record->pending = 0;
+  record->orig_published = 0;
  }
  if(k70_flight_inside){if(k70_flight_state.kind!=KF_PANIC){k70_flight_state.kind=KF_PANIC;k70_flight_state.detail=(uintptr_t)format;k70_flight_state.caller=caller;}else{k70_flight_state.nested++;}k70_flight_state.flags|=KF_REENTRANT;kf_restore(mask);return;}
  if(!k70_flight_inside){k70_flight_inside=1;kf_terminal(&k70_flight_state,KF_PANIC,k70_flight_state.active?(uintptr_t)current_thread():0,(uintptr_t)format,caller,0,fp,kf_kernel_pair,0);kf_paint();k70_flight_inside=0;}

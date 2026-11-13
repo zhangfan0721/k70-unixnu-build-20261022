@@ -111,3 +111,5 @@ k70_pmap_assert_free_from_list(uint32_t ppnum, uintptr_t free_caller)
         '\tif (self->state & TH_WAIT) k70_flight_wait((uintptr_t)self, (uintptr_t)self->wait_event, self->state,\n'
         '\t    (uintptr_t)__builtin_return_address(0), (uintptr_t)__builtin_frame_address(0));')
     path.write_text(text[:start]+body+text[end:])
+    from dw_origin_patch import install as install_dw_origin
+    install_dw_origin(root)
