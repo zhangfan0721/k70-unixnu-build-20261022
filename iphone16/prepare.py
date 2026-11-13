@@ -546,7 +546,7 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/vm/vm_resident.c', 'osfmk/arm/pmap/pmap.c',
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/vm/vm_resident.c', 'osfmk/vm/vm_pageout.c', 'osfmk/arm/pmap/pmap.c',
                   'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):

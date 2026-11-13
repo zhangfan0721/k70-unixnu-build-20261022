@@ -2,9 +2,10 @@
 #ifndef K70_FLIGHT_SCREEN_H
 #define K70_FLIGHT_SCREEN_H
 #include "K70FlightCore.h"
+#include "K70DwOrigin.h"
 #include "FramebufferGuard.h"
 #include "Font.h"
-#define KF_ROWS 23
+#define KF_ROWS 25
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
 struct kf_screen {uintptr_t va;uint64_t pa;unsigned width,height,stride,scale,top,cols,bound;};
@@ -88,6 +89,19 @@ static inline void kf_orig_line(struct kf_line *line,
   kf_text(line,((KF_FLAGS_DEFINED & ~s->rec.reserved)!=0)?"1":"0");break;
  }
 }
+/* v3: UPL abort context captured before the assertion fired. */
+static inline void kf_abort_line(struct kf_line *line, unsigned row) {
+ const struct k70_abort_snapshot *a = k70_abort_get();
+ if (row == 0) {
+  kf_text(line, "ABORT CALLER="); kf_hex(line, a->caller);
+  kf_text(line, " CNT="); kf_hex8(line, a->count);
+ } else {
+  kf_text(line, "ABORT ERR="); kf_hex8(line, a->error);
+  kf_text(line, " OFF="); kf_hex8(line, a->offset);
+  kf_text(line, " SZ="); kf_hex8(line, a->size);
+  kf_text(line, " UPL="); kf_hex(line, a->upl);
+ }
+}
 static inline int kf_screen_bind(struct kf_screen *s,uintptr_t va,uint64_t pa,unsigned w,unsigned h,
  unsigned stride,unsigned depth,k70_probe probe,void *ctx) {
  s->bound=0;
@@ -130,6 +144,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row>=18 && row<=22){
    if(r->kind==KF_PANIC && r->pmap_assert.pending)kf_orig_line(&l,&r->pmap_assert,row-18);
   }
+  else if(row>=23 && row<=24){if(r->kind==KF_PANIC)kf_abort_line(&l,row-23);}
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
   for(unsigned col=0;col<s->cols;col++)kf_cell(s,row,col,col<l.used?l.data[col]:' ');
  }

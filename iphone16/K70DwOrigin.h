@@ -117,6 +117,15 @@ K70_STATIC_ASSERT(K70_DW_SLOTS * sizeof(struct k70_dw_ctx) == 6400, "dw pool siz
 K70_STATIC_ASSERT(offsetof(struct k70_dw_ctx, rec) == 64, "dw ctx rec offset");
 K70_STATIC_ASSERT(offsetof(struct k70_dw_snapshot, rec) == 32, "dw snapshot rec offset");
 
+/* v3: the last UPL abort seen before the assertion, published on the panel. */
+struct k70_abort_snapshot {
+ uintptr_t caller, upl;
+ uint64_t offset, size;
+ uint32_t error, count;
+};
+void k70_abort_note(uintptr_t caller, uint32_t error, uint64_t offset, uint64_t size, uintptr_t upl);
+const struct k70_abort_snapshot *k70_abort_get(void);
+
 void k70_dw_try_begin(uintptr_t thread, uintptr_t input_object, uintptr_t dw_caller,
     int dw_count, struct k70_dw_token *tok);
 void k70_dw_note(struct k70_dw_token *tok, uintptr_t m, uintptr_t object,

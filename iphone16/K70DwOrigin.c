@@ -16,6 +16,21 @@
 
 static struct k70_dw_ctx k70_dw_pool[K70_DW_SLOTS];
 
+/* v3: last UPL abort. Written word-wise through volatile so the recorder
+ * still contains no FP/SIMD register use. */
+static struct k70_abort_snapshot k70_abort_state;
+void k70_abort_note(uintptr_t caller, uint32_t error, uint64_t offset, uint64_t size, uintptr_t upl)
+{
+	volatile struct k70_abort_snapshot *s = &k70_abort_state;
+	s->caller = caller;
+	s->error = error;
+	s->offset = offset;
+	s->size = size;
+	s->upl = upl;
+	s->count = s->count + 1u;
+}
+const struct k70_abort_snapshot *k70_abort_get(void) { return &k70_abort_state; }
+
 /* Volatile word helpers keep the recorder free of FP/SIMD register usage:
  * clang must not merge adjacent 32-bit stores into 8/16-byte vector stores. */
 static void

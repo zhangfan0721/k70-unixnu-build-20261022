@@ -120,6 +120,17 @@ def install(root):
         "\tk70_dw_end(&k70_dw_tok);\n")
     path.write_text(text)
 
+    # v3: record the UPL abort context so the panel can name the abort path.
+    # v3: positional insert keeps this independent of the signature's spacing.
+    path = root / 'osfmk/vm/vm_pageout.c'
+    text = path.read_text()
+    assert text.count('\nupl_abort_range(\n') == 1
+    _pos = text.index('\nupl_abort_range(\n')
+    _brace = text.index('\n{\n', _pos) + len('\n{\n')
+    _inject = ('\t{ extern void k70_abort_note(uintptr_t, uint32_t, uint64_t, uint64_t, uintptr_t);\n'
+               '\t  k70_abort_note((uintptr_t)__builtin_return_address(0), (uint32_t)error,\n'
+               '\t      (uint64_t)offset, (uint64_t)size, (uintptr_t)upl); }\n')
+    path.write_text(text[:_brace] + _inject + text[_brace:])
     path = root / "osfmk/arm/pmap/pmap.c"
     text = path.read_text()
     text = _replace(text, "#include <kern/K70Flight.h>\n",
