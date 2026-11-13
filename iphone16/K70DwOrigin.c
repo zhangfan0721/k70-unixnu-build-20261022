@@ -16,20 +16,41 @@
 
 static struct k70_dw_ctx k70_dw_pool[K70_DW_SLOTS];
 
-/* v3: last UPL abort. Written word-wise through volatile so the recorder
- * still contains no FP/SIMD register use. */
-static struct k70_abort_snapshot k70_abort_state;
-void k70_abort_note(uintptr_t caller, uint32_t error, uint64_t offset, uint64_t size, uintptr_t upl)
+/* v4: per-page UPL abort ring. Written field-wise through volatile so the
+ * recorder still contains no FP/SIMD register use. */
+static struct k70_abort_rec k70_abort_ring[K70_ABORT_SLOTS];
+static uint32_t k70_abort_next;
+
+void
+k70_abort_page_note(uint32_t ppn, uint32_t error, uint32_t flags, uint32_t dw_mask, uintptr_t caller)
 {
-	volatile struct k70_abort_snapshot *s = &k70_abort_state;
-	s->caller = caller;
-	s->error = error;
-	s->offset = offset;
-	s->size = size;
-	s->upl = upl;
-	s->count = s->count + 1u;
+	const uint32_t slot = k70_abort_next & (K70_ABORT_SLOTS - 1u);
+	volatile struct k70_abort_rec *r = &k70_abort_ring[slot];
+	k70_abort_next = k70_abort_next + 1u;
+	r->caller = caller;
+	r->error = error;
+	r->flags = flags;
+	r->dw_mask = dw_mask;
+	r->ppn = ppn;
 }
-const struct k70_abort_snapshot *k70_abort_get(void) { return &k70_abort_state; }
+
+int
+k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out)
+{
+	for (uint32_t i = 0; i < K70_ABORT_SLOTS; i++) {
+		volatile struct k70_abort_rec *r = &k70_abort_ring[i];
+		if (r->ppn != ppn || r->caller == 0) {
+			continue;
+		}
+		out->caller = r->caller;
+		out->error = r->error;
+		out->flags = r->flags;
+		out->dw_mask = r->dw_mask;
+		out->ppn = r->ppn;
+		return 1;
+	}
+	return 0;
+}
 
 /* Volatile word helpers keep the recorder free of FP/SIMD register usage:
  * clang must not merge adjacent 32-bit stores into 8/16-byte vector stores. */

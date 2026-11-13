@@ -121,16 +121,28 @@ def install(root):
     path.write_text(text)
 
     # v3: record the UPL abort context so the panel can name the abort path.
-    # v3: positional insert keeps this independent of the signature's spacing.
+    # v4: bind the abort context to the physical page the abort is handing to
+    # delayed work, so a later lookup by PPN returns this page's abort.
     path = root / 'osfmk/vm/vm_pageout.c'
     text = path.read_text()
-    assert text.count('\nupl_abort_range(\n') == 1
-    _pos = text.index('\nupl_abort_range(\n')
-    _brace = text.index('\n{\n', _pos) + len('\n{\n')
-    _inject = ('\t{ extern void k70_abort_note(uintptr_t, uint32_t, uint64_t, uint64_t, uintptr_t);\n'
-               '\t  k70_abort_note((uintptr_t)__builtin_return_address(0), (uint32_t)error,\n'
-               '\t      (uint64_t)offset, (uint64_t)size, (uintptr_t)upl); }\n')
-    path.write_text(text[:_brace] + _inject + text[_brace:])
+    _sig = '\nupl_abort_range(\n'
+    assert text.count(_sig) == 1
+    _start = text.index(_sig)
+    _next = text.index('\nupl_abort(', _start + len(_sig))
+    _add = 'VM_PAGE_ADD_DELAYED_WORK(dwp, m, dw_count);'
+    assert text.count(_add, _start, _next) == 1
+    _at = text.index(_add, _start)
+    _inject = ('\t\t\t\t{ extern void k70_abort_page_note(uint32_t, uint32_t, uint32_t, uint32_t, uintptr_t);\n'
+               '\t\t\t\t  uint32_t _k70_f = 0;\n'
+               '\t\t\t\t  if (m->vmp_absent) { _k70_f |= 1u; }\n'
+               '\t\t\t\t  if (m->vmp_clustered) { _k70_f |= 2u; }\n'
+               '\t\t\t\t  if (m->vmp_busy) { _k70_f |= 4u; }\n'
+               '\t\t\t\t  if (m->vmp_wire_count != 0) { _k70_f |= 8u; }\n'
+               '\t\t\t\t  k70_abort_page_note((uint32_t)VM_PAGE_GET_PHYS_PAGE(m), (uint32_t)error,\n'
+               '\t\t\t\t      _k70_f, (uint32_t)dwp->dw_mask,\n'
+               '\t\t\t\t      (uintptr_t)__builtin_return_address(0)); }\n'
+               '\t\t\t\t')
+    path.write_text(text[:_at] + _inject + text[_at:])
     path = root / "osfmk/arm/pmap/pmap.c"
     text = path.read_text()
     text = _replace(text, "#include <kern/K70Flight.h>\n",
