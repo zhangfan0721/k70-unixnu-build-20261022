@@ -21,6 +21,27 @@ static struct k70_dw_ctx k70_dw_pool[K70_DW_SLOTS];
 static struct k70_abort_rec k70_abort_ring[K70_ABORT_SLOTS];
 static uint32_t k70_abort_next;
 static uintptr_t k70_ubc_caller;
+static struct k70_kabort_rec k70_kabort_state;
+
+void
+k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr)
+{
+	volatile struct k70_kabort_rec *k = &k70_kabort_state;
+	k->count = k->count + 1u;
+	if (k->count > 8u) {
+		return;
+	}
+	k->esr = esr;
+	k->far = far;
+	k->pc = pc;
+	k->cpsr = cpsr;
+}
+
+const struct k70_kabort_rec *
+k70_kabort_get(void)
+{
+	return &k70_kabort_state;
+}
 
 void
 k70_abort_ubc_note(uintptr_t caller)

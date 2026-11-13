@@ -136,6 +136,15 @@ void k70_abort_page_note(uint32_t ppn, uint32_t error, uint32_t flags, uint32_t 
  * record can name the UBC caller that asked for the abort. */
 void k70_abort_ubc_note(uintptr_t caller);
 uintptr_t k70_abort_ubc_get(void);
+
+/* v8: the kernel-mode abort itself, kept in memory so the panel can show it
+ * without printing from the exception handler. */
+struct k70_kabort_rec {
+ uint64_t esr, far, pc, cpsr;
+ uint32_t count;
+};
+void k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr);
+const struct k70_kabort_rec *k70_kabort_get(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
 void k70_dw_try_begin(uintptr_t thread, uintptr_t input_object, uintptr_t dw_caller,

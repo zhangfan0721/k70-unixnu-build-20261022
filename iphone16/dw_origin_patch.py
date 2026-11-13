@@ -169,14 +169,10 @@ def install(root):
     assert text.count(_sig) == 1
     _pos = text.index(_sig)
     _brace = text.index('\n{\n', _pos) + len('\n{\n')
-    _inject = ('\t{ static unsigned k70_kabort_n;\n'
-               '\t  if (k70_kabort_n < 12u) {\n'
-               '\t\tk70_kabort_n++;\n'
-               '\t\tkprintf("K70 KABORT esr=%08x far=%016llx pc=%016llx cpsr=%016llx\\n",\n'
-               '\t\t    esr, (uint64_t)fault_addr,\n'
-               '\t\t    (uint64_t)get_saved_state_pc(state),\n'
-               '\t\t    (uint64_t)get_saved_state_cpsr(state));\n'
-               '\t  } }\n')
+    _inject = ('\t{ extern void k70_kabort_note(uint64_t, uint64_t, uint64_t, uint64_t);\n'
+               '\t  k70_kabort_note((uint64_t)esr, (uint64_t)fault_addr,\n'
+               '\t      (uint64_t)get_saved_state_pc(state),\n'
+               '\t      (uint64_t)get_saved_state_cpsr(state)); }\n')
     path.write_text(text[:_brace] + _inject + text[_brace:])
     path = root / "osfmk/arm/pmap/pmap.c"
     text = path.read_text()
