@@ -161,6 +161,23 @@ def install(root):
     _inject = ('\t{ extern void k70_abort_ubc_note(uintptr_t);\n'
                '\t  k70_abort_ubc_note((uintptr_t)__builtin_return_address(0)); }\n')
     path.write_text(text[:_brace] + _inject + text[_brace:])
+    # v7: one line per kernel-mode abort, bounded, straight from the handler.
+    # It answers the only question left: was PAN set, and where was the PC.
+    path = root / 'osfmk/arm64/sleh.c'
+    text = path.read_text()
+    _sig = '\nhandle_kernel_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,'
+    assert text.count(_sig) == 1
+    _pos = text.index(_sig)
+    _brace = text.index('\n{\n', _pos) + len('\n{\n')
+    _inject = ('\t{ static unsigned k70_kabort_n;\n'
+               '\t  if (k70_kabort_n < 12u) {\n'
+               '\t\tk70_kabort_n++;\n'
+               '\t\tkprintf("K70 KABORT esr=%08x far=%016llx pc=%016llx cpsr=%016llx\\n",\n'
+               '\t\t    esr, (uint64_t)fault_addr,\n'
+               '\t\t    (uint64_t)get_saved_state_pc(state),\n'
+               '\t\t    (uint64_t)get_saved_state_cpsr(state));\n'
+               '\t  } }\n')
+    path.write_text(text[:_brace] + _inject + text[_brace:])
     path = root / "osfmk/arm/pmap/pmap.c"
     text = path.read_text()
     text = _replace(text, "#include <kern/K70Flight.h>\n",
