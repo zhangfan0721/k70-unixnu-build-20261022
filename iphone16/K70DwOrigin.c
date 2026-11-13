@@ -20,6 +20,19 @@ static struct k70_dw_ctx k70_dw_pool[K70_DW_SLOTS];
  * recorder still contains no FP/SIMD register use. */
 static struct k70_abort_rec k70_abort_ring[K70_ABORT_SLOTS];
 static uint32_t k70_abort_next;
+static uintptr_t k70_ubc_caller;
+
+void
+k70_abort_ubc_note(uintptr_t caller)
+{
+	k70_ubc_caller = caller;
+}
+
+uintptr_t
+k70_abort_ubc_get(void)
+{
+	return k70_ubc_caller;
+}
 
 void
 k70_abort_page_note(uint32_t ppn, uint32_t error, uint32_t flags, uint32_t dw_mask, uintptr_t caller)
@@ -35,6 +48,7 @@ k70_abort_page_note(uint32_t ppn, uint32_t error, uint32_t flags, uint32_t dw_ma
 	r->flags = flags;
 	r->dw_mask = dw_mask;
 	r->ppn = ppn;
+	r->ubc_caller = k70_ubc_caller;
 	r->caller = caller;
 	r->seq = next;
 }
@@ -60,6 +74,7 @@ k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out)
 			out->dw_mask = r->dw_mask;
 			out->ppn = r->ppn;
 			out->seq = r->seq;
+			out->ubc_caller = r->ubc_caller;
 			found = 1;
 		}
 	}

@@ -127,10 +127,15 @@ K70_STATIC_ASSERT(offsetof(struct k70_dw_snapshot, rec) == 32, "dw snapshot rec 
 #define K70_ABORT_F_WIRED     (1u << 3)
 struct k70_abort_rec {
  uintptr_t caller;
+ uintptr_t ubc_caller;
  uint32_t ppn, error, flags, dw_mask, seq;
 };
 void k70_abort_page_note(uint32_t ppn, uint32_t error, uint32_t flags, uint32_t dw_mask,
     uintptr_t caller);
+/* Set by ubc_upl_abort_range before it enters upl_abort_range, so the per-page
+ * record can name the UBC caller that asked for the abort. */
+void k70_abort_ubc_note(uintptr_t caller);
+uintptr_t k70_abort_ubc_get(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
 void k70_dw_try_begin(uintptr_t thread, uintptr_t input_object, uintptr_t dw_caller,

@@ -148,6 +148,19 @@ def install(root):
                '\t\t\t\t  }\n'
                '\t\t\t\t')
     path.write_text(text[:_at] + _inject + text[_at:])
+
+    # v5: name the UBC caller that asked for the abort. ubc_upl_abort_range sits
+    # directly above upl_abort_range on the stack, so recording its return address
+    # before the nested call is enough for the per-page note to pick it up.
+    path = root / 'bsd/kern/ubc_subr.c'
+    text = path.read_text()
+    _sig = '\nubc_upl_abort_range(\n'
+    assert text.count(_sig) == 1
+    _start = text.index(_sig)
+    _brace = text.index('\n{\n', _start) + len('\n{\n')
+    _inject = ('\t{ extern void k70_abort_ubc_note(uintptr_t);\n'
+               '\t  k70_abort_ubc_note((uintptr_t)__builtin_return_address(0)); }\n')
+    path.write_text(text[:_brace] + _inject + text[_brace:])
     path = root / "osfmk/arm/pmap/pmap.c"
     text = path.read_text()
     text = _replace(text, "#include <kern/K70Flight.h>\n",
