@@ -141,7 +141,8 @@ uintptr_t k70_abort_ubc_get(void);
  * without printing from the exception handler. */
 struct k70_kabort_rec {
  uint64_t esr, far, pc, cpsr;
- uint32_t count;
+ uint64_t esr2, far2, pc2, cpsr2;
+ uint32_t count, have2;
 };
 void k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr);
 const struct k70_kabort_rec *k70_kabort_get(void);

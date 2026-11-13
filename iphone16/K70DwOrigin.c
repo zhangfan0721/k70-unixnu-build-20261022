@@ -28,13 +28,21 @@ k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr)
 {
 	volatile struct k70_kabort_rec *k = &k70_kabort_state;
 	k->count = k->count + 1u;
-	if (k->count > 8u) {
-		return;
+	/* Keep the very first abort, and the first abort that targets a user
+	 * address. Later samples are counted but never overwrite these. */
+	if (k->count == 1u) {
+		k->esr = esr;
+		k->far = far;
+		k->pc = pc;
+		k->cpsr = cpsr;
 	}
-	k->esr = esr;
-	k->far = far;
-	k->pc = pc;
-	k->cpsr = cpsr;
+	if (k->have2 == 0u && far < 0x1000000000ull) {
+		k->esr2 = esr;
+		k->far2 = far;
+		k->pc2 = pc;
+		k->cpsr2 = cpsr;
+		k->have2 = 1u;
+	}
 }
 
 const struct k70_kabort_rec *

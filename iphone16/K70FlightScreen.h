@@ -5,7 +5,7 @@
 #include "K70DwOrigin.h"
 #include "FramebufferGuard.h"
 #include "Font.h"
-#define KF_ROWS 28
+#define KF_ROWS 30
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
 struct kf_screen {uintptr_t va;uint64_t pa;unsigned width,height,stride,scale,top,cols,bound;};
@@ -121,8 +121,10 @@ static inline void kf_abort_line(struct kf_line *line, unsigned row, uint32_t pp
 }
 static inline void kf_kabort_line(struct kf_line *l,unsigned row){
  const struct k70_kabort_rec *k=k70_kabort_get();
- if(row==0){kf_text(l,"KABORT ESR=");kf_hex8(l,k->esr);kf_text(l," FAR=");kf_hex(l,k->far);kf_text(l," N=");kf_hex8(l,k->count);}
- else{kf_text(l,"KABORT PC=");kf_hex(l,k->pc);kf_text(l," CPSR=");kf_hex(l,k->cpsr);}
+ if(row==0){kf_text(l,"KA1 ESR=");kf_hex8(l,k->esr);kf_text(l," FAR=");kf_hex(l,k->far);kf_text(l," N=");kf_hex8(l,k->count);}
+ else if(row==1){kf_text(l,"KA1 PC=");kf_hex(l,k->pc);kf_text(l," CPSR=");kf_hex(l,k->cpsr);}
+ else if(row==2){kf_text(l,"KA2 ESR=");kf_hex8(l,k->esr2);kf_text(l," FAR=");kf_hex(l,k->far2);kf_text(l," H=");kf_hex8(l,k->have2);}
+ else{kf_text(l,"KA2 PC=");kf_hex(l,k->pc2);kf_text(l," CPSR=");kf_hex(l,k->cpsr2);}
 }
 static inline int kf_screen_bind(struct kf_screen *s,uintptr_t va,uint64_t pa,unsigned w,unsigned h,
  unsigned stride,unsigned depth,k70_probe probe,void *ctx) {
@@ -167,7 +169,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
    if(r->kind==KF_PANIC && r->pmap_assert.pending)kf_orig_line(&l,&r->pmap_assert,row-18);
   }
   else if(row>=23 && row<=25){if(r->kind==KF_PANIC)kf_abort_line(&l,row-23,r->pmap_assert.ppnum);}
-  else if(row==26||row==27)kf_kabort_line(&l,row-26);
+  else if(row>=26&&row<=29)kf_kabort_line(&l,row-26);
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
   for(unsigned col=0;col<s->cols;col++)kf_cell(s,row,col,col<l.used?l.data[col]:' ');
  }
