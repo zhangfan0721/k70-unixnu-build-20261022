@@ -29,6 +29,8 @@ def install(root):
     path.write_text(text)
     path=root/'iokit/Kernel/IOCPU.cpp'
     text='#include <kern/K70Flight.h>\n'+path.read_text()
+
+
     anchor='IOCPUInterruptController::initCPUInterruptController(int sources, int cpus)'
     start=text.index(anchor);end=text.index('\nvoid\nIOCPUInterruptController::registerCPUInterruptController',start)
     body=text[start:end]
@@ -52,8 +54,29 @@ def install(root):
     path.write_text(text)
     path=root/'osfmk/arm/pmap/pmap.c'
     text='#include <kern/K70Flight.h>\n'+path.read_text()
+    K70_SUPPRESS_HELPER = (
+        '/* v6: a boot-argument switch that turns this assertion into a logged skip,\n'
+        ' * so one diagnostic boot can show what comes next. Without the argument the\n'
+        ' * evidence path behaves exactly as before. */\n'
+        'static volatile unsigned k70_suppressed_count;\n'
+        'static int k70_suppress_state = -1;\n'
+        'static int\n'
+        'k70_assert_suppress(void)\n'
+        '{\n'
+        '\tif (k70_suppress_state < 0) {\n'
+        '\t\tint v = 0;\n'
+        '\t\tif (PE_parse_boot_argn("k70skipassert", &v, sizeof(v))) {\n'
+        '\t\t\tk70_suppress_state = (v != 0);\n'
+        '\t\t} else {\n'
+        '\t\t\tk70_suppress_state = 0;\n'
+        '\t\t}\n'
+        '\t}\n'
+        '\treturn k70_suppress_state;\n'
+        '}\n'
+    )
     signature='void\npmap_assert_free(ppnum_t ppnum)\n{'
     text=replace(text,signature,
+        K70_SUPPRESS_HELPER +
         'static __attribute__((noinline)) void\npmap_assert_free_recorded(ppnum_t ppnum, '
         'uintptr_t caller, uintptr_t free_caller)\n{')
     start=text.index('pmap_assert_free_recorded(')
@@ -70,7 +93,7 @@ def install(root):
 \t\t    pt_attr_leaf_shift(pmap_get_pt_attr(kernel_pmap)) == 12) {
 \t\t\tva_base_field = (uintptr_t)&ptd->va[0];
 \t\t}
-\t\tk70_flight_pmap_assert(caller, ppnum, (uintptr_t)*pvh,
+\t\tif (k70_assert_suppress()) {\n\t\t\tk70_suppressed_count = k70_suppressed_count + 1u;\n\t\t\tkprintf("K70 PMAP ASSERT SUPPRESSED ppnum=%#x count=%u\\n",\n\t\t\t    (unsigned)ppnum, (unsigned)k70_suppressed_count);\n\t\t\treturn;\n\t\t}\n\t\tk70_flight_pmap_assert(caller, ppnum, (uintptr_t)*pvh,
 \t\t    (uintptr_t)first_ptep, (uintptr_t)pmap,
 \t\t    pmap == kernel_pmap ? K70_PMAP_KERNEL : pmap ? K70_PMAP_USER : K70_PMAP_UNKNOWN,
 \t\t    free_caller, va_base_field);
