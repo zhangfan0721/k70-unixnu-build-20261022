@@ -89,10 +89,22 @@ static inline void kf_orig_line(struct kf_line *line,
   kf_text(line,((KF_FLAGS_DEFINED & ~s->rec.reserved)!=0)?"1":"0");break;
  }
 }
+static inline int kf_lookup_abort(uint32_t ppn, struct k70_abort_rec *out) {
+ return k70_abort_page_get(ppn, out);
+}
 /* v4: per-page UPL abort context for exactly the page the assertion names. */
 static inline void kf_abort_line(struct kf_line *line, unsigned row, uint32_t ppn) {
- struct k70_abort_rec a;
- if (!k70_abort_page_get(ppn, &a)) {
+ /* Static: an automatic aggregate could be zero-initialised with vector
+   stores, and this painter must not touch FP/SIMD. One lookup is frozen for
+   both rows via kf_abort_cached. */
+ static struct k70_abort_rec a;
+ static uint32_t cached_ppn;
+ static unsigned cached;
+ if (!cached || cached_ppn != ppn) {
+  cached = kf_lookup_abort(ppn, &a) ? 1u : 2u;
+  cached_ppn = ppn;
+ }
+ if (cached != 1u) {
   kf_text(line, "ABORT RECORD NONE P="); kf_hex8(line, ppn);
   return;
  }
@@ -147,7 +159,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row>=18 && row<=22){
    if(r->kind==KF_PANIC && r->pmap_assert.pending)kf_orig_line(&l,&r->pmap_assert,row-18);
   }
-  else if(row>=23 && row<=24){if(r->kind==KF_PANIC)kf_abort_line(&l,row-23,r->pmap_assert.rec.ppn);}
+  else if(row>=23 && row<=24){if(r->kind==KF_PANIC)kf_abort_line(&l,row-23,r->pmap_assert.ppnum);}
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
   for(unsigned col=0;col<s->cols;col++)kf_cell(s,row,col,col<l.used?l.data[col]:' ');
  }

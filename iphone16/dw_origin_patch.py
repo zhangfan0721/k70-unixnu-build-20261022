@@ -133,6 +133,10 @@ def install(root):
     assert text.count(_add, _start, _next) == 1
     _at = text.index(_add, _start)
     _inject = ('\t\t\t\t{ extern void k70_abort_page_note(uint32_t, uint32_t, uint32_t, uint32_t, uintptr_t);\n'
+               '\t\t\t\t  /* Only pages actually being freed can reach the assertion, so\n'
+               '\t\t\t\t   * recording only those keeps the ring from being flushed by a\n'
+               '\t\t\t\t   * batch that merely clears busy or wakes pages up. */\n'
+               '\t\t\t\t  if (dwp->dw_mask & DW_vm_page_free) {\n'
                '\t\t\t\t  uint32_t _k70_f = 0;\n'
                '\t\t\t\t  if (m->vmp_absent) { _k70_f |= 1u; }\n'
                '\t\t\t\t  if (m->vmp_clustered) { _k70_f |= 2u; }\n'
@@ -141,6 +145,7 @@ def install(root):
                '\t\t\t\t  k70_abort_page_note((uint32_t)VM_PAGE_GET_PHYS_PAGE(m), (uint32_t)error,\n'
                '\t\t\t\t      _k70_f, (uint32_t)dwp->dw_mask,\n'
                '\t\t\t\t      (uintptr_t)__builtin_return_address(0)); }\n'
+               '\t\t\t\t  }\n'
                '\t\t\t\t')
     path.write_text(text[:_at] + _inject + text[_at:])
     path = root / "osfmk/arm/pmap/pmap.c"

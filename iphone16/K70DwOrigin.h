@@ -120,14 +120,14 @@ K70_STATIC_ASSERT(offsetof(struct k70_dw_snapshot, rec) == 32, "dw snapshot rec 
 /* v4: per-page UPL abort context. The record is keyed by the physical page the
  * abort is about to hand to delayed work, so a lookup at assertion time returns
  * the abort that concerned this page, not the most recent abort on the CPU. */
-#define K70_ABORT_SLOTS 8u
+#define K70_ABORT_SLOTS 16u
 #define K70_ABORT_F_ABSENT    (1u << 0)
 #define K70_ABORT_F_CLUSTERED (1u << 1)
 #define K70_ABORT_F_BUSY      (1u << 2)
 #define K70_ABORT_F_WIRED     (1u << 3)
 struct k70_abort_rec {
  uintptr_t caller;
- uint32_t ppn, error, flags, dw_mask;
+ uint32_t ppn, error, flags, dw_mask, seq;
 };
 void k70_abort_page_note(uint32_t ppn, uint32_t error, uint32_t flags, uint32_t dw_mask,
     uintptr_t caller);

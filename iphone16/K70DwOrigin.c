@@ -24,32 +24,46 @@ static uint32_t k70_abort_next;
 void
 k70_abort_page_note(uint32_t ppn, uint32_t error, uint32_t flags, uint32_t dw_mask, uintptr_t caller)
 {
-	const uint32_t slot = k70_abort_next & (K70_ABORT_SLOTS - 1u);
-	volatile struct k70_abort_rec *r = &k70_abort_ring[slot];
-	k70_abort_next = k70_abort_next + 1u;
-	r->caller = caller;
+	const uint32_t next = k70_abort_next + 1u;
+	volatile struct k70_abort_rec *r = &k70_abort_ring[next & (K70_ABORT_SLOTS - 1u)];
+	k70_abort_next = next;
+	/* Invalidate, fill the payload, then publish the key last. A reader that
+	 * interrupts this sequence sees caller == 0 and keeps scanning. */
+	r->caller = 0;
+	r->seq = 0;
 	r->error = error;
 	r->flags = flags;
 	r->dw_mask = dw_mask;
 	r->ppn = ppn;
+	r->caller = caller;
+	r->seq = next;
 }
 
 int
 k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out)
 {
+	int found = 0;
+	uint32_t best = 0;
+	/* Newest wins by 32-bit sequence distance, so wrap-around keeps ordering
+	 * as long as the two records are less than 2^31 apart. */
 	for (uint32_t i = 0; i < K70_ABORT_SLOTS; i++) {
 		volatile struct k70_abort_rec *r = &k70_abort_ring[i];
 		if (r->ppn != ppn || r->caller == 0) {
 			continue;
 		}
-		out->caller = r->caller;
-		out->error = r->error;
-		out->flags = r->flags;
-		out->dw_mask = r->dw_mask;
-		out->ppn = r->ppn;
-		return 1;
+		/* Newest wins: the slot order says nothing about age after wrap. */
+		if (!found || (int32_t)(r->seq - best) > 0) {
+			best = r->seq;
+			out->caller = r->caller;
+			out->error = r->error;
+			out->flags = r->flags;
+			out->dw_mask = r->dw_mask;
+			out->ppn = r->ppn;
+			out->seq = r->seq;
+			found = 1;
+		}
 	}
-	return 0;
+	return found;
 }
 
 /* Volatile word helpers keep the recorder free of FP/SIMD register usage:
