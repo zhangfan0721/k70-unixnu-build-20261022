@@ -329,6 +329,12 @@ def install_diag(root):
         '            bp_out_hex(&ho, (uint32_t)tn, 8);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
+        '          { extern volatile int k70_loadmach_ret;\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "LM ");\n'
+        '            bp_out_dec(&ho, (uint32_t)k70_loadmach_ret);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern volatile uint32_t k70_exec_errno;\n'
         '            bp_out_begin(&ho, hl);\n'
         '            bp_out_puts(&ho, "EXER ");\n'
@@ -410,6 +416,26 @@ def install_diag(root):
         _ut + '    { extern void k70_trap_note(uint32_t, uint64_t);\n'
         '      k70_trap_note((uint32_t)pid, code); }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
+    # v28: find out where the PID1 image activation stops.
+    path = root / 'bsd/kern/kern_exec.c'
+    text = path.read_text()
+    _mi = '\tlret = load_machfile(imgp, mach_header, thread, &map, &load_result);\n'
+    assert text.count(_mi) == 1
+    text = text.replace(_mi,
+        '\t{ extern volatile uint32_t k70_stage; k70_stage = 21u; }\n' + _mi +
+        '\t{ extern volatile uint32_t k70_stage; extern volatile int k70_loadmach_ret;\n'
+        '\t  k70_loadmach_ret = (int)lret; k70_stage = 22u; }\n')
+    _ai = '\tif ((lret = exec_check_permissions(imgp)) != 0) {\n'
+    if text.count(_ai) == 1:
+        text = text.replace(_ai,
+            '\t{ extern volatile uint32_t k70_stage; k70_stage = 19u; }\n' + _ai +
+            '\t{ extern volatile uint32_t k70_stage; k70_stage = 20u; }\n')
+    _ae = '\tlret = activate_exec_state(task, p, thread, &load_result);\n'
+    assert text.count(_ae) == 1
+    text = text.replace(_ae,
+        '\t{ extern volatile uint32_t k70_stage; k70_stage = 23u; }\n' + _ae +
+        '\t{ extern volatile uint32_t k70_stage; k70_stage = 24u; }\n')
+    path.write_text(text)
     # v24: mark the key boot spans so the heartbeat shows the last completed one.
     path = root / 'osfmk/kern/startup.c'
     text = path.read_text()

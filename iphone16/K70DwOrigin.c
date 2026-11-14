@@ -103,6 +103,8 @@ k70_stage_text_get(void)
 static uintptr_t k70_worker_thread;
 static struct k70_role_rec k70_role_state[4];
 static volatile uint32_t k70_stage_bits;
+/* v28: the return value of load_machfile during the PID1 exec. */
+volatile int k70_loadmach_ret = -1;
 static volatile uint64_t k70_trap_count, k70_trap_number;
 static volatile uint32_t k70_trap_pid;
 
