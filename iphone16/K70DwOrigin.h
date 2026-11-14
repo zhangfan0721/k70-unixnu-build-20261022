@@ -186,6 +186,8 @@ void k70_win_note(uint64_t offset, uint64_t length, int rc);
 /* v40: the condition wait behind an rw sleep. */
 void k70_rws_note(uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller);
 void k70_rws_get(uintptr_t *lck, uintptr_t *event, uint32_t *action, uintptr_t *caller);
+void k70_rws_wake(void);
+uint32_t k70_rws_wakes(void);
 void k70_win_get(uint64_t *count, uint64_t *offset, uint64_t *length, int *rc);
 void k70_vn_note(uint32_t site, int err, int64_t resid);
 void k70_vn_get(uint32_t *site, int *err, int64_t *resid);

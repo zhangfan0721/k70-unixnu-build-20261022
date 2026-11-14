@@ -148,6 +148,20 @@ k70_rws_note(uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller)
 	k70_rws_caller = caller;
 }
 
+static volatile uint32_t k70_rws_wake_count;
+
+void
+k70_rws_wake(void)
+{
+	k70_rws_wake_count = k70_rws_wake_count + 1u;
+}
+
+uint32_t
+k70_rws_wakes(void)
+{
+	return k70_rws_wake_count;
+}
+
 void
 k70_rws_get(uintptr_t *lck, uintptr_t *event, uint32_t *action, uintptr_t *caller)
 {
