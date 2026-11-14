@@ -451,6 +451,7 @@ def install_diag(root):
         '\t\t\t/* The fetch filled the whole buffer. */\n'
         '\t\t\tbuf_setresid(bp, 0);\n'
         '\t\t}\n'
+        '\t\tbuf_unmap(bp);\n'
         '\t\tbuf_biodone(bp);\n')
     n_shift = text.count('(mdev[devid].mdSize << 12)')
     assert n_shift >= 3, n_shift
