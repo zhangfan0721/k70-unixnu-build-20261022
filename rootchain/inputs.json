@@ -16,7 +16,14 @@
   "original_system": "iPhone10,3/iPhone10,6 iOS16.7.16 20H392; official BuildManifest SHA384-verified members",
   "components": [
     "com.apple.iokit.IOStorageFamily",
-    "com.apple.filesystems.hfs.kext"
+    "com.apple.filesystems.hfs.kext",
+    "com.apple.filesystems.apfs",
+    "com.apple.driver.AppleEffaceableStorage",
+    "com.apple.iokit.CoreAnalyticsFamily",
+    "com.apple.iokit.IOCryptoAcceleratorFamily",
+    "com.apple.kec.corecrypto",
+    "com.apple.kext.CoreTrust",
+    "com.apple.security.AppleImage4"
   ],
   "prelink_slide": "0x08000000",
   "root_image_bytes": 134217728,

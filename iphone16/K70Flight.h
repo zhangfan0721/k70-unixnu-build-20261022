@@ -2,6 +2,9 @@
 #ifndef K70_FLIGHT_H
 #define K70_FLIGHT_H
 #include <stdint.h>
+#include "K70DwOrigin.h"
+#define K70_PMAP_ASSERT_PREFIX "%s: Found at least one mapping to "
+enum k70_pmap_owner { K70_PMAP_UNKNOWN, K70_PMAP_KERNEL, K70_PMAP_USER };
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -11,6 +14,13 @@ void k70_flight_allocation(uintptr_t);
 void k70_flight_enter(unsigned,uint64_t);
 void k70_flight_leave(unsigned,uint64_t);
 void k70_flight_panic(const char *,uintptr_t,uintptr_t);
+void k70_pmap_assert_free_from_list(uint32_t ppnum, uintptr_t free_caller);
+void k70_pmap_assert_free_from_list_diag(uint32_t ppnum, uintptr_t free_caller,
+    const struct k70_dw_snapshot *snap);
+void k70_flight_pmap_assert(uintptr_t caller, uint32_t ppnum, uintptr_t pvh,
+    uintptr_t ptep, uintptr_t pmap, enum k70_pmap_owner owner,
+    uintptr_t free_caller, uintptr_t va_base_field,
+    const struct k70_dw_snapshot *snap);
 void k70_flight_wait(uintptr_t,uintptr_t,uint64_t,uintptr_t,uintptr_t);
 void k70_flight_bind(uintptr_t,unsigned,unsigned,unsigned,unsigned);
 void k70_flight_refresh(void);

@@ -2,6 +2,9 @@ name: K70 Darwin22 integration gate
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [codex/k70-formal-xnu]
+    paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
   push:
     branches: [codex/k70-formal-xnu]
     paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
@@ -65,8 +68,12 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -f legacy-iig/bin/iig || ! -f legacy-iig/lib/libclang.dylib ]]; then
-            curl --fail --location --connect-timeout 30 --max-time 180 'https://artificial-blacks-chairs-gourmet.trycloudflare.com/cedb5d17bad247f89030d97a4babf50b.tgz' -o legacy-iig.tgz
-            echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+            curl --fail --location --connect-timeout 30 --max-time 600 \
+              -H "Authorization: Bearer ${{ github.token }}" \
+              -H 'Accept: application/octet-stream' \
+              'https://api.github.com/repos/${{ github.repository }}/releases/assets/743849456' \
+              -o legacy-iig.tgz
+            echo '117ab4965fd9ea1e2bc3ed77656732a224527e3a39aacd06bfd3f5216a8ac43b  legacy-iig.tgz' | shasum -a 256 -c -
             mkdir -p legacy-iig
             tar -xzf legacy-iig.tgz -C legacy-iig
           fi

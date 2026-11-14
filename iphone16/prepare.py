@@ -23,7 +23,7 @@ BASE_PATCHES = (
     'local-availability', 'cxx-flag-dependencies', 'kernel-sdk-root',
     'non-apple-cache-monitor', 'native-4k-bootstrap-capacity',
     'non-apple-pmap-field', 'armvirt-platform-personality',
-    'architectural-timer-entry', 'native-dt-panic-region',
+    'architectural-timer-entry', 'native-arm-pan', 'native-dt-panic-region',
     'native-quiet-managed-page-report', 'source-corecrypto14-bootstrap',
     'source-pthread-bootstrap', 'non-apple-iommu-bootstrap',
 )
@@ -74,6 +74,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
         'pexpert/arm/FramebufferGuard.h': (FORMAL / 'FramebufferGuard.h').read_text(),
         'pexpert/arm/BootstrapMap.h': (FORMAL / 'BootstrapMap.h').read_text(),
         'osfmk/arm64/k70_formal_entry.s': (FORMAL / 'EntryDiagnostics.s').read_text(),
+        'osfmk/kern/k70_copyout_diag.h': (HERE / 'CopyoutDiagnostics.h').read_text(),
     }
     for name, text in additions.items():
         path = root / name
@@ -81,7 +82,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
         if path.exists():
             raise ValueError('Unexpected existing diagnostic source: ' + name)
         path.write_text(text)
-    edit(root, 'osfmk/kern/Makefile', '\tbacktrace.h \\\n', '\tbacktrace.h \\\n\tboot_progress.h \\\n')
+    edit(root, 'osfmk/kern/Makefile', '\tbacktrace.h \\\n',
+         '\tbacktrace.h \\\n\tboot_progress.h \\\n\tk70_copyout_diag.h \\\n')
     diag = root / 'pexpert/arm/k70_formal_diag.c'
     diag.write_text(replace_once(diag.read_text(),
         'PE_init_platform(FALSE) returned; native XNU C',
@@ -154,8 +156,341 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\textern void k70_formal_cpu_summary(void);\n\tk70_formal_cpu_summary();\n\terr = IOFindBSDRoot(rootdevice, sizeof(rootdevice), &rootdev, &flags);')
     edit(root, name, '\t\tif (0 == (err = vfs_mountroot())) {',
          '\t\tboot_progress_stage("vfs_mountroot enter");\n\t\tif (0 == (err = vfs_mountroot())) {\n\t\t\tboot_progress_stage("vfs_mountroot mounted; authentication pending");')
+    edit(root, name, "\t\trootdevice[0] = '\\0';",
+         '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);'
+         ' k70_formal_cpu_trace("vfs_mountroot failed err", (uint64_t)(int64_t)err); }\n'
+         "\t\trootdevice[0] = '\\0';\n")
+    # The root mount reports which stage and which filesystem refused, so a bare
+    # errno can be attributed instead of guessed.
+    name = "bsd/vfs/vfs_subr.c"
+    edit(root, name, "\tbdevvp_rootvp = rootvp;",
+         "\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
+         "\t  k70_formal_cpu_trace(\"mountroot bdevvp ok dev\", (uint64_t)rootdev); }\n"
+         "\tbdevvp_rootvp = rootvp;")
+    # The root mount reaches MACF after a successful filesystem mount; name the
+    # step that refuses so ENODEV is not the only thing on screen.
+    # One line per filesystem that refused the root, named after the filesystem
+    # itself: the trace label is vfc_name, so "apfs value=0x13" is unambiguous.
+    edit(root, "bsd/vfs/vfs_subr.c", "\t\tvfs_rootmountfailed(mp);",
+         "\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n"
+         "\t\t  k70_formal_cpu_trace(vfsp->vfc_name, (uint64_t)(int64_t)error); }\n"
+         "\t\tvfs_rootmountfailed(mp);")
     edit(root, 'bsd/kern/kern_exec.c', 'load_init_program(proc_t p)\n{',
-         'load_init_program(proc_t p)\n{\n\tboot_progress_stage("load_init_program enter");')
+         'load_init_program(proc_t p)\n{\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 7; }\n'
+         '\tboot_progress_stage("load_init_program enter");')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 8; }')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) memorystatus_init_at_boot_snapshot();',
+         '\t(void) memorystatus_init_at_boot_snapshot();\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 9; }')
+    mark = '{ extern volatile uint32_t k70_stage; k70_stage = %d; }'
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\tint retval[2];\n\tint error;\n\tstruct execve_args init_exec_args;\n\tuser_addr_t argv0 = USER_ADDR_NULL, argv1 = USER_ADDR_NULL;',
+         '\t' + (mark % 10) + '\n'
+         '\tint retval[2];\n\tint error;\n\tstruct execve_args init_exec_args;\n\tuser_addr_t argv0 = USER_ADDR_NULL, argv1 = USER_ADDR_NULL;')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\tscratch_addr = USER_ADDR_ALIGN(scratch_addr + path_length, sizeof(user_addr_t));',
+         '\t' + (mark % 11) + '\n'
+         '\tscratch_addr = USER_ADDR_ALIGN(scratch_addr + path_length, sizeof(user_addr_t));')
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\tset_security_token(p);',
+         '\t' + (mark % 16) + '\n\tset_security_token(p);\n\t' + (mark % 17))
+    # After the clear, look at where the init thread actually sits: its state,
+    # the run queue it belongs to and the processor it is bound to. A thread
+    # parked on a processor that never came online never runs, and one CPU is
+    # registered on this port.
+    edit(root, 'osfmk/kern/task.c',
+         '\tis_write_unlock(task->itk_space);\n\t}\n}\n\nvoid __attribute__((noreturn))',
+         '\tis_write_unlock(task->itk_space);\n\t}\n'
+         '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+         '\t  thread_t k70t;\n'
+         '\t  queue_iterate(&task->threads, k70t, thread_t, task_threads) {\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread state", (uint64_t)(unsigned)k70t->state);\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread runq", (uint64_t)(unsigned long)k70t->runq);\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread bound", (uint64_t)(unsigned long)k70t->bound_processor);\n'
+         '\t\t  k70_formal_cpu_trace("P3 thread last cpu",\n'
+         '\t\t      (uint64_t)(k70t->last_processor ? (unsigned)k70t->last_processor->cpu_id : 0xffu));\n'
+         '\t\t  k70_formal_cpu_trace("P4 thread sched pri", (uint64_t)(int64_t)k70t->sched_pri);\n'
+         '\t\t  k70_formal_cpu_trace("P4 runq cpu id",\n'
+         '\t\t      (uint64_t)(k70t->runq ? (unsigned)k70t->runq->cpu_id : 0xffu));\n'
+         '\t\t  k70_formal_cpu_trace("P4 this cpu id", (uint64_t)(unsigned)current_processor()->cpu_id);\n'
+         '\t\t  k70_formal_cpu_trace("P4 runq active pri",\n'
+         '\t\t      (uint64_t)(k70t->runq && k70t->runq->active_thread ?\n'
+         '\t\t          (int64_t)k70t->runq->active_thread->sched_pri : -1));\n'
+         '\t\t  break;\n'
+         '\t  } }\n}\n\nvoid __attribute__((noreturn))')
+
+    # The wake is the suspect now: print the event the thread slept on, the
+    # event that is woken, and how many threads the wakeup actually released.
+    edit(root, 'osfmk/kern/task.c',
+         '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n\t\tthread_wakeup(task_get_return_wait_event(task));',
+         '\tif (flags & TCRW_CLEAR_INITIAL_WAIT) {\n'
+         '\t\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+         '\t\t  extern void *k70_pid1_task; k70_pid1_task = (void *)task;\n'
+         '\t\t  extern volatile uint32_t k70_f0, k70_f2, k70_f3, k70_f5;\n'
+         '\t\t  extern volatile int32_t k70_f1;\n'
+         '\t\t  k70_f0 = task->t_returnwaitflags;\n'
+         '\t\t  int k70woke = thread_wakeup(task_get_return_wait_event(task));\n'
+         '\t\t  k70_f1 = k70woke;\n'
+         '\t\t  k70_formal_cpu_trace("P2 wake event", (uint64_t)(unsigned long)task_get_return_wait_event(task));\n'
+         '\t\t  k70_formal_cpu_trace("P2 woke threads", (uint64_t)(unsigned)k70woke);\n'
+         '\t\t  k70_formal_cpu_trace("P2 returnwait flags", (uint64_t)task->t_returnwaitflags); }')
+    # F5: the flags just before the FINAL branch finishes.
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;',
+         '\t\t\tk70_f5 = task->t_returnwaitflags;\n'
+         '\t\t\tturnstile_cleanup();\n\t\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAITER;')
+    # Stages 20 to 24: how far the fault gets. vm_fault itself is entered, so the
+    # question is which wait inside it never returns.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\tfault_type = original_fault_type;\n\tmap = original_map;\n\tvm_map_lock_read(map);',
+         '\tfault_type = original_fault_type;\n\tmap = original_map;\n\tvm_map_lock_read(map);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 20; }')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\tvm_object_paging_begin(object);\n\n\tset_thread_pagein_error(cthread, 0);',
+         '\tvm_object_paging_begin(object);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 21; }\n\n\tset_thread_pagein_error(cthread, 0);')
+    # 25/26: the shared-to-exclusive upgrade that a write fault needs.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\tif (object_lock_type == OBJECT_LOCK_SHARED) {\n\t\t\tobject_lock_type = OBJECT_LOCK_EXCLUSIVE;',
+         '\t\t{ extern volatile uint32_t k70_stage; k70_stage = 25; }\n'
+         '\t\tif (object_lock_type == OBJECT_LOCK_SHARED) {\n\t\t\tobject_lock_type = OBJECT_LOCK_EXCLUSIVE;')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly',
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 26; }\n'
+         '\t\t\tif (vm_object_lock_upgrade(object) == FALSE) {\n\t\t\t\t/*\n\t\t\t\t * couldn\'t upgrade, so explictly')
+    # The user pmap bounds decide whether the page table walk can ever succeed:
+    # pmap_ttne rejects any address outside [min, max). A zero max makes every
+    # walk fail, the expand loop retry forever and the page table pages run out.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\tp->max = pmap_user_va_size(p);',
+         '\tp->max = pmap_user_va_size(p);\n'
+         '\t{ extern volatile uint64_t k70_va_bits, k70_va_max;\n'
+         '\t  k70_va_bits = (uint64_t)pmap_user_va_bits(p); k70_va_max = (uint64_t)p->max;\n'
+         '\t  if (p->max == 0) { p->max = (1ULL << (64 - T0SZ_BOOT)); k70_va_max = (uint64_t)p->max; } }')
+    # 35: count the expand retries and keep the last status. A loop that expands
+    # successfully but still finds no pte spins forever with every counter frozen.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\tkr = pmap_expand(pmap, v, options, pt_attr_leaf_level(pt_attr));',
+         '\t\t{ extern volatile uint32_t k70_tt_fail; k70_tt_fail++; }\n'
+         '\t\tkr = pmap_expand(pmap, v, options, pt_attr_leaf_level(pt_attr));\n'
+         '\t\t{ extern volatile uint32_t k70_tt_pre; k70_tt_pre = (uint32_t)kr; }')
+    # 34: the page table allocation that fails and then waits forever.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\twhile (pmap_tt_allocate(pmap, &tt_p, ttlevel + 1, ((options & PMAP_TT_ALLOCATE_NOWAIT)? PMAP_PAGES_ALLOCATE_NOWAIT : 0)) != KERN_SUCCESS) {',
+         '\t\t\twhile (pmap_tt_allocate(pmap, &tt_p, ttlevel + 1, ((options & PMAP_TT_ALLOCATE_NOWAIT)? PMAP_PAGES_ALLOCATE_NOWAIT : 0)) != KERN_SUCCESS) {\n'
+         '\t\t\t\t{ extern volatile uint32_t k70_tt_fail, k70_tt_pre, k70_stage;\n'
+         '\t\t\t\t  k70_tt_fail++; k70_tt_pre = (uint32_t)preemption_enabled(); k70_stage = 34; }')
+    # 32: the copy-on-write page grab inside the fast path, which asks the free
+    # list for a page and can block there.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\tcur_m = m;\n\t\t\tm = vm_page_grab_options(grab_options);',
+         '\t\t\tcur_m = m;\n'
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 32; }\n'
+         '\t\t\tm = vm_page_grab_options(grab_options);')
+    # pv_alloc never returns, and its tail re-acquires two locks. Mark every step so
+    # the last one reached names the exact blocking call.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tif ((kr = pve_feed_page(alloc_flags)) == KERN_SUCCESS) {',
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 1; }\n'
+         '\tkr = pve_feed_page(alloc_flags);\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 2; }\n'
+         '\tif (kr == KERN_SUCCESS) {')
+    # The argv block is written with copyout, whose fault path stalls inside pmap in
+    # this port. Fault the page in from here instead, where preemption is enabled and
+    # the same pmap calls complete.
+    edit(root, 'bsd/kern/kern_exec.c',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);',
+         '\t(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);\n'
+         '\t{ extern kern_return_t vm_map_wire_kernel(vm_map_t, vm_map_offset_t, vm_map_offset_t, vm_prot_t, vm_tag_t, boolean_t);\n'
+         '\t  extern volatile uint32_t k70_wire_rc;\n'
+         '\t  k70_wire_rc = (uint32_t)vm_map_wire_kernel(map, (vm_map_offset_t)scratch_addr,\n'
+         '\t      (vm_map_offset_t)(scratch_addr + map_page_size),\n'
+         '\t      VM_PROT_READ | VM_PROT_WRITE, VM_KERN_MEMORY_BSD, FALSE); }')
+    # pv_alloc starts with pv_list_alloc, which touches per-cpu data and a global
+    # batch lock. Mark the entry, the per-cpu lookup and the batch fetch.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tassert((pvepp != NULL) && (*pvepp == PV_ENTRY_NULL));\n\n\tif (pmap != NULL) {\n\t\tpmap_assert_locked(pmap, lock_mode);',
+         '\tassert((pvepp != NULL) && (*pvepp == PV_ENTRY_NULL));\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 7; }\n\n'
+         '\tif (pmap != NULL) {\n\t\tpmap_assert_locked(pmap, lock_mode);')
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tpmap_cpu_data_t *pmap_cpu_data = pmap_get_cpu_data();\n\tpv_free_list_alloc(&pmap_cpu_data->pv_free, pvepp);',
+         '\tpmap_cpu_data_t *pmap_cpu_data = pmap_get_cpu_data();\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 8; }\n'
+         '\tpv_free_list_alloc(&pmap_cpu_data->pv_free, pvepp);\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 9; }')
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tpv_entry_t *new_batch = pv_free_array_get_batch();',
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 10; }\n'
+         '\tpv_entry_t *new_batch = pv_free_array_get_batch();\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 11; }')
+    # The tail of pv_alloc re-acquires two locks after the page feed. Mark each
+    # acquisition so the last value names the one that never completes.
+    edit(root, 'osfmk/arm/pmap/pmap_data.c',
+         '\tif (pmap != NULL) {\n\t\tpmap_lock(pmap, lock_mode);\n\t}\n\tpvh_lock(pai);',
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 3; }\n'
+         '\tif (pmap != NULL) {\n'
+         '\t\tpmap_lock(pmap, lock_mode);\n'
+         '\t\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 4; }\n\t}\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 5; }\n\tpvh_lock(pai);\n'
+         '\t{ extern volatile uint32_t k70_pv_stage; k70_pv_stage = 6; }')
+    # 36: the pte loop finished and a leaf entry was found. Everything after this
+    # point is bookkeeping that can allocate or lock, so the boundary matters.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\tif (options & PMAP_OPTIONS_NOENTER) {',
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 36; }\n'
+         '\tif (options & PMAP_OPTIONS_NOENTER) {')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\tpv_status = pv_alloc(pmap, pai, lock_mode, options, &new_pve_p[new_allocated_pves]);',
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 37; }\n'
+         '\t\t\tpv_status = pv_alloc(pmap, pai, lock_mode, options, &new_pve_p[new_allocated_pves]);\n'
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 38; }')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\tlocal_pv_free = &pmap_get_cpu_data()->pv_free;\n\t\t\tpv_entry_t **pv_h = pai_to_pvh(pai);',
+         '\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 39; }\n'
+         '\t\t\tlocal_pv_free = &pmap_get_cpu_data()->pv_free;\n\t\t\tpv_entry_t **pv_h = pai_to_pvh(pai);')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\t\twhile (new_allocated_pves < 2) {',
+         '\t\t\t\t{ extern volatile uint32_t k70_stage, k70_pv_loops, k70_pv_status, k70_pv_count;\n'
+         '\t\t\t\t  extern void *k70_pv_cpu(void);\n'
+         '\t\t\t\t  k70_pv_loops++; k70_stage = 40;\n'
+         '\t\t\t\t  k70_pv_count = (uint32_t)local_pv_free->count; }\n'
+         '\t\t\t\twhile (new_allocated_pves < 2) {')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\t\t\t\t\tif (pv_status == PV_ALLOC_FAIL) {\n\t\t\t\t\t\tbreak;',
+         '\t\t\t\t\t{ extern volatile uint32_t k70_stage, k70_pv_status; k70_pv_status = (uint32_t)pv_status; k70_stage = 41; }\n'
+         '\t\t\t\t\tif (pv_status == PV_ALLOC_FAIL) {\n\t\t\t\t\t\tbreak;')
+    # 30/31: pmap_enter takes its own lock and may expand the page tables first.
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;',
+         '\t{ extern volatile uint32_t k70_stage, k70_pv_stage; k70_stage = 30; k70_pv_stage = 0;\n'
+         '\t  if (pmap->max == 0) { pmap->min = 0; pmap->max = (1ULL << (64 - T0SZ_BOOT));\n'
+         '\t      { extern volatile uint32_t k70_fix_count; k70_fix_count++; } }\n'
+         '\t  extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
+         '\t  extern volatile uint32_t k70_plevel, k70_proot;\n'
+         '\t  k70_pv = (uint64_t)v; k70_pmin = (uint64_t)pmap->min; k70_pmax = (uint64_t)pmap->max;\n'
+         '\t  { extern volatile uint64_t k70_ptte; k70_ptte = (uint64_t)(unsigned long)pmap->tte; }\n'
+         '\t  { extern volatile uint32_t k70_free_pages; extern unsigned int vm_page_free_count;\n'
+         '\t    k70_free_pages = (uint32_t)vm_page_free_count; }\n'
+         '\t  k70_plevel = pt_attr_leaf_level(pt_attr); k70_proot = pt_attr->pta_root_level; }\n'
+         '\tif (!pmap_lock_preempt(pmap, lock_mode)) {\n\t\treturn KERN_ABORTED;')
+    edit(root, 'osfmk/arm/pmap/pmap.c',
+         '\twhile ((pte_p = pmap_pte(pmap, v)) == PT_ENTRY_NULL) {',
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 31; }\n'
+         '\twhile ((pte_p = pmap_pte(pmap, v)) == PT_ENTRY_NULL) {')
+    # 27: the paging reference taken just before the fast path hands the page to
+    # pmap; 28: entering vm_fault_enter itself.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\tm = vm_page_lookup(cur_object, vm_object_trunc_page(cur_offset));',
+         '\t\t{ extern volatile uint32_t k70_stage; k70_stage = 27; }\n'
+         '\t\tm = vm_page_lookup(cur_object, vm_object_trunc_page(cur_offset));')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tk r = vm_fault_enter(m,'.replace('\tk r','\tkr'),
+         '\t\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 28; }\n\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,',
+         '\t\t\t\t{ extern volatile uint32_t k70_stage; k70_stage = 28; }\n'
+         '\t\t\t\tif (caller_pmap) {\n\t\t\t\t\tkr = vm_fault_enter(m,')
+    # The lookup is the last thing before 21, so mark its result explicitly.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t    &real_map,\n\t    &object_is_contended);',
+         '\t    &real_map,\n\t    &object_is_contended);\n'
+         '\t{ extern volatile uint32_t k70_stage, k70_fault_kr; k70_fault_kr = (uint32_t)kr; k70_stage = 24; }')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\tresult_page = VM_PAGE_NULL;\n\tkr = vm_fault_page(object, offset, fault_type,',
+         '\tresult_page = VM_PAGE_NULL;\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 22; }\n'
+         '\tkr = vm_fault_page(object, offset, fault_type,')
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\t    &error_code, map->no_zero_fill,\n\t    &fault_info);',
+         '\t    &error_code, map->no_zero_fill,\n\t    &fault_info);\n'
+         '\t{ extern volatile uint32_t k70_stage; k70_stage = 23; }')
+    # Count the faults: the copyout into the new task hangs, and a fault storm at
+    # one address and no fault at all mean very different things.
+    edit(root, 'osfmk/vm/vm_fault.c',
+         '\treturn vm_fault_internal(map, vaddr, fault_type, change_wiring, wire_tag,',
+         '\t{ extern volatile uint32_t k70_faults; extern volatile uint64_t k70_fault_addr;\n'
+         '\t  k70_faults++; k70_fault_addr = (uint64_t)vaddr; }\n'
+         '\treturn vm_fault_internal(map, vaddr, fault_type, change_wiring, wire_tag,')
+    # F2/F3: what the flags look like around the clear in the FINAL branch.
+    edit(root, 'osfmk/kern/task.c',
+         '\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAIT;',
+         '\t\tk70_f2 = task->t_returnwaitflags;\n'
+         '\t\ttask->t_returnwaitflags &= ~TRW_LRETURNWAIT;\n'
+         '\t\tk70_f3 = task->t_returnwaitflags;')
+    # Does the scheduler ever receive this thread? A runnable thread that the
+    # run queue never sees and one that is inserted but never chosen need
+    # different fixes, and only a counter in thread_setrun tells them apart.
+    edit(root, 'osfmk/kern/sched_prim.c',
+         '\tprocessor_t                     processor = PROCESSOR_NULL;\n\tprocessor_set_t         pset;',
+         '\tprocessor_t                     processor = PROCESSOR_NULL;\n\tprocessor_set_t         pset;\n'
+         '\t{ extern void k70_formal_cpu_trace(const char *, uint64_t);\n'
+         '\t  extern void *k70_pid1_task;\n'
+         '\t  static unsigned k70_setrun_hits;\n'
+         '\t  if (k70_pid1_task && (void *)thread->t_tro->tro_task == k70_pid1_task) {\n'
+         '\t\t  k70_setrun_hits++;\n'
+         '\t\t  if (k70_setrun_hits <= 3) {\n'
+         '\t\t\t  k70_formal_cpu_trace("P5 setrun pid1", (uint64_t)k70_setrun_hits); } } }')
+    # B: the wait and the block results, counted where the init thread waits.
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\twaitq_assert_wait64(&turnstile->ts_waitq,',
+         '\t\t\tk70_b_iter++;\n'
+         '\t\t\twait_result_t k70_wr = waitq_assert_wait64(&turnstile->ts_waitq,')
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\t    THREAD_UNINT, TIMEOUT_WAIT_FOREVER);',
+         '\t\t\t    THREAD_UNINT, TIMEOUT_WAIT_FOREVER);\n'
+         '\t\t\tk70_b_wr = (int32_t)k70_wr;')
+    edit(root, 'osfmk/kern/task.c',
+         '\t\t\tthread_block(THREAD_CONTINUE_NULL);',
+         '\t\t\tk70_b_br = (int32_t)thread_block(THREAD_CONTINUE_NULL);')
+    # The init thread's first continuation is task_wait_to_return, not
+    # bsdinit_task. One line here answers whether it starts executing at all,
+    # without reading a Mach-private structure from a BSD file.
+    p = root / 'osfmk/kern/task.c'
+    p.write_text('#include <kern/boot_progress.h>\n'
+                 'void *k70_pid1_task;\n'
+                 'volatile uint32_t k70_pid1_ran;\n'
+                 'volatile uint32_t k70_f0, k70_f2, k70_f3, k70_f5;\n'
+                 'volatile int32_t k70_f1;\n'
+                 'volatile uint32_t k70_b_iter;\n'
+                 'volatile int32_t k70_b_wr, k70_b_br;\n' 
+                 'volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;\n' 
+                 'volatile uint32_t k70_stage, k70_exec_errno;\n'
+                 'volatile uint32_t k70_pv_stage;\n'
+                 'volatile uint32_t k70_wire_rc;\n'
+                 'volatile int32_t k70_copy_rc = -1;\n'
+                 'volatile uint32_t k70_faults, k70_fault_kr;\n'
+                 'volatile uint32_t k70_tt_fail, k70_tt_pre;\n'
+                 'volatile uint64_t k70_pv, k70_pmin, k70_pmax;\n'
+                 'volatile uint32_t k70_plevel, k70_proot, k70_pdump;\n'
+                 'volatile uint64_t k70_va_bits, k70_va_max;\n'
+                 'volatile uint32_t k70_fix_count;\n'
+                 'volatile uint64_t k70_ptte;\n'
+                 'volatile uint32_t k70_free_pages;\n'
+                 'volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;\n'
+                 'volatile uint64_t k70_fault_addr;\n' + p.read_text())
+    edit(root, 'osfmk/kern/task.c',
+         '\tis_write_lock(task->itk_space);\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {',
+         '\tis_write_lock(task->itk_space);\n\tk70_p6 = 1;\n\n\tif (task->t_returnwaitflags & TRW_LRETURNWAIT) {')
+    edit(root, 'osfmk/kern/task.c',
+         '\tis_write_unlock(task->itk_space);\n\tturnstile_cleanup();',
+         '\tk70_p7 = 1;\n\tis_write_unlock(task->itk_space);\n\tturnstile_cleanup();')
+    edit(root, 'osfmk/kern/task.c',
+         '\tthread_bootstrap_return();\n}',
+         '\tk70_p8 = 1;\n\tthread_bootstrap_return();\n}')
+    edit(root, 'osfmk/kern/task.c', 'task_wait_to_return(void)\n{',
+         'task_wait_to_return(void)\n{\n'
+         '\t{ extern volatile uint32_t k70_pid1_ran; k70_pid1_ran = 1; }\n'
+         '\tboot_progress_stage("P1 task_wait_to_return enter");')
+    # BSD: bsdinit_task reached, which is the last boundary before launchd.
+    edit(root, 'bsd/kern/bsd_init.c', 'bsdinit_task(void)\n{',
+         'bsdinit_task(void)\n{\n\t{ extern volatile uint32_t k70_bsd; k70_bsd = 1; }\n'
+         '\tboot_progress_stage("Q0 bsdinit_task enter");')
     name = 'iokit/bsddev/IOKitBSDInit.cpp'
     path = root / name
     path.write_text('extern "C" {\n#include <kern/boot_progress.h>\n}\n' + path.read_text())
@@ -187,6 +522,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     install_kext_logging(root)
     from userspace_bootstrap import install as install_userspace
     install_userspace(root)
+    from dw_origin_patch import install_diag as install_dw_diag
+    install_dw_diag(root)
 
 
 def integration_patch(core, source, font, staging):
@@ -205,11 +542,16 @@ def integration_patch(core, source, font, staging):
                   'makedefs/MakeInc.kernel', 'makedefs/MakeInc.rule', 'makedefs/MakeInc.def', 'osfmk/kern/Makefile', 'osfmk/kern/ast.c', 'osfmk/arm64/start.s', 'pexpert/arm/pe_serial.c',
                   'osfmk/arm/arm_init.c', 'osfmk/kern/startup.c', 'osfmk/console/video_console.c',
                   'osfmk/console/serial_console.c', 'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
-                  'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
+                  'osfmk/arm64/sleh.c', 'osfmk/arm64/copyio.c', 'osfmk/arm64/machine_routines_asm.s',
+                  'bsd/kern/kern_exec.c', 'bsd/kern/kern_ktrace.c',
                   'iokit/bsddev/IOKitBSDInit.cpp', 'bsd/kern/kern_fork.c',
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
-                  'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c'))
+                  'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/vm/vm_resident.c', 'osfmk/vm/vm_pageout.c', 'osfmk/arm/pmap/pmap.c',
+                  'bsd/kern/ubc_subr.c',
+                  'osfmk/arm/machine_routines_common.c',
+                  'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
@@ -286,6 +628,13 @@ def retarget_scripts(core, device, tree):
         if name == 'build-xnu-4k-baseline.sh':
             text = replace_once(text, ' "$ROOT"/kits/NativePrelink/patches/*.patch', '')
             text = text.replace('.unstripped.noctf', '.unstripped')
+            # Enable PAN instructions without changing the compiler's base CPU
+            # or enabling unrelated instructions for the BCM2837 build target.
+            pan_flags = 'EXTRA_CFLAGS="$EXTRA_CFLAGS -DXNU_NATIVE_PAN=$NATIVE_PAN"'
+            text = replace_once(text, pan_flags, pan_flags + '''
+if [ "$NATIVE_PAN" = "1" ]; then
+  EXTRA_CFLAGS="$EXTRA_CFLAGS -Xclang -target-feature -Xclang +pan"
+fi''')
         p.write_text(text)
     shutil.copy2(FORMAL / 'macho_asm.py', tree / 'scripts/k70_macho_asm.py')
     shutil.copy2(HERE / 'cpu_start_trace.py', tree / 'scripts/iphone16_cpu_start_trace.py')

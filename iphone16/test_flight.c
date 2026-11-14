@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include "K70Flight.h"
 #include "K70FlightCore.h"
 #include "K70FlightScreen.h"
 static uintptr_t frames[32];
@@ -21,6 +23,41 @@ static int probe(uint64_t va,uint64_t *pa,void *ctx) {
  *pa=m->pa+va-m->va;return 1;
 }
 int main(void) {
+ struct kf_pmap_assert pmap = {
+  .caller = UINT64_C(0xfffffff00738bc60), .ppnum = 0x891984,
+  .pvh = 2, .ptep = base, .pmap = base + 8, .stage = 12,
+  .owner = K70_PMAP_USER, .pte_read = 1,
+  .va = UINT64_C(0xfffffff0011a0000), .va_read = 1,
+  .free_caller = UINT64_C(0xfffffff007338c58),
+ };
+ const char *expected[] = {
+  "PMAP VA=fffffff0011a0000 PPN=0000000000891984",
+  "PMAP F=fffffff007338c58 UP=fffffff00738bc60",
+  "PMAP OWNER=USER MAP=fffffff001000008",
+  "PMAP PTEP=fffffff001000000 PTE=0000000000000000",
+ };
+ for (unsigned row = 0; row < 4; row++) {
+  struct kf_line line = {0};
+  kf_pmap_line(&line, &pmap, row);
+  assert(strcmp((const char *)line.data, expected[row]) == 0);
+ }
+ assert(kf_pmap_leaf_va(base, base + 0xd00) == pmap.va);
+ assert(kf_pmap_leaf_va(base + 4096, base + 0xd00) == 0);
+ assert(kf_pmap_leaf_va(0, base + 0xd00) == 0);
+ assert(kf_pmap_leaf_va(base, base + 0xd01) == 0);
+ struct kf_line unavailable_va = {0}, unavailable_f = {0}, unreadable = {0};
+ pmap.va_read = 0;
+ pmap.free_caller = 0;
+ kf_pmap_line(&unavailable_va, &pmap, 0);
+ kf_pmap_line(&unavailable_f, &pmap, 1);
+ assert(strcmp((const char *)unavailable_va.data,
+     "PMAP VA=UNAVAIL PPN=0000000000891984") == 0);
+ assert(strcmp((const char *)unavailable_f.data,
+     "PMAP F=UNAVAIL UP=fffffff00738bc60") == 0);
+ pmap.pte_read = 0;
+ kf_pmap_line(&unreadable, &pmap, 3);
+ assert(strcmp((const char *)unreadable.data,
+     "PMAP PTEP=fffffff001000000 PTE=UNREADABLE") == 0);
  struct kf_state s={0};
  for(unsigned i=0;i<16;i++){frames[i*2]=base+(i+1)*16;frames[i*2+1]=UINT64_C(0xfffffff007000000)+i*4;}
  kf_begin(&s,0x100,base,sizeof(frames));
@@ -53,5 +90,61 @@ int main(void) {
  m.valid=0;uint32_t saved=allocation[pixels];assert(!kf_screen_draw(&screen,&s,probe,&m));assert(allocation[pixels]==saved);
  FILE *f=fopen("flight-screen.ppm","wb");assert(f);fprintf(f,"P6\n%u %u\n255\n",width,height);
  for(size_t i=1;i<=pixels;i++){uint32_t v=allocation[i];unsigned char p[3]={(unsigned char)(v>>16),(unsigned char)(v>>8),(unsigned char)v};assert(fwrite(p,1,3,f)==3);}fclose(f);free(allocation);
- puts("PASS: return values, thread filter, wait/resume, panic priority, bounded/failed frame reads, independent guarded framebuffer stores");
+ /* ORIG v2 rows published by value inside the PMAP acceptance branch. */
+ struct kf_pmap_assert origrec = {0};
+ origrec.orig_published = 1;
+ origrec.orig.status = K70_ORIG_HIT;
+ origrec.orig.reason = K70_R_NONE;
+ origrec.orig.epoch = UINT64_C(0x0000000100000005);
+ origrec.orig.dw_count = 5;
+ origrec.orig.rec.dw_index = 0x1234;
+ origrec.orig.dw_caller = UINT64_C(0xfffffff007390f10);
+ origrec.orig.rec.object = UINT64_C(0xffffff0000000000);
+ origrec.orig.rec.offset = UINT64_C(0x0000000000000099);
+ origrec.orig.rec.ppn = 0x891994;
+ origrec.orig.rec.dw_mask = 0x40;
+ origrec.orig.rec.wire_count = 3;
+ origrec.orig.rec.flags = 0;
+ origrec.orig.rec.reserved = K70_DW_PF_KNOWN;
+ struct kf_line o18 = {0}, o19 = {0}, o20 = {0}, o21 = {0}, o22 = {0};
+ kf_orig_line(&o18, &origrec, 0);
+ kf_orig_line(&o19, &origrec, 1);
+ kf_orig_line(&o20, &origrec, 2);
+ kf_orig_line(&o21, &origrec, 3);
+ kf_orig_line(&o22, &origrec, 4);
+ assert(strcmp((const char *)o18.data,
+     "ORIGv2 HIT E=0000000100000005 I=00001234 N=00000005 R=00000000") == 0);
+ assert(strcmp((const char *)o19.data,
+     "PMAP ORIG DW_CALLER=fffffff007390f10") == 0);
+ assert(strcmp((const char *)o20.data,
+     "PMAP ORIG OBJ=ffffff0000000000 OFF=0000000000000099") == 0);
+ assert(strcmp((const char *)o21.data,
+     "PMAP ORIG P=00891994 D=00000040 W=00000003 F=00000000 K=000000ff") == 0);
+ assert(strcmp((const char *)o22.data,
+     "PMAP ORIG BATCH=00000000 UKN=0") == 0);
+ /* BAD_COUNT keeps the raw u32 pattern and the BAD marker on a HIT row. */
+ origrec.orig.reason = K70_R_BAD_COUNT;
+ origrec.orig.dw_count = 0xffffffffu;
+ origrec.orig.reserved = K70_DWC_BAD;
+ origrec.orig.rec.flags = 0xffffffffu;
+ origrec.orig.rec.reserved = 0x0fu;
+ struct kf_line bad18 = {0}, bad22 = {0};
+ kf_orig_line(&bad18, &origrec, 0);
+ kf_orig_line(&bad22, &origrec, 4);
+ assert(strcmp((const char *)bad18.data,
+     "ORIGv2 HIT E=0000000100000005 I=00001234 N=ffffffff R=BAD_CNT") == 0);
+ assert(strcmp((const char *)bad22.data,
+     "PMAP ORIG BATCH=00000001 UKN=1") == 0);
+ /* FLAGS_DEFINED semantics: UKN means "some defined bit is unknown", not "unknown bit is 1". */
+ struct kf_pmap_assert fz = {0};
+ fz.orig_published = 1;
+ struct kf_line u1 = {0}, u2 = {0}, u3 = {0};
+ fz.orig.rec.flags = 0; fz.orig.rec.reserved = 0; kf_orig_line(&u1, &fz, 4);
+ fz.orig.rec.flags = 0; fz.orig.rec.reserved = KF_FLAGS_DEFINED; kf_orig_line(&u2, &fz, 4);
+ fz.orig.rec.flags = 5; fz.orig.rec.reserved = 0x0f; kf_orig_line(&u3, &fz, 4);
+ assert(strstr((const char *)u1.data, "UKN=1") != NULL);
+ assert(strstr((const char *)u2.data, "UKN=0") != NULL);
+ assert(strstr((const char *)u3.data, "UKN=1") != NULL);
+
+ puts("PASS: return values, thread filter, wait/resume, panic priority, bounded/failed frame reads, independent guarded framebuffer stores, ORIG v2 rows and flags-known");
 }

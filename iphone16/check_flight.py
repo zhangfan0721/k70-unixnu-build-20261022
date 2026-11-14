@@ -32,7 +32,7 @@ extern uintptr_t thread_get_kernel_stack(thread_t);
                     '-I'+str(fixture),*includes,'-c',str(HERE/'K70FlightKernel.c'),'-o',str(obj)],check=True)
     undefined=subprocess.check_output(['llvm-nm','-u',str(obj)],text=True)
     allowed={'_current_thread','_kernel_stack_size','_thread_get_kernel_stack','_ml_get_max_cpu_number','_bzero','_memcpy','_memset',
-             '___stack_chk_guard','___stack_chk_fail'}
+             '___stack_chk_guard','___stack_chk_fail','_k70_stage'}
     actual={line.split()[-1] for line in undefined.splitlines() if line.split()}
     if actual-allowed:raise ValueError('Unexpected recorder dependency: '+str(actual-allowed))
     asm=subprocess.check_output(['llvm-objdump','-d',str(obj)],text=True).lower()

@@ -1,0 +1,39 @@
+--- a/osfmk/prng/prng_random.c
++++ b/osfmk/prng/prng_random.c
+@@ -264,7 +264,15 @@
+ register_and_init_prng(struct cckprng_ctx *ctx, const struct cckprng_funcs *funcs)
+ {
+ 	assert(cpu_number() == master_cpu);
+-	assert(!prng_ready);
++
++	/*
++	 * The original corecrypto kext registers the generator from its module
++	 * initialisers and again from its start routine. The first registration wins;
++	 * the second must not panic the machine.
++	 */
++	if (prng_ready) {
++		return;
++	}
+ 
+ 	entropy_init();
+ 
+@@ -441,6 +449,19 @@
+ 		.version = "14.0",
+ 	};
+ 	uint32_t mode = 0;
++	uint32_t defer = 0;
++
++	extern void boot_progress_stage(const char *);
++
++	/*
++	 * With the original corecrypto kext prelinked, starting the source copy here
++	 * would run two corecrypto instances and the kext would then jump through a
++	 * stale pointer. k70nocc14=1 leaves the initialisation to the kext.
++	 */
++	if (PE_parse_boot_argn("k70nocc14", &defer, sizeof(defer)) && defer != 0) {
++		boot_progress_stage("source corecrypto deferred to the kext");
++		return;
++	}
+ 
+ 	if (PE_parse_boot_argn("fips_mode", &mode, sizeof(mode)) && mode != 0) {
+ 		panic("source corecrypto verification requires complete default POST");

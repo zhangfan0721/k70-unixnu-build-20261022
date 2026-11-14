@@ -99,10 +99,65 @@ void k70_formal_early(void *opaque);
 static const char *k70_cpu_first_refusal;
 static uint64_t k70_cpu_refusal_value;
 
+/* Written from XNU's C sources and read by the timer thread. This file is
+ * included into a C++ translation unit, so the definitions need C linkage or
+ * the injected extern declarations resolve to a different symbol and every
+ * stage mark silently disappears. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+volatile uint32_t k70_window_reads;
+volatile uint64_t k70_window_last_daif;
+volatile uint32_t k70_stage_mark;
+extern volatile uint32_t k70_pid1_ran;
+extern volatile uint32_t k70_f0, k70_f2, k70_f3, k70_f5;
+extern volatile int32_t k70_f1;
+extern volatile uint32_t k70_b_iter;
+extern volatile int32_t k70_b_wr, k70_b_br;
+extern volatile uint32_t k70_p6, k70_p7, k70_p8, k70_bsd;
+extern volatile uint32_t k70_stage, k70_exec_errno;
+extern unsigned int startup_phase;
+extern volatile uint32_t k70_pv_stage;
+extern volatile uint32_t k70_wire_rc;
+extern volatile int32_t k70_copy_rc;
+boolean_t preemption_enabled(void);
+int get_preemption_level(void);
+extern volatile uint32_t k70_faults, k70_fault_kr;
+extern volatile uint32_t k70_tt_fail, k70_tt_pre;
+extern volatile uint64_t k70_pv, k70_pmin, k70_pmax;
+extern volatile uint64_t k70_va_bits, k70_va_max;
+extern volatile uint32_t k70_fix_count;
+extern volatile uint64_t k70_ptte;
+extern volatile uint32_t k70_free_pages;
+extern volatile uint32_t k70_pv_loops, k70_pv_status, k70_pv_count;
+extern volatile uint32_t k70_plevel, k70_proot, k70_pdump;
+#ifdef __cplusplus
+}
+#endif
+
 /* Called by the formal ArmCpu BUILD COPY. Uses the existing nonblocking
  * renderer; no MMIO, allocation, sleeping, or scheduler policy changes. */
 void k70_formal_cpu_trace(const char *stage, uint64_t value)
 {
+    /* Every trace repaints the console, and one SCSI command can emit a dozen
+     * of them. Once the boot starts reading the root volume that flood starves
+     * the machine: the timer thread stops ticking and the board resets. The
+     * first commands stay fully visible, the rest are sampled. */
+    static unsigned k70_trace_calls;
+    /* Only the transport floods: one disk command emits a dozen lines and a
+     * boot reads thousands of commands. Everything else prints in full, so the
+     * PID 1 boundary lines cannot be sampled away. */
+    if (stage[0] == 'U' && stage[1] == 'F' && stage[2] == 'S') {
+        unsigned call = ++k70_trace_calls;
+        if (call > 120 && (call & 63u)) {
+            k70_window_reads++;
+            return;
+        }
+        k70_window_reads++;
+        uint64_t daif;
+        __asm__ volatile ("mrs %0, daif" : "=r" (daif));
+        k70_window_last_daif = daif;
+    }
     if (stage[0] == 'F' && !k70_cpu_first_refusal) {
         k70_cpu_first_refusal = stage;
         k70_cpu_refusal_value = value;
@@ -141,6 +196,7 @@ static int k70_formal_claim_worker(void)
  * had another opportunity to run. Reads existing RAM counters only. */
 void k70_formal_cpu_summary(void)
 {
+    k70_stage_mark = k70_stage_mark ? k70_stage_mark : 100;  /* adapter can write it */
     k70_formal_cpu_trace("late platform configured", armdt_platform_configured);
     k70_formal_cpu_trace("late CPU nubs", armdt_platform_cpu_count);
     k70_formal_cpu_trace("late CPU registered", armcpu_registered);
@@ -162,14 +218,64 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         char line[BP_MAX_COLS + 1];
         struct bp_out out;
         bp_out_begin(&out, line);
-        bp_out_puts(&out, "THREAD turn=");
-        bp_out_dec(&out, ++k70_formal_thread_turn);
-        bp_out_puts(&out, " GIC=");
-        bp_out_dec(&out, armcpu_gic_ready);
-        bp_out_puts(&out, " TIMER=");
-        bp_out_dec(&out, armcpu_timer_interrupts);
+        k70_formal_thread_turn++;
         if (k70_formal_thread_turn >= 2) { k70_formal_milestones |= 8; }
         if (armcpu_timer_interrupts) { k70_formal_milestones |= 16; }
+        /* One line per second, fixed width, no per-command output. It answers
+         * the only question a reset leaves open: were timer interrupts still
+         * arriving, and how far had the boot got. */
+        bp_out_puts(&out, "S");
+        bp_out_dec(&out, k70_stage_mark);
+        bp_out_puts(&out, " T");
+        bp_out_dec(&out, (uint32_t)armcpu_timer_interrupts);
+        bp_out_puts(&out, " H");
+        bp_out_dec(&out, (uint32_t)k70_formal_thread_turn);
+        bp_out_puts(&out, " U");
+        bp_out_dec(&out, (uint32_t)k70_window_reads);
+        bp_out_puts(&out, " G");
+        bp_out_dec(&out, (uint32_t)k70_stage);
+        bp_out_puts(&out, " S");
+        bp_out_dec(&out, (uint32_t)startup_phase);
+        bp_out_puts(&out, " P");
+        bp_out_dec(&out, (uint32_t)k70_pv_stage);
+        bp_out_puts(&out, " W");
+        bp_out_dec(&out, (uint32_t)k70_wire_rc);
+        bp_out_puts(&out, " C");
+        /* -1 means not entered, -2 means the first copyout is in flight. */
+        int32_t copy_rc = k70_copy_rc;
+        if (copy_rc == -1) {
+            bp_out_puts(&out, "-");
+        } else if (copy_rc == -2) {
+            bp_out_puts(&out, "?");
+        } else {
+            bp_out_dec(&out, (uint32_t)copy_rc);
+        }
+        bp_out_puts(&out, "/");
+        bp_out_dec(&out, (uint32_t)preemption_enabled());
+        bp_out_puts(&out, "/");
+        bp_out_dec(&out, (uint32_t)get_preemption_level());
+        bp_out_puts(&out, " T");
+        bp_out_dec(&out, (uint32_t)k70_tt_fail);
+        bp_out_dec(&out, (uint32_t)k70_fix_count);
+        if (k70_tt_fail != 0) {
+            void k70_formal_cpu_trace(const char *, uint64_t);
+            switch ((unsigned)(k70_formal_thread_turn % 9u)) {
+            case 0u: k70_formal_cpu_trace("Z1 pmap v", k70_pv); break;
+            case 1u: k70_formal_cpu_trace("Z2 pmap min", k70_pmin); break;
+            case 2u: k70_formal_cpu_trace("Z3 pmap max", k70_pmax); break;
+            case 3u: k70_formal_cpu_trace("Z4 levels leaf/root",
+                         ((uint64_t)k70_plevel << 8) | (uint64_t)k70_proot); break;
+            case 4u: k70_formal_cpu_trace("Z5 tt attempts", (uint64_t)k70_tt_fail); break;
+            case 5u: k70_formal_cpu_trace("Z6 va bits/max",
+                         (k70_va_bits << 56) | (k70_va_max >> 8)); break;
+            case 6u: k70_formal_cpu_trace("Z7 pmap root tte", k70_ptte); break;
+            case 7u: k70_formal_cpu_trace("Z8 free pages", (uint64_t)k70_free_pages); break;
+            default: k70_formal_cpu_trace("Z9 pv loops/status/count",
+                         ((uint64_t)k70_pv_loops << 40) | ((uint64_t)k70_pv_status << 20) | (uint64_t)k70_pv_count); break;
+            }
+        }
+        bp_out_puts(&out, " D");
+        bp_out_hex(&out, k70_window_last_daif, 2);
         boot_progress_stage(line);
         /* Each subsequent turn requires a scheduler wakeup after one second.
          * Unlike a busy counter loop this can establish continued scheduling. */
