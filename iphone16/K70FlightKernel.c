@@ -144,8 +144,26 @@ static int kf_pmap_assert_matches(const char *format, uintptr_t thread,
  return 1;
 }
 
+/* v33: copy the panic format string so the screen shows it without a serial port. */
+static void k70_panic_text_show(const char *format) {
+ char line[64];
+ unsigned i = 0;
+ extern void boot_progress_stage(const char *s);
+ if (format == 0) { return; }
+ line[i++] = 'P'; line[i++] = 'A'; line[i++] = 'N'; line[i++] = 'I'; line[i++] = 'C';
+ line[i++] = ' '; line[i++] = 'T'; line[i++] = 'X'; line[i++] = 'T'; line[i++] = ' ';
+ for (unsigned k = 0; k < 40u && i < sizeof(line) - 1u; k++) {
+  char c = format[k];
+  if (c == 0) { break; }
+  line[i++] = (c >= 32 && c < 127) ? c : '?';
+ }
+ line[i] = 0;
+ boot_progress_stage(line);
+}
+
 void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
  uint64_t mask=kf_mask();
+ k70_panic_text_show(format);
  struct kf_pmap_assert *record = &k70_flight_state.pmap_assert;
  if (k70_flight_state.kind != KF_PANIC && record->pending &&
      !kf_pmap_assert_matches(format, (uintptr_t)current_thread(), record)) {
