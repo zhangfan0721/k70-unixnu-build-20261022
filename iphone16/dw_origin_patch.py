@@ -176,6 +176,19 @@ def install(root):
     # v10: verify_write calls _bcopyout with PAN still set, so a DEBUG guard-page
     # check can never see EFAULT and retries the store forever. Clear and restore
     # PAN around the copy, exactly like copyout() does.
+    # v12: a copy that takes a fault can block inside the fault handler; when it
+    # resumes, PSTATE comes from the saved state and PAN is set again, so the very
+    # next store faults on permission instead of making progress. Hand the copy
+    # back with PAN clear, which is what user_access_enable did before the fault.
+    path = root / 'osfmk/arm64/sleh.c'
+    text = path.read_text()
+    _anchor = '\tbool recover = find_copyio_recovery_entry(state) != 0;'
+    assert text.count(_anchor) == 1
+    _add = (_anchor + '\n'
+            '\tif (recover) {\n'
+            '\t\tsaved_state64(state)->cpsr = saved_state64(state)->cpsr & ~(1ULL << 22);\n'
+            '\t}')
+    path.write_text(text.replace(_anchor, _add))
     path = root / 'osfmk/arm64/copyio.c'
     text = path.read_text()
     _old = ('\tint rc;\n'
