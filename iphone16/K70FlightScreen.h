@@ -124,8 +124,8 @@ static inline void kf_kabort_line(struct kf_line *l,unsigned row){
  const struct k70_kabort_rec *k=k70_kabort_get();
  if(row==0){kf_text(l,"KA1 ESR=");kf_hex8(l,k->esr);kf_text(l," FAR=");kf_hex(l,k->far);kf_text(l," N=");kf_hex8(l,k->count);}
  else if(row==1){kf_text(l,"KA1 PC=");kf_hex(l,k->pc);kf_text(l," CPSR=");kf_hex(l,k->cpsr);}
- else if(row==2){kf_text(l,"KA2 ESR=");kf_hex8(l,k->esr2);kf_text(l," FAR=");kf_hex(l,k->far2);kf_text(l," H=");kf_hex8(l,k->have2);}
- else{kf_text(l,"KA2 PC=");kf_hex(l,k->pc2);kf_text(l," CPSR=");kf_hex(l,k->cpsr2);}
+ else if(row==2){kf_text(l,"PEX ");kf_text(l,k70_pex_msg);}
+ else{kf_text(l,"PEXPC=");kf_hex(l,k70_pex_pc);kf_text(l," LR=");kf_hex(l,k70_pex_lr);}
 }
 static inline int kf_screen_bind(struct kf_screen *s,uintptr_t va,uint64_t pa,unsigned w,unsigned h,
  unsigned stride,unsigned depth,k70_probe probe,void *ctx) {

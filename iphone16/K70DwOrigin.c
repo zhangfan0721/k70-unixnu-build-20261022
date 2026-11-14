@@ -101,6 +101,29 @@ k70_stage_text_get(void)
 }
 
 static uintptr_t k70_worker_thread;
+char k70_pex_msg[41];
+uint64_t k70_pex_pc, k70_pex_lr;
+
+void
+k70_pex_note(const char *msg, uint64_t pc, uint64_t lr)
+{
+	unsigned i = 0;
+	k70_pex_pc = pc;
+	k70_pex_lr = lr;
+	if (msg == 0) {
+		k70_pex_msg[0] = 0;
+		return;
+	}
+	for (unsigned k = 0; k < 40u; k++) {
+		char c = msg[k];
+		if (c == 0) {
+			break;
+		}
+		k70_pex_msg[i++] = (c >= 32 && c < 127) ? c : '?';
+	}
+	k70_pex_msg[i] = 0;
+}
+
 static struct k70_role_rec k70_role_state[4];
 static volatile uint32_t k70_stage_bits;
 /* v28: the return value of load_machfile during the PID1 exec. */

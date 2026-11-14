@@ -173,6 +173,16 @@ def install(root):
                '\t      (uint64_t)get_saved_state_pc(&context->ss),\n'
                '\t      (uint64_t)get_saved_state_cpsr(&context->ss)); }\n')
     path.write_text(text[:_pos] + _inject + text[_pos:])
+    # v35: capture the reason and the saved state of the fatal kernel abort.
+    _pwx = '\npanic_with_thread_kernel_state(const char *msg, arm_saved_state_t *ss)\n{\n'
+    assert text.count(_pwx) == 1
+    text = text.replace(_pwx,
+        _pwx + '\t{ extern void k70_pex_note(const char *, uint64_t, uint64_t);\n'
+        '\t  if (is_saved_state64(ss)) {\n'
+        '\t      arm_saved_state64_t *s64 = saved_state64(ss);\n'
+        '\t      k70_pex_note(msg, (uint64_t)s64->pc, (uint64_t)s64->lr);\n'
+        '\t  } }\n')
+    path.write_text(text)
     # v10: verify_write calls _bcopyout with PAN still set, so a DEBUG guard-page
     # check can never see EFAULT and retries the store forever. Clear and restore
     # PAN around the copy, exactly like copyout() does.

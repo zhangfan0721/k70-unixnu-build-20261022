@@ -144,6 +144,10 @@ struct k70_kabort_rec {
  uint64_t esr2, far2, pc2, cpsr2;
  uint32_t count, have2;
 };
+/* v35: the kernel abort panic passes its reason and saved state here. */
+extern char k70_pex_msg[41];
+extern uint64_t k70_pex_pc, k70_pex_lr;
+void k70_pex_note(const char *msg, uint64_t pc, uint64_t lr);
 void k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr);
 const struct k70_kabort_rec *k70_kabort_get(void);
 
