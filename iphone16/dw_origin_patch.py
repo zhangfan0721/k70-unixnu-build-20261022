@@ -444,6 +444,21 @@ def install_diag(root):
         _ut + '    { extern void k70_trap_note(uint32_t, uint64_t);\n'
         '      k70_trap_note((uint32_t)pid, code); }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
+    # v37: this kernel runs without AMFI, so the amfi vtable is null and the
+    # first code-signature blob would dereference it and abort the kernel.
+    path = root / 'bsd/kern/ubc_subr.c'
+    text = path.read_text()
+    _acc = 'static errno_t\naccelerate_entitlement_queries(\n\tstruct cs_blob *cs_blob)\n{\n'
+    assert text.count(_acc) == 1, text.count(_acc)
+    text = text.replace(_acc,
+        _acc + '\tif (amfi == (void *)0) {\n'
+        '\t\treturn 0;\n'
+        '\t}\n')
+    _inv = 'amfi->OSEntitlements_invalidate(blob->csb_entitlements);'
+    if text.count(_inv) == 1:
+        text = text.replace(_inv,
+            'if (amfi != (void *)0) { amfi->OSEntitlements_invalidate(blob->csb_entitlements); }')
+    path.write_text(text)
     # v36: complete a fetched buffer; the residual was left at full length on
     # success, so every loader/namei read still looked short and became EIO.
     path = root / 'bsd/dev/memdev.c'
