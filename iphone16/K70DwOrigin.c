@@ -133,12 +133,21 @@ static volatile uint32_t k70_vn_site;
 static volatile int k70_vn_err = -1;
 static volatile int64_t k70_vn_resid;
 
+static volatile uint32_t k70_exec_last_bit;
+
 void
 k70_exec_mark(uint32_t bit)
 {
 	if (bit < 32u) {
 		k70_exec_bit_mask = k70_exec_bit_mask | (1u << bit);
+		k70_exec_last_bit = bit;
 	}
+}
+
+uint32_t
+k70_exec_last(void)
+{
+	return k70_exec_last_bit;
 }
 
 uint32_t

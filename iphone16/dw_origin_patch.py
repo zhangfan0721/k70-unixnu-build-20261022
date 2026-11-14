@@ -339,6 +339,12 @@ def install_diag(root):
         '            bp_out_hex(&ho, (uint32_t)tn, 8);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
+        '          { extern uint32_t k70_exec_last(void);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "MK ");\n'
+        '            bp_out_dec(&ho, k70_exec_last());\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern uint32_t k70_exec_bits(void);\n'
         '            bp_out_begin(&ho, hl);\n'
         '            bp_out_puts(&ho, "EXB ");\n'
@@ -444,6 +450,36 @@ def install_diag(root):
         _ut + '    { extern void k70_trap_note(uint32_t, uint64_t);\n'
         '      k70_trap_note((uint32_t)pid, code); }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
+    # v38: mark the steps inside load_machfile so a stall is never anonymous.
+    path = root / 'bsd/kern/mach_loader.c'
+    text = path.read_text()
+    _lm = ('load_machfile(\n'
+           '\tstruct image_params     *imgp,\n'
+           '\tstruct mach_header      *header,\n'
+           '\tthread_t                thread,\n'
+           '\tvm_map_t                *mapp,\n'
+           '\tload_result_t           *result\n'
+           '\t)\n{\n')
+    assert text.count(_lm) == 1, text.count(_lm)
+    text = text.replace(_lm, _lm +
+        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(5); }\n')
+    _pm = ('static\nload_return_t\nparse_machfile(\n'
+           '\tstruct vnode            *vp,\n'
+           '\tvm_map_t                map,\n'
+           '\tthread_t                thread,\n')
+    assert text.count(_pm) == 1, text.count(_pm)
+    _pmend = text.index(_pm) + len(_pm)
+    _brace = text.index('\n{\n', _pmend) + len('\n{\n')
+    text = text[:_brace] + '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(6); }\n' + text[_brace:]
+    _gmv = '\tret = get_macho_vnode(name, cputype, header,\n'
+    if text.count(_gmv) == 1:
+        text = text.replace(_gmv,
+            '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(7); }\n' + _gmv)
+    _cs = '\t\t\t\tret = load_code_signature(\n'
+    if text.count(_cs) == 1:
+        text = text.replace(_cs,
+            '\t\t\t\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(8); }\n' + _cs)
+    path.write_text(text)
     # v37: this kernel runs without AMFI, so the amfi vtable is null and the
     # first code-signature blob would dereference it and abort the kernel.
     path = root / 'bsd/kern/ubc_subr.c'
