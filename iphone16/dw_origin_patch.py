@@ -317,6 +317,12 @@ def install_diag(root):
         '              bp_out_hex(&ho, rr->lr, 16);\n'
         '              boot_progress_stage(hl);\n'
         '            } }\n'
+        '          { extern uint32_t k70_stage_mask(void);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "STAGES ");\n'
+        '            bp_out_hex(&ho, k70_stage_mask(), 8);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          bp_out_puts(&ho, "LAST ");\n'
         '          bp_out_puts(&ho, k70_stage_text_get());\n'
         '          boot_progress_stage(hl);\n'
@@ -374,6 +380,29 @@ def install_diag(root):
         '            boot_progress_stage(kal);\n'
         '        }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
+    # v24: mark the key boot spans so the heartbeat shows the last completed one.
+    path = root / 'osfmk/kern/startup.c'
+    text = path.read_text()
+    _pl = '\tPE_lockdown_iokit();\n'
+    assert text.count(_pl) == 1
+    text = text.replace(_pl,
+        '\t{ extern void k70_stage_set(uint32_t); k70_stage_set(0); }\n' + _pl +
+        '\t{ extern void k70_stage_set(uint32_t); k70_stage_set(1); }\n')
+    path.write_text(text)
+
+    path = root / 'bsd/kern/bsd_init.c'
+    text = path.read_text()
+    _vm = '\t\tif (0 == (err = vfs_mountroot())) {\n'
+    assert text.count(_vm) == 1
+    text = text.replace(_vm,
+        '\t\t{ extern void k70_stage_set(uint32_t);\n'
+        '\t\t  k70_stage_set(2); err = vfs_mountroot(); k70_stage_set(3); }\n'
+        '\t\tif (0 == err) {\n')
+    _li = '\tload_init_program(p);\n'
+    if text.count(_li) == 1:
+        text = text.replace(_li,
+            '\t{ extern void k70_stage_set(uint32_t); k70_stage_set(4); }\n' + _li)
+    path.write_text(text)
     # v23: tag the three boot threads by role at their entry points.
     path = root / 'osfmk/kern/startup.c'
     text = path.read_text()

@@ -167,6 +167,9 @@ struct k70_role_rec {
  uint64_t hit, blocks;
 };
 void k70_role_note(uint32_t role, uintptr_t thread);
+/* v24: one bit per reached stage, so the last completed span is visible. */
+void k70_stage_set(uint32_t bit);
+uint32_t k70_stage_mask(void);
 const struct k70_role_rec *k70_role_get(uint32_t role);
 const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);

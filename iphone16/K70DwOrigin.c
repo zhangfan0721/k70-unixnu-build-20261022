@@ -90,6 +90,21 @@ k70_stage_text_get(void)
 
 static uintptr_t k70_worker_thread;
 static struct k70_role_rec k70_role_state[4];
+static volatile uint32_t k70_stage_bits;
+
+void
+k70_stage_set(uint32_t bit)
+{
+	if (bit < 32u) {
+		k70_stage_bits = k70_stage_bits | (1u << bit);
+	}
+}
+
+uint32_t
+k70_stage_mask(void)
+{
+	return k70_stage_bits;
+}
 
 void
 k70_role_note(uint32_t role, uintptr_t thread)
