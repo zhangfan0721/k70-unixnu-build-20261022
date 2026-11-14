@@ -48,6 +48,12 @@ k70_stage_is_real(const char *s)
 	if (s[0] == 'K' && s[1] == 'A') {
 		return 0;
 	}
+	if (s[0] == 'S' && s[1] >= '0' && s[1] <= '9') {
+		return 0;
+	}
+	if (s[0] == 'C' && s[1] == 'O' && s[2] == 'P' && s[3] == 'Y') {
+		return 0;
+	}
 	for (i = 0; s[i] != 0; i++) {
 		if (s[i] == '=') {
 			return 0;
@@ -76,10 +82,23 @@ k70_stage_text_get(void)
 	return k70_stage_buf;
 }
 
+static uintptr_t k70_worker_thread;
+
+void
+k70_worker_note(uintptr_t thread)
+{
+	k70_worker_thread = thread;
+}
+
 void
 k70_wait_note(uintptr_t thread, uintptr_t event, uintptr_t lr)
 {
 	volatile struct k70_wait_rec *w = &k70_wait_state;
+	/* v21: the diagnostics worker itself blocks constantly in the console path;
+	 * ignoring it leaves the site that actually matters. */
+	if (thread != 0 && thread == k70_worker_thread) {
+		return;
+	}
 	w->thread = thread;
 	w->event = event;
 	w->lr = lr;

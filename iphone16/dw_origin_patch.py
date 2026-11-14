@@ -282,6 +282,12 @@ def install_diag(root):
         '          } }\n')
     # v17: remember the last boot stage text so the heartbeat can show where the
     # boot actually stopped, even after the line itself scrolled away.
+    # v21: remember the diagnostic worker so its own blocking does not hide the
+    # thread that actually matters.
+    _wk = '        thread_deallocate(worker);\n'
+    assert text.count(_wk) == 1
+    text = text.replace(_wk,
+        '        { extern void k70_worker_note(uintptr_t); k70_worker_note((uintptr_t)worker); }\n' + _wk)
     # v18: the caller often passes a stack buffer, so copy the text instead of
     # keeping the borrowed pointer, and print the wait snapshot beside it.
     _bps = 'void boot_progress_stage(const char *s) {\n'

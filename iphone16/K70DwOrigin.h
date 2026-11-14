@@ -156,6 +156,7 @@ struct k70_wait_rec {
  uint64_t count;
 };
 void k70_wait_note(uintptr_t thread, uintptr_t event, uintptr_t lr);
+void k70_worker_note(uintptr_t thread);
 const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
