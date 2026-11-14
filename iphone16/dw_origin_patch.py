@@ -275,7 +275,11 @@ def install_diag(root):
         '              int qv = 0;\n'
         '              k70_quiet = PE_parse_boot_argn("k70quiet", &qv, sizeof(qv)) ? (qv != 0) : 0;\n'
         '          }\n'
-        '          if (k70_quiet) { delay(100); continue; } }\n')
+        '          static unsigned k70_qn;\n'
+        '          if (k70_quiet) {\n'
+        '              k70_qn++;\n'
+        '              if ((k70_qn % 40u) != 0u) { delay(100); continue; }\n'
+        '          } }\n')
     _anchor = 'uint32_t vm_count = __atomic_load_n(&k70_copyout_vm_done, __ATOMIC_ACQUIRE);'
     assert text.count(_anchor) == 1
     _print = (
