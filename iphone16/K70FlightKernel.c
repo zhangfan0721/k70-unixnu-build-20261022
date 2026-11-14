@@ -157,6 +157,10 @@ void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
  kf_restore(mask);
 }
 void k70_flight_wait(uintptr_t thread,uintptr_t event,uint64_t state,uintptr_t caller,uintptr_t fp) {
+ /* v18: keep the last blocking site for the heartbeat, regardless of which
+  * thread blocks and whether the flight record is active. */
+ { extern void k70_wait_note(uintptr_t, uintptr_t, uintptr_t);
+   k70_wait_note(thread, event, caller); }
  /* The scheduler call site checks its private TH_WAIT flag before calling. */
  if(!k70_flight_state.active || thread!=k70_flight_state.target)return;
  uint64_t mask=kf_mask();

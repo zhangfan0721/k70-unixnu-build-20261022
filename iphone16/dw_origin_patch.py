@@ -282,17 +282,25 @@ def install_diag(root):
         '          } }\n')
     # v17: remember the last boot stage text so the heartbeat can show where the
     # boot actually stopped, even after the line itself scrolled away.
+    # v18: the caller often passes a stack buffer, so copy the text instead of
+    # keeping the borrowed pointer, and print the wait snapshot beside it.
     _bps = 'void boot_progress_stage(const char *s) {\n'
     assert text.count(_bps) == 1
     text = text.replace(_bps,
-        'const char *k70_last_stage_text;\n'
         'void boot_progress_stage(const char *s) {\n'
-        '    k70_last_stage_text = s;\n')
+        '    { extern void k70_stage_text_note(const char *); k70_stage_text_note(s); }\n')
     _hb = '        char line[BP_MAX_COLS + 1];\n        struct bp_out out;\n'
     assert text.count(_hb) == 1
     text = text.replace(_hb,
-        '        { extern const char *k70_last_stage_text;\n'
-        '          kprintf("LAST <%s>\\n", k70_last_stage_text ? k70_last_stage_text : "(none)");\n'
+        '        { extern const char *k70_stage_text_get(void);\n'
+        '          extern uint64_t k70_user_fault_count(void);\n'
+        '          extern const struct k70_wait_rec *k70_wait_get(void);\n'
+        '          const struct k70_wait_rec *wr = k70_wait_get();\n'
+        '          kprintf("LAST <%s> F=%llu W=%llx/%llx/%llx N%llu\\n",\n'
+        '              k70_stage_text_get(),\n'
+        '              (unsigned long long)k70_user_fault_count(),\n'
+        '              (unsigned long long)wr->thread, (unsigned long long)wr->event,\n'
+        '              (unsigned long long)wr->lr, (unsigned long long)wr->count);\n'
         '        }\n' + _hb)
     _anchor = 'uint32_t vm_count = __atomic_load_n(&k70_copyout_vm_done, __ATOMIC_ACQUIRE);'
     assert text.count(_anchor) == 1

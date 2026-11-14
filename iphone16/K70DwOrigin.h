@@ -146,6 +146,18 @@ struct k70_kabort_rec {
 };
 void k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr);
 const struct k70_kabort_rec *k70_kabort_get(void);
+
+/* v18: safe snapshots. The stage text is copied, the wait slot is written by the
+ * blocking entry, and the user-fault counter grows on every user-target abort. */
+void k70_stage_text_note(const char *s);
+const char *k70_stage_text_get(void);
+struct k70_wait_rec {
+ uintptr_t thread, event, lr;
+ uint64_t count;
+};
+void k70_wait_note(uintptr_t thread, uintptr_t event, uintptr_t lr);
+const struct k70_wait_rec *k70_wait_get(void);
+uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
 void k70_dw_try_begin(uintptr_t thread, uintptr_t input_object, uintptr_t dw_caller,

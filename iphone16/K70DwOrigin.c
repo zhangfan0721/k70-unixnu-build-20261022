@@ -25,6 +25,53 @@ static struct k70_kabort_rec k70_kabort_state;
 /* v13: where ml_set_max_cpus is stuck, printed by the diagnostics thread. */
 volatile uint32_t k70_max_cpus_phase;
 
+/* v18: copied stage text, last blocking thread, and the live user-fault count. */
+static char k70_stage_buf[48];
+static struct k70_wait_rec k70_wait_state;
+static volatile uint64_t k70_user_faults;
+
+void
+k70_stage_text_note(const char *s)
+{
+	unsigned i = 0;
+	if (s == 0) {
+		return;
+	}
+	while (i + 1u < sizeof(k70_stage_buf) && s[i] != 0) {
+		k70_stage_buf[i] = s[i];
+		i++;
+	}
+	k70_stage_buf[i] = 0;
+}
+
+const char *
+k70_stage_text_get(void)
+{
+	return k70_stage_buf;
+}
+
+void
+k70_wait_note(uintptr_t thread, uintptr_t event, uintptr_t lr)
+{
+	volatile struct k70_wait_rec *w = &k70_wait_state;
+	w->thread = thread;
+	w->event = event;
+	w->lr = lr;
+	w->count = w->count + 1u;
+}
+
+const struct k70_wait_rec *
+k70_wait_get(void)
+{
+	return &k70_wait_state;
+}
+
+uint64_t
+k70_user_fault_count(void)
+{
+	return k70_user_faults;
+}
+
 void
 k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr)
 {
@@ -37,6 +84,9 @@ k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr)
 		k->far = far;
 		k->pc = pc;
 		k->cpsr = cpsr;
+	}
+	if (far < 0x1000000000ull) {
+		k70_user_faults = k70_user_faults + 1ull;
 	}
 	if (k->have2 == 0u && far < 0x1000000000ull) {
 		k->esr2 = esr;
