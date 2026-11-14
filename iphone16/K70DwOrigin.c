@@ -54,6 +54,12 @@ k70_stage_is_real(const char *s)
 	if (s[0] == 'C' && s[1] == 'O' && s[2] == 'P' && s[3] == 'Y') {
 		return 0;
 	}
+	if (s[0] == 'W' && (s[1] == 'E' || s[1] == 'L')) {
+		return 0;
+	}
+	if (s[0] == 'F' && s[1] == 'A') {
+		return 0;
+	}
 	for (i = 0; s[i] != 0; i++) {
 		if (s[i] == '=') {
 			return 0;
@@ -96,8 +102,16 @@ k70_wait_note(uintptr_t thread, uintptr_t event, uintptr_t lr)
 	volatile struct k70_wait_rec *w = &k70_wait_state;
 	/* v21: the diagnostics worker itself blocks constantly in the console path;
 	 * ignoring it leaves the site that actually matters. */
-	if (thread != 0 && thread == k70_worker_thread) {
-		return;
+	{
+		extern uintptr_t k70_flight_target_thread(void);
+		uintptr_t want = k70_flight_target_thread();
+		/* v22: only the boot thread's own blocking site is interesting. */
+		if (want != 0 && thread != want) {
+			return;
+		}
+		if (thread != 0 && thread == k70_worker_thread) {
+			return;
+		}
 	}
 	w->thread = thread;
 	w->event = event;

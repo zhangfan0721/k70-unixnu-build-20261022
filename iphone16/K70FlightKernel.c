@@ -156,6 +156,7 @@ void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
  if(!k70_flight_inside){k70_flight_inside=1;kf_terminal(&k70_flight_state,KF_PANIC,k70_flight_state.active?(uintptr_t)current_thread():0,(uintptr_t)format,caller,0,fp,kf_kernel_pair,0);kf_paint();k70_flight_inside=0;}
  kf_restore(mask);
 }
+uintptr_t k70_flight_target_thread(void) { return k70_flight_state.target; }
 void k70_flight_wait(uintptr_t thread,uintptr_t event,uint64_t state,uintptr_t caller,uintptr_t fp) {
  /* v18: keep the last blocking site for the heartbeat, regardless of which
   * thread blocks and whether the flight record is active. */
