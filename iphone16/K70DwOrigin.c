@@ -22,6 +22,8 @@ static struct k70_abort_rec k70_abort_ring[K70_ABORT_SLOTS];
 static uint32_t k70_abort_next;
 static uintptr_t k70_ubc_caller;
 static struct k70_kabort_rec k70_kabort_state;
+/* v13: where ml_set_max_cpus is stuck, printed by the diagnostics thread. */
+volatile uint32_t k70_max_cpus_phase;
 
 void
 k70_kabort_note(uint64_t esr, uint64_t far, uint64_t pc, uint64_t cpsr)

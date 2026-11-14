@@ -189,6 +189,21 @@ def install(root):
             '\t\tsaved_state64(state)->cpsr = saved_state64(state)->cpsr & ~(1ULL << 22);\n'
             '\t}')
     path.write_text(text.replace(_anchor, _add))
+    # v13: name the step inside ml_set_max_cpus where the boot thread stops.
+    path = root / 'osfmk/arm/machine_routines_common.c'
+    text = path.read_text()
+    _sig = '\nml_set_max_cpus(unsigned int max_cpus __unused)\n{\n'
+    assert text.count(_sig) == 1
+    _pos = text.index(_sig) + len(_sig)
+    _inject = ('\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 1; }\n'
+               '\tlck_mtx_lock(&max_cpus_lock);\n'
+               '\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 2; }\n')
+    text = text[:_pos] + _inject + text[_pos:]
+    _tail = '\tlck_mtx_unlock(&max_cpus_lock);\n}'
+    assert text.count(_tail) == 1
+    text = text.replace(_tail,
+        '\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 3; }\n' + _tail)
+    path.write_text(text)
     path = root / 'osfmk/arm64/copyio.c'
     text = path.read_text()
     _old = ('\tint rc;\n'
@@ -266,6 +281,11 @@ def install_diag(root):
         '            bp_out_hex(&ko, ka->pc2, 16);\n'
         '            bp_out_puts(&ko, " H=");\n'
         '            bp_out_dec(&ko, ka->have2);\n'
+        '            boot_progress_stage(kal);\n'
+        '            bp_out_begin(&ko, kal);\n'
+        '            { extern volatile uint32_t k70_max_cpus_phase;\n'
+        '              bp_out_puts(&ko, "MCP ");\n'
+        '              bp_out_dec(&ko, k70_max_cpus_phase); }\n'
         '            boot_progress_stage(kal);\n'
         '        }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
