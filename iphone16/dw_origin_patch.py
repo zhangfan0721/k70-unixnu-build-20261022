@@ -161,19 +161,39 @@ def install(root):
     _inject = ('\t{ extern void k70_abort_ubc_note(uintptr_t);\n'
                '\t  k70_abort_ubc_note((uintptr_t)__builtin_return_address(0)); }\n')
     path.write_text(text[:_brace] + _inject + text[_brace:])
-    # v7: one line per kernel-mode abort, bounded, straight from the handler.
-    # It answers the only question left: was PAN set, and where was the PC.
+    # v10: record every synchronous exception at the single entry point, so a
+    # user-classified fault cannot hide from the samples the way it did before.
     path = root / 'osfmk/arm64/sleh.c'
     text = path.read_text()
-    _sig = '\nhandle_kernel_abort(arm_saved_state_t *state, uint32_t esr, vm_offset_t fault_addr,'
+    _sig = '\nsleh_synchronous(arm_context_t *context, uint32_t esr, vm_offset_t far)\n{'
     assert text.count(_sig) == 1
-    _pos = text.index(_sig)
-    _brace = text.index('\n{\n', _pos) + len('\n{\n')
-    _inject = ('\t{ extern void k70_kabort_note(uint64_t, uint64_t, uint64_t, uint64_t);\n'
-               '\t  k70_kabort_note((uint64_t)esr, (uint64_t)fault_addr,\n'
-               '\t      (uint64_t)get_saved_state_pc(state),\n'
-               '\t      (uint64_t)get_saved_state_cpsr(state)); }\n')
-    path.write_text(text[:_brace] + _inject + text[_brace:])
+    _pos = text.index(_sig) + len(_sig)
+    _inject = ('\n\t{ extern void k70_kabort_note(uint64_t, uint64_t, uint64_t, uint64_t);\n'
+               '\t  k70_kabort_note((uint64_t)esr, (uint64_t)far,\n'
+               '\t      (uint64_t)get_saved_state_pc(&context->ss),\n'
+               '\t      (uint64_t)get_saved_state_cpsr(&context->ss)); }\n')
+    path.write_text(text[:_pos] + _inject + text[_pos:])
+    # v10: verify_write calls _bcopyout with PAN still set, so a DEBUG guard-page
+    # check can never see EFAULT and retries the store forever. Clear and restore
+    # PAN around the copy, exactly like copyout() does.
+    path = root / 'osfmk/arm64/copyio.c'
+    text = path.read_text()
+    _old = ('\tint rc;\n'
+            '\tdisable_preemption();\n'
+            '\trc = _bcopyout((const char*)source, (char*)dst, size);\n'
+            '\tenable_preemption();\n'
+            '\treturn rc;\n')
+    assert text.count(_old) == 1
+    _new = ('\tint rc;\n'
+            '\tuint64_t k70_pan;\n'
+            '\tdisable_preemption();\n'
+            '\t__asm__ volatile("mrs %0, pan" : "=r"(k70_pan) :: "memory");\n'
+            '\tif (k70_pan) { __asm__ volatile("msr pan, #0" ::: "memory"); }\n'
+            '\trc = _bcopyout((const char*)source, (char*)dst, size);\n'
+            '\tif (k70_pan) { __asm__ volatile("msr pan, #1" ::: "memory"); }\n'
+            '\tenable_preemption();\n'
+            '\treturn rc;\n')
+    path.write_text(text.replace(_old, _new))
     path = root / "osfmk/arm/pmap/pmap.c"
     text = path.read_text()
     text = _replace(text, "#include <kern/K70Flight.h>\n",
