@@ -444,30 +444,26 @@ def install_diag(root):
         _ut + '    { extern void k70_trap_note(uint32_t, uint64_t);\n'
         '      k70_trap_note((uint32_t)pid, code); }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
-    # v32: memdev fixes held out to isolate a boot-time panic.
-    # # v30: two real bugs in the ram-backed device we mount the root from.
-    # path = root / 'bsd/dev/memdev.c'
-    # text = path.read_text()
-    # _res = ('\t\tif (ferror != 0) {\n'
-    #         '\t\t\tbuf_seterror(bp, ferror);\n'
-    #         '\t\t\tbuf_setresid(bp, buf_count(bp));\n'
-    #         '\t\t}\n'
-    #         '\t\tbuf_biodone(bp);\n')
-    # assert text.count(_res) == 1, text.count(_res)
-    # text = text.replace(_res,
-    #     '\t\tif (ferror != 0) {\n'
-    #     '\t\t\tbuf_seterror(bp, ferror);\n'
-    #     '\t\t\tbuf_setresid(bp, buf_count(bp));\n'
-    #     '\t\t} else {\n'
-    #     '\t\t\t/* The fetch filled the whole buffer. */\n'
-    #     '\t\t\tbuf_setresid(bp, 0);\n'
-    #     '\t\t}\n'
-    #     '\t\tbuf_unmap(bp);\n'
-    #     '\t\tbuf_biodone(bp);\n')
-    # n_shift = text.count('(mdev[devid].mdSize << 12)')
-    # assert n_shift >= 3, n_shift
-    # text = text.replace('(mdev[devid].mdSize << 12)', '((uint64_t)mdev[devid].mdSize << 12)')
-    # path.write_text(text)
+    # v36: complete a fetched buffer; the residual was left at full length on
+    # success, so every loader/namei read still looked short and became EIO.
+    path = root / 'bsd/dev/memdev.c'
+    text = path.read_text()
+    _res = ('\t\tif (ferror != 0) {\n'
+            '\t\t\tbuf_seterror(bp, ferror);\n'
+            '\t\t\tbuf_setresid(bp, buf_count(bp));\n'
+            '\t\t}\n'
+            '\t\tbuf_biodone(bp);\n')
+    assert text.count(_res) == 1, text.count(_res)
+    text = text.replace(_res,
+        '\t\tif (ferror != 0) {\n'
+        '\t\t\tbuf_seterror(bp, ferror);\n'
+        '\t\t\tbuf_setresid(bp, buf_count(bp));\n'
+        '\t\t} else {\n'
+        '\t\t\t/* The fetch filled the whole buffer. */\n'
+        '\t\t\tbuf_setresid(bp, 0);\n'
+        '\t\t}\n'
+        '\t\tbuf_biodone(bp);\n')
+    path.write_text(text)
     # v29: persistent exec bits plus the first failing loader read.
     path = root / 'bsd/kern/kern_exec.c'
     text = path.read_text()
