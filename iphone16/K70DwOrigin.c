@@ -148,6 +148,22 @@ k70_rws_note(uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller)
 	k70_rws_caller = caller;
 }
 
+static volatile uintptr_t k70_outer_lr;
+
+void
+k70_outer_note(uintptr_t lr)
+{
+	if (lr >= 0xfffffff000000000ull) {
+		k70_outer_lr = lr;
+	}
+}
+
+uintptr_t
+k70_outer_get(void)
+{
+	return k70_outer_lr;
+}
+
 static volatile uint32_t k70_rws_wake_count;
 
 void
