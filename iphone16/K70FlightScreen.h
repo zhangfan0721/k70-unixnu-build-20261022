@@ -5,6 +5,7 @@
 #include "K70DwOrigin.h"
 #include "FramebufferGuard.h"
 #include "Font.h"
+extern char k70_panic_text[41];
 #define KF_ROWS 30
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
@@ -167,6 +168,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row==16){kf_text(&l,"1=PARENT 2=VECTORS 3=LOCK 4=MAX_CPUS");}
   else if(row>=18 && row<=22){
    if(r->kind==KF_PANIC && r->pmap_assert.pending)kf_orig_line(&l,&r->pmap_assert,row-18);
+   else if(row==18 && r->kind==KF_PANIC){kf_text(&l,"PANIC TXT ");kf_text(&l,k70_panic_text);}
   }
   else if(row>=23 && row<=25){if(r->kind==KF_PANIC)kf_abort_line(&l,row-23,r->pmap_assert.ppnum);}
   else if(row>=26&&row<=29)kf_kabort_line(&l,row-26);

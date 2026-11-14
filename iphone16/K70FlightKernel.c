@@ -144,21 +144,18 @@ static int kf_pmap_assert_matches(const char *format, uintptr_t thread,
  return 1;
 }
 
-/* v33: copy the panic format string so the screen shows it without a serial port. */
+/* v34: copy the panic format string into BSS only; the panel draws it, so the
+ * panic hook never formats, prints, or takes a lock. */
+char k70_panic_text[41];
 static void k70_panic_text_show(const char *format) {
- char line[64];
  unsigned i = 0;
- extern void boot_progress_stage(const char *s);
  if (format == 0) { return; }
- line[i++] = 'P'; line[i++] = 'A'; line[i++] = 'N'; line[i++] = 'I'; line[i++] = 'C';
- line[i++] = ' '; line[i++] = 'T'; line[i++] = 'X'; line[i++] = 'T'; line[i++] = ' ';
- for (unsigned k = 0; k < 40u && i < sizeof(line) - 1u; k++) {
+ for (unsigned k = 0; k < 40u; k++) {
   char c = format[k];
   if (c == 0) { break; }
-  line[i++] = (c >= 32 && c < 127) ? c : '?';
+  k70_panic_text[i++] = (c >= 32 && c < 127) ? c : '?';
  }
- line[i] = 0;
- boot_progress_stage(line);
+ k70_panic_text[i] = 0;
 }
 
 void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
