@@ -60,6 +60,15 @@ k70_stage_is_real(const char *s)
 	if (s[0] == 'F' && s[1] == 'A') {
 		return 0;
 	}
+	if (s[0] == 'S' && s[1] == 'T') {
+		return 0;
+	}
+	if (s[0] == 'T' && s[1] == 'R') {
+		return 0;
+	}
+	if (s[0] == 'R' && s[1] >= '1' && s[1] <= '3') {
+		return 0;
+	}
 	for (i = 0; s[i] != 0; i++) {
 		if (s[i] == '=') {
 			return 0;
