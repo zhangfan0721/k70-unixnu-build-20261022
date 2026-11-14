@@ -189,20 +189,26 @@ def install(root):
             '\t\tsaved_state64(state)->cpsr = saved_state64(state)->cpsr & ~(1ULL << 22);\n'
             '\t}')
     path.write_text(text.replace(_anchor, _add))
-    # v13: name the step inside ml_set_max_cpus where the boot thread stops.
+    # v13/v14: record where ml_set_max_cpus stops, and skip its mutex when early
+    # boot calls it with preemption disabled (the debug kernel panics otherwise).
     path = root / 'osfmk/arm/machine_routines_common.c'
     text = path.read_text()
     _sig = '\nml_set_max_cpus(unsigned int max_cpus __unused)\n{\n'
     assert text.count(_sig) == 1
-    _pos = text.index(_sig) + len(_sig)
-    _inject = ('\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 1; }\n'
-               '\tlck_mtx_lock(&max_cpus_lock);\n'
-               '\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 2; }\n')
-    text = text[:_pos] + _inject + text[_pos:]
-    _tail = '\tlck_mtx_unlock(&max_cpus_lock);\n}'
-    assert text.count(_tail) == 1
-    text = text.replace(_tail,
-        '\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 3; }\n' + _tail)
+    _head = ('\nml_set_max_cpus(unsigned int max_cpus __unused)\n{\n'
+             '\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 1; }\n'
+             '\tif (get_preemption_level() > 0) {\n'
+             '\t\tmax_cpus_initialized = MAX_CPUS_SET;\n'
+             '\t\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 3; }\n'
+             '\t\treturn;\n'
+             '\t}\n')
+    text = text.replace(_sig, _head)
+    _lock = '\tlck_mtx_lock(&max_cpus_lock);\n\tif (max_cpus_initialized != MAX_CPUS_SET) {'
+    assert text.count(_lock) == 1
+    text = text.replace(_lock,
+        '\tlck_mtx_lock(&max_cpus_lock);\n'
+        '\t{ extern volatile uint32_t k70_max_cpus_phase; k70_max_cpus_phase = 2; }\n'
+        '\tif (max_cpus_initialized != MAX_CPUS_SET) {')
     path.write_text(text)
     path = root / 'osfmk/arm64/copyio.c'
     text = path.read_text()
