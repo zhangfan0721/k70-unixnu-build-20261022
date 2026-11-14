@@ -329,6 +329,24 @@ def install_diag(root):
         '            bp_out_hex(&ho, (uint32_t)tn, 8);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
+        '          { extern uint32_t k70_exec_bits(void);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "EXB ");\n'
+        '            bp_out_hex(&ho, k70_exec_bits(), 8);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
+        '          { extern void k70_vn_get(uint32_t *, int *, int64_t *);\n'
+        '            uint32_t vs; int ve; int64_t vr;\n'
+        '            k70_vn_get(&vs, &ve, &vr);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "VN ");\n'
+        '            bp_out_dec(&ho, vs);\n'
+        '            bp_out_puts(&ho, "/");\n'
+        '            bp_out_dec(&ho, (uint32_t)ve);\n'
+        '            bp_out_puts(&ho, "/");\n'
+        '            bp_out_dec(&ho, (uint32_t)vr);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern volatile int k70_loadmach_ret;\n'
         '            bp_out_begin(&ho, hl);\n'
         '            bp_out_puts(&ho, "LM ");\n'
@@ -416,25 +434,52 @@ def install_diag(root):
         _ut + '    { extern void k70_trap_note(uint32_t, uint64_t);\n'
         '      k70_trap_note((uint32_t)pid, code); }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
-    # v28: find out where the PID1 image activation stops.
+    # v29: persistent exec bits plus the first failing loader read.
     path = root / 'bsd/kern/kern_exec.c'
     text = path.read_text()
+    _emi = 'exec_mach_imgact(struct image_params *imgp)\n{\n'
+    assert text.count(_emi) == 1
+    text = text.replace(_emi, _emi +
+        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(0); }\n')
     _mi = '\tlret = load_machfile(imgp, mach_header, thread, &map, &load_result);\n'
     assert text.count(_mi) == 1
     text = text.replace(_mi,
-        '\t{ extern volatile uint32_t k70_stage; k70_stage = 21u; }\n' + _mi +
-        '\t{ extern volatile uint32_t k70_stage; extern volatile int k70_loadmach_ret;\n'
-        '\t  k70_loadmach_ret = (int)lret; k70_stage = 22u; }\n')
-    _ai = '\tif ((lret = exec_check_permissions(imgp)) != 0) {\n'
-    if text.count(_ai) == 1:
-        text = text.replace(_ai,
-            '\t{ extern volatile uint32_t k70_stage; k70_stage = 19u; }\n' + _ai +
-            '\t{ extern volatile uint32_t k70_stage; k70_stage = 20u; }\n')
+        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(1); }\n' + _mi +
+        '\t{ extern void k70_exec_mark(uint32_t); extern volatile int k70_loadmach_ret;\n'
+        '\t  k70_loadmach_ret = (int)lret; k70_exec_mark(2); }\n')
     _ae = '\tlret = activate_exec_state(task, p, thread, &load_result);\n'
     assert text.count(_ae) == 1
     text = text.replace(_ae,
-        '\t{ extern volatile uint32_t k70_stage; k70_stage = 23u; }\n' + _ae +
-        '\t{ extern volatile uint32_t k70_stage; k70_stage = 24u; }\n')
+        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(3); }\n' + _ae +
+        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(4); }\n')
+    path.write_text(text)
+
+    path = root / 'bsd/kern/mach_loader.c'
+    text = path.read_text()
+    sites = [
+        (1, '\terror = vn_rdwr(UIO_READ, vp, addr, (int)alloc_size, file_offset,\n'
+            '\t    UIO_SYSSPACE, 0, vfs_context_ucred(imgp->ip_vfs_context), &resid, p);\n'),
+        (2, '\terror = vn_rdwr(UIO_READ, imgp->ip_vp, addr, (int)alloc_size, file_offset,\n'
+            '\t    UIO_SYSSPACE, IO_NODELOCKED, cred, &resid, p);\n'),
+        (3, '\t    &resid,\n\t    current_proc());\n'),
+        (4, '\tif ((error = vn_rdwr(UIO_READ, vp, (caddr_t)header, sizeof(*header), 0,\n'
+            '\t    UIO_SYSSPACE, IO_NODELOCKED, kerncred, &resid, p)) != 0) {\n'),
+        (5, '\t\terror = vn_rdwr(UIO_READ, vp, (caddr_t)&header->mach_header,\n'
+            '\t\t    sizeof(header->mach_header), fat_arch.offset,\n'
+            '\t\t    UIO_SYSSPACE, IO_NODELOCKED, kerncred, &resid, p);\n'),
+    ]
+    for site, anchor in sites:
+        assert text.count(anchor) == 1, (site, text.count(anchor))
+        if site == 4:
+            text = text.replace(anchor,
+                '\tif ((error = vn_rdwr(UIO_READ, vp, (caddr_t)header, sizeof(*header), 0,\n'
+                '\t    UIO_SYSSPACE, IO_NODELOCKED, kerncred, &resid, p)) != 0) {\n'
+                '\t\t{ extern void k70_vn_note(uint32_t, int, int64_t);\n'
+                '\t\t  k70_vn_note(4u, error, (int64_t)resid); }\n')
+        else:
+            note = ('\t{ extern void k70_vn_note(uint32_t, int, int64_t);\n'
+                    '\t  if (error) { k70_vn_note(%du, error, (int64_t)resid); } }\n' % site)
+            text = text.replace(anchor, anchor + note)
     path.write_text(text)
     # v24: mark the key boot spans so the heartbeat shows the last completed one.
     path = root / 'osfmk/kern/startup.c'

@@ -105,6 +105,43 @@ static struct k70_role_rec k70_role_state[4];
 static volatile uint32_t k70_stage_bits;
 /* v28: the return value of load_machfile during the PID1 exec. */
 volatile int k70_loadmach_ret = -1;
+static volatile uint32_t k70_exec_bit_mask;
+static volatile uint32_t k70_vn_site;
+static volatile int k70_vn_err = -1;
+static volatile int64_t k70_vn_resid;
+
+void
+k70_exec_mark(uint32_t bit)
+{
+	if (bit < 32u) {
+		k70_exec_bit_mask = k70_exec_bit_mask | (1u << bit);
+	}
+}
+
+uint32_t
+k70_exec_bits(void)
+{
+	return k70_exec_bit_mask;
+}
+
+void
+k70_vn_note(uint32_t site, int err, int64_t resid)
+{
+	if (k70_vn_err >= 0) {
+		return;
+	}
+	k70_vn_site = site;
+	k70_vn_err = err;
+	k70_vn_resid = resid;
+}
+
+void
+k70_vn_get(uint32_t *site, int *err, int64_t *resid)
+{
+	*site = k70_vn_site;
+	*err = k70_vn_err;
+	*resid = k70_vn_resid;
+}
 static volatile uint64_t k70_trap_count, k70_trap_number;
 static volatile uint32_t k70_trap_pid;
 

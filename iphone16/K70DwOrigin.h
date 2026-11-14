@@ -173,6 +173,11 @@ uint32_t k70_stage_mask(void);
 /* v25: userland activity, so a launched PID1 can be told apart from a silent one. */
 void k70_trap_note(uint32_t pid, uint64_t number);
 void k70_trap_get(uint64_t *count, uint32_t *pid, uint64_t *number);
+/* v29: exec progress bits and the first failing vn_rdwr of the loader. */
+void k70_exec_mark(uint32_t bit);
+uint32_t k70_exec_bits(void);
+void k70_vn_note(uint32_t site, int err, int64_t resid);
+void k70_vn_get(uint32_t *site, int *err, int64_t *resid);
 const struct k70_role_rec *k70_role_get(uint32_t role);
 const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
