@@ -181,6 +181,9 @@ void k70_trap_get(uint64_t *count, uint32_t *pid, uint64_t *number);
 void k70_exec_mark(uint32_t bit);
 uint32_t k70_exec_bits(void);
 uint32_t k70_exec_last(void);
+/* v39: the last ram-window fetch, so a hanging read is visible. */
+void k70_win_note(uint64_t offset, uint64_t length, int rc);
+void k70_win_get(uint64_t *count, uint64_t *offset, uint64_t *length, int *rc);
 void k70_vn_note(uint32_t site, int err, int64_t resid);
 void k70_vn_get(uint32_t *site, int *err, int64_t *resid);
 const struct k70_role_rec *k70_role_get(uint32_t role);

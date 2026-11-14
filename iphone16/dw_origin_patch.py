@@ -339,6 +339,20 @@ def install_diag(root):
         '            bp_out_hex(&ho, (uint32_t)tn, 8);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
+        '          { extern void k70_win_get(uint64_t *, uint64_t *, uint64_t *, int *);\n'
+        '            uint64_t wc, wo, wl; int wr;\n'
+        '            k70_win_get(&wc, &wo, &wl, &wr);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "WIN ");\n'
+        '            bp_out_dec(&ho, (uint32_t)wc);\n'
+        '            bp_out_puts(&ho, " OFF=");\n'
+        '            bp_out_hex(&ho, (uint32_t)(wo >> 12), 8);\n'
+        '            bp_out_puts(&ho, " LEN=");\n'
+        '            bp_out_dec(&ho, (uint32_t)wl);\n'
+        '            bp_out_puts(&ho, " RC=");\n'
+        '            bp_out_dec(&ho, (uint32_t)wr);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern uint32_t k70_exec_last(void);\n'
         '            bp_out_begin(&ho, hl);\n'
         '            bp_out_puts(&ho, "MK ");\n'
@@ -479,6 +493,25 @@ def install_diag(root):
     if text.count(_cs) == 1:
         text = text.replace(_cs,
             '\t\t\t\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(8); }\n' + _cs)
+    path.write_text(text)
+    # v39: record every ram-window fetch, so a read that never completes shows up.
+    path = root / 'iokit/bsddev/K70UfsWindow.inc'
+    text = path.read_text()
+    _sig = 'static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)\n{\n'
+    assert text.count(_sig) == 1, text.count(_sig)
+    text = text.replace(_sig, _sig +
+        '  { extern void k70_win_note(uint64_t, uint64_t, int);\n'
+        '    k70_win_note(offset, (uint64_t)length, -1); }\n')
+    _ok = '  if (served == K70Window::kServed) {\n    return 0;\n  }'
+    assert text.count(_ok) == 1, text.count(_ok)
+    text = text.replace(_ok,
+        '  if (served == K70Window::kServed) {\n'
+        '    { extern void k70_win_note(uint64_t, uint64_t, int); k70_win_note(offset, (uint64_t)length, 0); }\n'
+        '    return 0;\n  }')
+    _poison = '  gWindowState = 2;                // poison: never retry a half-served root\n  return EIO;'
+    assert text.count(_poison) == 1, text.count(_poison)
+    text = text.replace(_poison,
+        '  { extern void k70_win_note(uint64_t, uint64_t, int); k70_win_note(offset, (uint64_t)length, 9); }\n' + _poison)
     path.write_text(text)
     # v37: this kernel runs without AMFI, so the amfi vtable is null and the
     # first code-signature blob would dereference it and abort the kernel.

@@ -134,6 +134,26 @@ static volatile int k70_vn_err = -1;
 static volatile int64_t k70_vn_resid;
 
 static volatile uint32_t k70_exec_last_bit;
+static volatile uint64_t k70_win_count, k70_win_off, k70_win_len;
+static volatile int k70_win_rc = -1;
+
+void
+k70_win_note(uint64_t offset, uint64_t length, int rc)
+{
+	k70_win_off = offset;
+	k70_win_len = length;
+	k70_win_rc = rc;
+	k70_win_count = k70_win_count + 1ull;
+}
+
+void
+k70_win_get(uint64_t *count, uint64_t *offset, uint64_t *length, int *rc)
+{
+	*count = k70_win_count;
+	*offset = k70_win_off;
+	*length = k70_win_len;
+	*rc = k70_win_rc;
+}
 
 void
 k70_exec_mark(uint32_t bit)
