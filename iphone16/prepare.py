@@ -522,6 +522,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     install_kext_logging(root)
     from userspace_bootstrap import install as install_userspace
     install_userspace(root)
+    from dw_origin_patch import install_diag as install_dw_diag
+    install_dw_diag(root)
 
 
 def integration_patch(core, source, font, staging):

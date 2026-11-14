@@ -216,3 +216,44 @@ def install(root):
         "\tpmap_assert_free_recorded(ppnum, (uintptr_t)__builtin_return_address(0),\n"
         "\t    free_caller, NULL);\n}\n\n" + DIAG_WRAPPER)
     path.write_text(text)
+
+def install_diag(root):
+    """Runs after userspace_bootstrap, when the copyout rows exist."""
+    # v11: the panel paints once, so its rows go stale. Print the two abort
+    # samples into the scrolling log from the diagnostics thread instead.
+    path = root / 'pexpert/arm/k70_formal_diag.c'
+    text = path.read_text()
+    if '"K70DwOrigin.h"' not in text:
+        text = '#include "K70DwOrigin.h"\n' + text
+    _anchor = 'uint32_t vm_count = __atomic_load_n(&k70_copyout_vm_done, __ATOMIC_ACQUIRE);'
+    assert text.count(_anchor) == 1
+    _print = (
+        '        {\n'
+        '            const struct k70_kabort_rec *ka = k70_kabort_get();\n'
+        '            char kal[BP_MAX_COLS + 1];\n'
+        '            struct bp_out ko;\n'
+        '            bp_out_begin(&ko, kal);\n'
+        '            bp_out_puts(&ko, "KA1 E=");\n'
+        '            bp_out_hex(&ko, (uint32_t)ka->esr, 8);\n'
+        '            bp_out_puts(&ko, " F=");\n'
+        '            bp_out_hex(&ko, ka->far, 16);\n'
+        '            bp_out_puts(&ko, " C=");\n'
+        '            bp_out_hex(&ko, ka->cpsr, 16);\n'
+        '            bp_out_puts(&ko, " N=");\n'
+        '            bp_out_dec(&ko, ka->count);\n'
+        '            boot_progress_stage(kal);\n'
+        '            bp_out_begin(&ko, kal);\n'
+        '            bp_out_puts(&ko, "KA2 E=");\n'
+        '            bp_out_hex(&ko, (uint32_t)ka->esr2, 8);\n'
+        '            bp_out_puts(&ko, " F=");\n'
+        '            bp_out_hex(&ko, ka->far2, 16);\n'
+        '            bp_out_puts(&ko, " C=");\n'
+        '            bp_out_hex(&ko, ka->cpsr2, 16);\n'
+        '            bp_out_puts(&ko, " P=");\n'
+        '            bp_out_hex(&ko, ka->pc2, 16);\n'
+        '            bp_out_puts(&ko, " H=");\n'
+        '            bp_out_dec(&ko, ka->have2);\n'
+        '            boot_progress_stage(kal);\n'
+        '        }\n')
+    path.write_text(text.replace(_anchor, _print + _anchor))
+
