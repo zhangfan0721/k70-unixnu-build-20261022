@@ -259,6 +259,23 @@ def install_diag(root):
     text = path.read_text()
     if '"K70DwOrigin.h"' not in text:
         text = '#include "K70DwOrigin.h"\n' + text
+    # v15: the diagnostics worker prints several lines a second and buries the
+    # real boot log. With k70quiet=1 it stays silent so the last console line is
+    # the actual place the boot stopped.
+    _w = ('static void k70_formal_worker(void *argument, wait_result_t result)\n'
+          '{\n'
+          '    (void)argument;\n'
+          '    (void)result;\n'
+          '    for (;;) {\n')
+    assert text.count(_w) == 1
+    text = text.replace(_w, _w +
+        '        { extern int PE_parse_boot_argn(const char *, void *, int);\n'
+        '          static int k70_quiet = -1;\n'
+        '          if (k70_quiet < 0) {\n'
+        '              int qv = 0;\n'
+        '              k70_quiet = PE_parse_boot_argn("k70quiet", &qv, sizeof(qv)) ? (qv != 0) : 0;\n'
+        '          }\n'
+        '          if (k70_quiet) { delay(100); continue; } }\n')
     _anchor = 'uint32_t vm_count = __atomic_load_n(&k70_copyout_vm_done, __ATOMIC_ACQUIRE);'
     assert text.count(_anchor) == 1
     _print = (
