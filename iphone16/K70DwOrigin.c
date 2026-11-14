@@ -30,11 +30,37 @@ static char k70_stage_buf[48];
 static struct k70_wait_rec k70_wait_state;
 static volatile uint64_t k70_user_faults;
 
+/* v20: only boot text is interesting here. The diagnostic lines all carry an
+ * '=' or a known prefix, and recording them made LAST echo the heartbeat. */
+static int
+k70_stage_is_real(const char *s)
+{
+	unsigned i;
+	if (s[0] == 'L' && s[1] == 'A' && s[2] == 'S' && s[3] == 'T') {
+		return 0;
+	}
+	if (s[0] == 'F' && s[1] == '=') {
+		return 0;
+	}
+	if (s[0] == 'M' && s[1] == 'C' && s[2] == 'P') {
+		return 0;
+	}
+	if (s[0] == 'K' && s[1] == 'A') {
+		return 0;
+	}
+	for (i = 0; s[i] != 0; i++) {
+		if (s[i] == '=') {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void
 k70_stage_text_note(const char *s)
 {
 	unsigned i = 0;
-	if (s == 0) {
+	if (s == 0 || !k70_stage_is_real(s)) {
 		return;
 	}
 	while (i + 1u < sizeof(k70_stage_buf) && s[i] != 0) {
