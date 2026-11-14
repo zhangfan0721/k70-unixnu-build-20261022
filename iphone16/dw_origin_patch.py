@@ -513,66 +513,66 @@ def install_diag(root):
         text = text.replace(_cs,
             '\t\t\t\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(8); }\n' + _cs)
     path.write_text(text)
-    # v40: who sleeps on which condition while holding an rw lock.
-    path = root / 'osfmk/kern/lock_rw.c'
-    text = path.read_text()
-    _rws = ('lck_rw_sleep(\n'
-            '\tlck_rw_t                *lck,\n'
-            '\tlck_sleep_action_t      lck_sleep_action,\n'
-            '\tevent_t                 event,\n'
-            '\twait_interrupt_t        interruptible)\n{\n')
-    assert text.count(_rws) == 1, text.count(_rws)
-    text = text.replace(_rws,
-        _rws + '\t{ extern void k70_rws_note(uintptr_t, uintptr_t, uint32_t, uintptr_t);\n'
-        '\t  k70_rws_note((uintptr_t)lck, (uintptr_t)event, (uint32_t)lck_sleep_action,\n'
-        '\t      (uintptr_t)__builtin_return_address(0)); }\n')
-    path.write_text(text)
-    # v41: count returns from the rw sleep, widen the loader marks and record
-    # every window fetch exit, so a probe value cannot be read two ways.
-    _rwt = text  # unused placeholder to keep the block anchored
-    path = root / 'osfmk/kern/lock_rw.c'
-    text = path.read_text()
-    _sig = 'lck_rw_sleep(\n\tlck_rw_t                *lck,\n'
-    assert text.count(_sig) == 1, text.count(_sig)
-    _start = text.index(_sig)
-    _end = _start + 4000
-    body = text[_start:_end]
-    assert body.count('\treturn res;\n') == 2, body.count('\treturn res;\n')
-    body = body.replace('\treturn res;\n',
-        '\t{ extern void k70_rws_wake(void); k70_rws_wake(); }\n\treturn res;\n')
-    text = text[:_start] + body + text[_end:]
-    path.write_text(text)
+    # # v40: who sleeps on which condition while holding an rw lock.
+    # path = root / 'osfmk/kern/lock_rw.c'
+    # text = path.read_text()
+    # _rws = ('lck_rw_sleep(\n'
+    #         '\tlck_rw_t                *lck,\n'
+    #         '\tlck_sleep_action_t      lck_sleep_action,\n'
+    #         '\tevent_t                 event,\n'
+    #         '\twait_interrupt_t        interruptible)\n{\n')
+    # assert text.count(_rws) == 1, text.count(_rws)
+    # text = text.replace(_rws,
+    #     _rws + '\t{ extern void k70_rws_note(uintptr_t, uintptr_t, uint32_t, uintptr_t);\n'
+    #     '\t  k70_rws_note((uintptr_t)lck, (uintptr_t)event, (uint32_t)lck_sleep_action,\n'
+    #     '\t      (uintptr_t)__builtin_return_address(0)); }\n')
+    # path.write_text(text)
+    # # v41: count returns from the rw sleep, widen the loader marks and record
+    # # every window fetch exit, so a probe value cannot be read two ways.
+    # _rwt = text  # unused placeholder to keep the block anchored
+    # path = root / 'osfmk/kern/lock_rw.c'
+    # text = path.read_text()
+    # _sig = 'lck_rw_sleep(\n\tlck_rw_t                *lck,\n'
+    # assert text.count(_sig) == 1, text.count(_sig)
+    # _start = text.index(_sig)
+    # _end = _start + 4000
+    # body = text[_start:_end]
+    # assert body.count('\treturn res;\n') == 2, body.count('\treturn res;\n')
+    # body = body.replace('\treturn res;\n',
+    #     '\t{ extern void k70_rws_wake(void); k70_rws_wake(); }\n\treturn res;\n')
+    # text = text[:_start] + body + text[_end:]
+    # path.write_text(text)
 
-    path = root / 'bsd/kern/mach_loader.c'
-    text = path.read_text()
-    _badd = '\tif (ubc_cs_blob_add(vp,\n'
-    if text.count(_badd) == 1:
-        text = text.replace(_badd,
-            '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(9); }\n' + _badd)
-    _vnsite = ('\t{\n'
-               '\t\t{ extern void k70_vn_note(uint32_t, int, int64_t);\n'
-               '\t\t  if (error) { k70_vn_note(3u, error, (int64_t)resid); } }')
-    if text.count(_vnsite) == 1:
-        text = text.replace(_vnsite, _vnsite.replace('if (error) {', 'if (error || resid != 0) {'))
-    path.write_text(text)
+    # path = root / 'bsd/kern/mach_loader.c'
+    # text = path.read_text()
+    # _badd = '\tif (ubc_cs_blob_add(vp,\n'
+    # if text.count(_badd) == 1:
+    #     text = text.replace(_badd,
+    #         '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(9); }\n' + _badd)
+    # _vnsite = ('\t{\n'
+    #            '\t\t{ extern void k70_vn_note(uint32_t, int, int64_t);\n'
+    #            '\t\t  if (error) { k70_vn_note(3u, error, (int64_t)resid); } }')
+    # if text.count(_vnsite) == 1:
+    #     text = text.replace(_vnsite, _vnsite.replace('if (error) {', 'if (error || resid != 0) {'))
+    # path.write_text(text)
 
-    path = root / 'iokit/bsddev/K70UfsWindow.inc'
-    text = path.read_text()
-    _early = '  if (devid != 0 || gWindowState != 1 || !gWindowScratch || !dst || !length) {\n    return EIO;\n  }'
-    if text.count(_early) == 1:
-        text = text.replace(_early,
-            '  if (devid != 0 || gWindowState != 1 || !gWindowScratch || !dst || !length) {\n'
-            '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, -2); }\n'
-            '    return EIO;\n  }')
-    _host = '    gWindowState = 2;\n    return EIO;'
-    if text.count(_host) == 1:
-        text = text.replace(_host,
-            '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, -3); }\n' + _host)
-    _ref = '    return EINVAL;                 // a bad request, not a broken device'
-    if text.count(_ref) == 1:
-        text = text.replace(_ref,
-            '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, 1); }\n' + _ref)
-    path.write_text(text)
+    # path = root / 'iokit/bsddev/K70UfsWindow.inc'
+    # text = path.read_text()
+    # _early = '  if (devid != 0 || gWindowState != 1 || !gWindowScratch || !dst || !length) {\n    return EIO;\n  }'
+    # if text.count(_early) == 1:
+    #     text = text.replace(_early,
+    #         '  if (devid != 0 || gWindowState != 1 || !gWindowScratch || !dst || !length) {\n'
+    #         '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, -2); }\n'
+    #         '    return EIO;\n  }')
+    # _host = '    gWindowState = 2;\n    return EIO;'
+    # if text.count(_host) == 1:
+    #     text = text.replace(_host,
+    #         '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, -3); }\n' + _host)
+    # _ref = '    return EINVAL;                 // a bad request, not a broken device'
+    # if text.count(_ref) == 1:
+    #     text = text.replace(_ref,
+    #         '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, 1); }\n' + _ref)
+    # path.write_text(text)
     # v39: record every ram-window fetch, so a read that never completes shows up.
     path = root / 'iokit/bsddev/K70UfsWindow.inc'
     text = path.read_text()
