@@ -136,6 +136,26 @@ static volatile int64_t k70_vn_resid;
 static volatile uint32_t k70_exec_last_bit;
 static volatile uint64_t k70_win_count, k70_win_off, k70_win_len;
 static volatile int k70_win_rc = -1;
+static volatile uintptr_t k70_rws_lck, k70_rws_event, k70_rws_caller;
+static volatile uint32_t k70_rws_action;
+
+void
+k70_rws_note(uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller)
+{
+	k70_rws_lck = lck;
+	k70_rws_event = event;
+	k70_rws_action = action;
+	k70_rws_caller = caller;
+}
+
+void
+k70_rws_get(uintptr_t *lck, uintptr_t *event, uint32_t *action, uintptr_t *caller)
+{
+	*lck = k70_rws_lck;
+	*event = k70_rws_event;
+	*action = k70_rws_action;
+	*caller = k70_rws_caller;
+}
 
 void
 k70_win_note(uint64_t offset, uint64_t length, int rc)

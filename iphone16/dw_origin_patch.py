@@ -339,6 +339,22 @@ def install_diag(root):
         '            bp_out_hex(&ho, (uint32_t)tn, 8);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
+        '          { extern void k70_rws_get(uintptr_t *, uintptr_t *, uint32_t *, uintptr_t *);\n'
+        '            uintptr_t rl, re, rc2; uint32_t ra;\n'
+        '            k70_rws_get(&rl, &re, &ra, &rc2);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "RWS ");\n'
+        '            bp_out_hex(&ho, rl, 12);\n'
+        '            bp_out_puts(&ho, "/");\n'
+        '            bp_out_hex(&ho, re, 12);\n'
+        '            bp_out_puts(&ho, " A");\n'
+        '            bp_out_dec(&ho, ra);\n'
+        '            boot_progress_stage(hl);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "RWSC ");\n'
+        '            bp_out_hex(&ho, rc2, 16);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern void k70_win_get(uint64_t *, uint64_t *, uint64_t *, int *);\n'
         '            uint64_t wc, wo, wl; int wr;\n'
         '            k70_win_get(&wc, &wo, &wl, &wr);\n'
@@ -493,6 +509,20 @@ def install_diag(root):
     if text.count(_cs) == 1:
         text = text.replace(_cs,
             '\t\t\t\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(8); }\n' + _cs)
+    path.write_text(text)
+    # v40: who sleeps on which condition while holding an rw lock.
+    path = root / 'osfmk/kern/lock_rw.c'
+    text = path.read_text()
+    _rws = ('lck_rw_sleep(\n'
+            '\tlck_rw_t                *lck,\n'
+            '\tlck_sleep_action_t      lck_sleep_action,\n'
+            '\tevent_t                 event,\n'
+            '\twait_interrupt_t        interruptible)\n{\n')
+    assert text.count(_rws) == 1, text.count(_rws)
+    text = text.replace(_rws,
+        _rws + '\t{ extern void k70_rws_note(uintptr_t, uintptr_t, uint32_t, uintptr_t);\n'
+        '\t  k70_rws_note((uintptr_t)lck, (uintptr_t)event, (uint32_t)lck_sleep_action,\n'
+        '\t      (uintptr_t)__builtin_return_address(0)); }\n')
     path.write_text(text)
     # v39: record every ram-window fetch, so a read that never completes shows up.
     path = root / 'iokit/bsddev/K70UfsWindow.inc'
