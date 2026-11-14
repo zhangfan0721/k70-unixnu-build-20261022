@@ -280,6 +280,20 @@ def install_diag(root):
         '              k70_qn++;\n'
         '              if ((k70_qn % 40u) != 0u) { delay(100); continue; }\n'
         '          } }\n')
+    # v17: remember the last boot stage text so the heartbeat can show where the
+    # boot actually stopped, even after the line itself scrolled away.
+    _bps = 'void boot_progress_stage(const char *s) {\n'
+    assert text.count(_bps) == 1
+    text = text.replace(_bps,
+        'const char *k70_last_stage_text;\n'
+        'void boot_progress_stage(const char *s) {\n'
+        '    k70_last_stage_text = s;\n')
+    _hb = '        char line[BP_MAX_COLS + 1];\n        struct bp_out out;\n'
+    assert text.count(_hb) == 1
+    text = text.replace(_hb,
+        '        { extern const char *k70_last_stage_text;\n'
+        '          kprintf("LAST <%s>\\n", k70_last_stage_text ? k70_last_stage_text : "(none)");\n'
+        '        }\n' + _hb)
     _anchor = 'uint32_t vm_count = __atomic_load_n(&k70_copyout_vm_done, __ATOMIC_ACQUIRE);'
     assert text.count(_anchor) == 1
     _print = (
