@@ -562,16 +562,16 @@ def install_diag(root):
     if text.count(_early) == 1:
         text = text.replace(_early,
             '  if (devid != 0 || gWindowState != 1 || !gWindowScratch || !dst || !length) {\n'
-            '    { extern void k70_win_note(uint64_t, uint64_t, int); k70_win_note(offset, (uint64_t)length, -2); }\n'
+            '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, -2); }\n'
             '    return EIO;\n  }')
     _host = '    gWindowState = 2;\n    return EIO;'
     if text.count(_host) == 1:
         text = text.replace(_host,
-            '    { extern void k70_win_note(uint64_t, uint64_t, int); k70_win_note(offset, (uint64_t)length, -3); }\n' + _host)
+            '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, -3); }\n' + _host)
     _ref = '    return EINVAL;                 // a bad request, not a broken device'
     if text.count(_ref) == 1:
         text = text.replace(_ref,
-            '    { extern void k70_win_note(uint64_t, uint64_t, int); k70_win_note(offset, (uint64_t)length, 1); }\n' + _ref)
+            '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, 1); }\n' + _ref)
     path.write_text(text)
     # v39: record every ram-window fetch, so a read that never completes shows up.
     path = root / 'iokit/bsddev/K70UfsWindow.inc'
@@ -579,18 +579,18 @@ def install_diag(root):
     _sig = 'static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)\n{\n'
     assert text.count(_sig) == 1, text.count(_sig)
     text = text.replace(_sig, _sig +
-        '  { extern void k70_win_note(uint64_t, uint64_t, int);\n'
+        '  { extern "C" void k70_win_note(unsigned long long, unsigned long long, int);\n'
         '    k70_win_note(offset, (uint64_t)length, -1); }\n')
     _ok = '  if (served == K70Window::kServed) {\n    return 0;\n  }'
     assert text.count(_ok) == 1, text.count(_ok)
     text = text.replace(_ok,
         '  if (served == K70Window::kServed) {\n'
-        '    { extern void k70_win_note(uint64_t, uint64_t, int); k70_win_note(offset, (uint64_t)length, 0); }\n'
+        '    { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, 0); }\n'
         '    return 0;\n  }')
     _poison = '  gWindowState = 2;                // poison: never retry a half-served root\n  return EIO;'
     assert text.count(_poison) == 1, text.count(_poison)
     text = text.replace(_poison,
-        '  { extern void k70_win_note(uint64_t, uint64_t, int); k70_win_note(offset, (uint64_t)length, 9); }\n' + _poison)
+        '  { extern "C" void k70_win_note(unsigned long long, unsigned long long, int); k70_win_note(offset, (uint64_t)length, 9); }\n' + _poison)
     path.write_text(text)
     # v37: this kernel runs without AMFI, so the amfi vtable is null and the
     # first code-signature blob would dereference it and abort the kernel.
