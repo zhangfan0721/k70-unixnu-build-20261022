@@ -317,6 +317,18 @@ def install_diag(root):
         '              bp_out_hex(&ho, rr->lr, 16);\n'
         '              boot_progress_stage(hl);\n'
         '            } }\n'
+        '          { extern void k70_trap_get(uint64_t *, uint32_t *, uint64_t *);\n'
+        '            uint64_t tc; uint32_t tp; uint64_t tn;\n'
+        '            k70_trap_get(&tc, &tp, &tn);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "TRAPS ");\n'
+        '            bp_out_dec(&ho, (uint32_t)tc);\n'
+        '            bp_out_puts(&ho, " PID ");\n'
+        '            bp_out_dec(&ho, tp);\n'
+        '            bp_out_puts(&ho, " SC ");\n'
+        '            bp_out_hex(&ho, (uint32_t)tn, 8);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern uint32_t k70_stage_mask(void);\n'
         '            bp_out_begin(&ho, hl);\n'
         '            bp_out_puts(&ho, "STAGES ");\n'
@@ -379,6 +391,12 @@ def install_diag(root):
         '              bp_out_dec(&ko, k70_max_cpus_phase); }\n'
         '            boot_progress_stage(kal);\n'
         '        }\n')
+    # v25: count every userland trap, not just the first of each kind.
+    _ut = 'void k70_user_trap(unsigned kind, int pid, uint64_t pc, uint64_t cpsr, uint64_t code)\n{\n'
+    assert text.count(_ut) == 1
+    text = text.replace(_ut,
+        _ut + '    { extern void k70_trap_note(uint32_t, uint64_t);\n'
+        '      k70_trap_note((uint32_t)pid, code); }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
     # v24: mark the key boot spans so the heartbeat shows the last completed one.
     path = root / 'osfmk/kern/startup.c'

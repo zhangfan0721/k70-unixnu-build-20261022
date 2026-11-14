@@ -91,6 +91,24 @@ k70_stage_text_get(void)
 static uintptr_t k70_worker_thread;
 static struct k70_role_rec k70_role_state[4];
 static volatile uint32_t k70_stage_bits;
+static volatile uint64_t k70_trap_count, k70_trap_number;
+static volatile uint32_t k70_trap_pid;
+
+void
+k70_trap_note(uint32_t pid, uint64_t number)
+{
+	k70_trap_pid = pid;
+	k70_trap_number = number;
+	k70_trap_count = k70_trap_count + 1ull;
+}
+
+void
+k70_trap_get(uint64_t *count, uint32_t *pid, uint64_t *number)
+{
+	*count = k70_trap_count;
+	*pid = k70_trap_pid;
+	*number = k70_trap_number;
+}
 
 void
 k70_stage_set(uint32_t bit)
