@@ -157,6 +157,17 @@ struct k70_wait_rec {
 };
 void k70_wait_note(uintptr_t thread, uintptr_t event, uintptr_t lr);
 void k70_worker_note(uintptr_t thread);
+
+/* v23: identify the boot threads by role instead of guessing from a block LR. */
+#define K70_ROLE_KB        1u
+#define K70_ROLE_BSD_INIT  2u
+#define K70_ROLE_PID1      3u
+struct k70_role_rec {
+ uintptr_t thread, lr, event;
+ uint64_t hit, blocks;
+};
+void k70_role_note(uint32_t role, uintptr_t thread);
+const struct k70_role_rec *k70_role_get(uint32_t role);
 const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);

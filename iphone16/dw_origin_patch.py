@@ -305,6 +305,18 @@ def install_diag(root):
         '          char hl[BP_MAX_COLS + 1];\n'
         '          struct bp_out ho;\n'
         '          bp_out_begin(&ho, hl);\n'
+        '          { extern const struct k70_role_rec *k70_role_get(uint32_t);\n'
+        '            for (uint32_t ri = 1; ri <= 3u; ri++) {\n'
+        '              const struct k70_role_rec *rr = k70_role_get(ri);\n'
+        '              bp_out_begin(&ho, hl);\n'
+        '              bp_out_puts(&ho, "R");\n'
+        '              bp_out_dec(&ho, ri);\n'
+        '              bp_out_puts(&ho, " N");\n'
+        '              bp_out_dec(&ho, (uint32_t)rr->blocks);\n'
+        '              bp_out_puts(&ho, " LR ");\n'
+        '              bp_out_hex(&ho, rr->lr, 16);\n'
+        '              boot_progress_stage(hl);\n'
+        '            } }\n'
         '          bp_out_puts(&ho, "LAST ");\n'
         '          bp_out_puts(&ho, k70_stage_text_get());\n'
         '          boot_progress_stage(hl);\n'
@@ -362,4 +374,26 @@ def install_diag(root):
         '            boot_progress_stage(kal);\n'
         '        }\n')
     path.write_text(text.replace(_anchor, _print + _anchor))
+    # v23: tag the three boot threads by role at their entry points.
+    path = root / 'osfmk/kern/startup.c'
+    text = path.read_text()
+    _kb = 'kernel_bootstrap_thread(void)\n{\n'
+    assert text.count(_kb) == 1
+    text = text.replace(_kb,
+        _kb + '\t{ extern void k70_role_note(uint32_t, uintptr_t);\n'
+        '\t  k70_role_note(1u, (uintptr_t)current_thread()); }\n')
+    path.write_text(text)
 
+    path = root / 'bsd/kern/bsd_init.c'
+    text = path.read_text()
+    _bs = '\nbsd_init(void)\n{\n'
+    assert text.count(_bs) == 1
+    text = text.replace(_bs,
+        _bs + '\t{ extern void k70_role_note(uint32_t, uintptr_t);\n'
+        '\t  k70_role_note(2u, (uintptr_t)current_thread()); }\n')
+    _p1 = '\nbsdinit_task(void)\n{\n'
+    assert text.count(_p1) == 1
+    text = text.replace(_p1,
+        _p1 + '\t{ extern void k70_role_note(uint32_t, uintptr_t);\n'
+        '\t  k70_role_note(3u, (uintptr_t)current_thread()); }\n')
+    path.write_text(text)

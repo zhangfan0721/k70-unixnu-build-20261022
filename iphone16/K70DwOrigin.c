@@ -89,6 +89,28 @@ k70_stage_text_get(void)
 }
 
 static uintptr_t k70_worker_thread;
+static struct k70_role_rec k70_role_state[4];
+
+void
+k70_role_note(uint32_t role, uintptr_t thread)
+{
+	volatile struct k70_role_rec *r;
+	if (role == 0u || role > 3u || thread == 0) {
+		return;
+	}
+	r = &k70_role_state[role];
+	r->thread = thread;
+	r->hit = r->hit + 1u;
+}
+
+const struct k70_role_rec *
+k70_role_get(uint32_t role)
+{
+	if (role > 3u) {
+		return 0;
+	}
+	return &k70_role_state[role];
+}
 
 void
 k70_worker_note(uintptr_t thread)
@@ -102,6 +124,15 @@ k70_wait_note(uintptr_t thread, uintptr_t event, uintptr_t lr)
 	volatile struct k70_wait_rec *w = &k70_wait_state;
 	/* v21: the diagnostics worker itself blocks constantly in the console path;
 	 * ignoring it leaves the site that actually matters. */
+	for (uint32_t i = 1; i <= 3u; i++) {
+		volatile struct k70_role_rec *r = &k70_role_state[i];
+		if (r->thread != 0 && r->thread == thread) {
+			r->lr = lr;
+			r->event = event;
+			r->blocks = r->blocks + 1u;
+			return;
+		}
+	}
 	{
 		extern uintptr_t k70_flight_target_thread(void);
 		uintptr_t want = k70_flight_target_thread();
