@@ -349,6 +349,18 @@ def install_diag(root):
         '              bp_out_hex(&ho, rr2->outer, 16);\n'
         '              boot_progress_stage(hl);\n'
         '            } }\n'
+        '          { extern void k70_wire_get(uintptr_t *, uintptr_t *, int *);\n'
+        '            uintptr_t wm, we; int wc;\n'
+        '            k70_wire_get(&wm, &we, &wc);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "WIRE ");\n'
+        '            bp_out_hex(&ho, wm, 12);\n'
+        '            bp_out_puts(&ho, "/");\n'
+        '            bp_out_hex(&ho, we, 12);\n'
+        '            bp_out_puts(&ho, " C");\n'
+        '            bp_out_dec(&ho, (uint32_t)wc);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern void k70_obj_get(uintptr_t *, int *, int *);\n'
         '            uintptr_t oa; int op, oq;\n'
         '            k70_obj_get(&oa, &op, &oq);\n'
@@ -610,6 +622,15 @@ def install_diag(root):
     if 'k70_win_note' not in text:
         text = text.replace(_ec,
             _ec + 'void k70_win_note(unsigned long long, unsigned long long, int);\n', 1)
+    path.write_text(text)
+    # v53: name the entry whose kernel wiring blocks the map teardown.
+    path = root / 'osfmk/vm/vm_map.c'
+    text = path.read_text()
+    _w = '\t\t\t\tentry->needs_wakeup = TRUE;\n'
+    assert text.count(_w) >= 1, text.count(_w)
+    text = text.replace(_w,
+        '\t\t\t\t{ extern void k70_wire_note(uintptr_t, uintptr_t, int);\n'
+        '\t\t\t\t  k70_wire_note((uintptr_t)map, (uintptr_t)entry, entry->wired_count); }\n' + _w, 1)
     path.write_text(text)
     # v51: record the two counters the object paging wait watches.
     path = root / 'osfmk/vm/vm_object.c'

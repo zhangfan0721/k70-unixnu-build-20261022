@@ -172,6 +172,25 @@ k70_outer_get(void)
 	return k70_outer_lr;
 }
 
+static volatile uintptr_t k70_wire_map, k70_wire_entry;
+static volatile int k70_wire_count;
+
+void
+k70_wire_note(uintptr_t map, uintptr_t entry, int count)
+{
+	k70_wire_map = map;
+	k70_wire_entry = entry;
+	k70_wire_count = count;
+}
+
+void
+k70_wire_get(uintptr_t *map, uintptr_t *entry, int *count)
+{
+	*map = k70_wire_map;
+	*entry = k70_wire_entry;
+	*count = k70_wire_count;
+}
+
 static volatile uintptr_t k70_obj_addr;
 static volatile int k70_obj_paging, k70_obj_activity;
 
