@@ -172,6 +172,34 @@ k70_outer_get(void)
 	return k70_outer_lr;
 }
 
+static volatile uintptr_t k70_rws_lck2, k70_rws_event2, k70_rws_caller2;
+static volatile uint32_t k70_rws_action2;
+
+void
+k70_rws_entry(uintptr_t thread, uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller)
+{
+	/* v49: only a boot-role thread's wait is interesting here. */
+	for (uint32_t i = 1; i <= 3u; i++) {
+		if (k70_role_state[i].thread == thread && thread != 0) {
+			k70_rws_lck2 = lck;
+			k70_rws_event2 = event;
+			k70_rws_action2 = action;
+			k70_rws_caller2 = caller;
+			return;
+		}
+	}
+}
+
+void
+k70_rws_read(uintptr_t *lck, uintptr_t *event, uint32_t *action, uintptr_t *caller, uint32_t *wakes)
+{
+	*lck = k70_rws_lck2;
+	*event = k70_rws_event2;
+	*action = k70_rws_action2;
+	*caller = k70_rws_caller2;
+	*wakes = k70_rws_wake_count;
+}
+
 static volatile uint32_t k70_rws_wake_count;
 
 void

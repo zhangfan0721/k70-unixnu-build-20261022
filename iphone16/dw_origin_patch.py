@@ -349,29 +349,28 @@ def install_diag(root):
         '              bp_out_hex(&ho, rr2->outer, 16);\n'
         '              boot_progress_stage(hl);\n'
         '            } }\n'
+        '          { extern void k70_rws_read(uintptr_t *, uintptr_t *, uint32_t *, uintptr_t *, uint32_t *);\n'
+        '            uintptr_t q1, q2, q3; uint32_t q4, q5;\n'
+        '            k70_rws_read(&q1, &q2, &q4, &q3, &q5);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "RWS ");\n'
+        '            bp_out_hex(&ho, q1, 16);\n'
+        '            bp_out_puts(&ho, " E");\n'
+        '            bp_out_hex(&ho, q2, 16);\n'
+        '            bp_out_puts(&ho, " A");\n'
+        '            bp_out_dec(&ho, q4);\n'
+        '            boot_progress_stage(hl);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "RWSC ");\n'
+        '            bp_out_hex(&ho, q3, 16);\n'
+        '            bp_out_puts(&ho, " W");\n'
+        '            bp_out_dec(&ho, q5);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern uintptr_t k70_outer_get(void);\n'
         '            bp_out_begin(&ho, hl);\n'
         '            bp_out_puts(&ho, "OLR ");\n'
         '            bp_out_hex(&ho, k70_outer_get(), 16);\n'
-        '            boot_progress_stage(hl);\n'
-        '          }\n'
-        '          { extern void k70_rws_get(uintptr_t *, uintptr_t *, uint32_t *, uintptr_t *);\n'
-        '            uintptr_t rl, re, rc2; uint32_t ra;\n'
-        '            k70_rws_get(&rl, &re, &ra, &rc2);\n'
-        '            bp_out_begin(&ho, hl);\n'
-        '            bp_out_puts(&ho, "RWS ");\n'
-        '            bp_out_hex(&ho, rl, 12);\n'
-        '            bp_out_puts(&ho, "/");\n'
-        '            bp_out_hex(&ho, re, 12);\n'
-        '            bp_out_puts(&ho, " A");\n'
-        '            bp_out_dec(&ho, ra);\n'
-        '            boot_progress_stage(hl);\n'
-        '            bp_out_begin(&ho, hl);\n'
-        '            { extern uint32_t k70_rws_wakes(void);\n'
-        '              bp_out_puts(&ho, " W");\n'
-        '              bp_out_dec(&ho, k70_rws_wakes()); }\n'
-        '            bp_out_puts(&ho, "RWSC ");\n'
-        '            bp_out_hex(&ho, rc2, 16);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
         '          { extern void k70_win_get(uint64_t *, uint64_t *, uint64_t *, int *);\n'
@@ -599,6 +598,28 @@ def install_diag(root):
     if 'k70_win_note' not in text:
         text = text.replace(_ec,
             _ec + 'void k70_win_note(unsigned long long, unsigned long long, int);\n', 1)
+    path.write_text(text)
+    # v49: the rw sleep now names its own caller, event and lock. The lock file is
+    # plain C, so a block scope declaration is legal here.
+    path = root / 'osfmk/kern/lock_rw.c'
+    text = path.read_text()
+    _sig2 = ('lck_rw_sleep(\n'
+             '\tlck_rw_t                *lck,\n'
+             '\tlck_sleep_action_t      lck_sleep_action,\n'
+             '\tevent_t                 event,\n'
+             '\twait_interrupt_t        interruptible)\n{\n')
+    assert text.count(_sig2) == 1, text.count(_sig2)
+    if 'k70_rws_entry' not in text:
+        text = text.replace(_sig2, _sig2 +
+            '\t{ extern void k70_rws_entry(uintptr_t, uintptr_t, uintptr_t, uint32_t, uintptr_t);\n'
+            '\t  k70_rws_entry((uintptr_t)current_thread(), (uintptr_t)lck, (uintptr_t)event,\n'
+            '\t      (uint32_t)lck_sleep_action, (uintptr_t)__builtin_return_address(0)); }\n')
+        _start2 = text.index(_sig2)
+        body2 = text[_start2:_start2 + 4000]
+        assert body2.count('\treturn res;\n') == 2, body2.count('\treturn res;\n')
+        body2 = body2.replace('\treturn res;\n',
+            '\t{ extern void k70_rws_wake(void); k70_rws_wake(); }\n\treturn res;\n')
+        text = text[:_start2] + body2 + text[_start2 + 4000:]
     path.write_text(text)
     # v39: record every ram-window fetch, so a read that never completes shows up.
     path = root / 'iokit/bsddev/K70UfsWindow.inc'
