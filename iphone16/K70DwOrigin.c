@@ -174,6 +174,7 @@ k70_outer_get(void)
 
 static volatile uintptr_t k70_rws_lck2, k70_rws_event2, k70_rws_caller2;
 static volatile uint32_t k70_rws_action2;
+static volatile uint32_t k70_rws_wake_count;
 
 void
 k70_rws_entry(uintptr_t thread, uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller)
@@ -199,8 +200,6 @@ k70_rws_read(uintptr_t *lck, uintptr_t *event, uint32_t *action, uintptr_t *call
 	*caller = k70_rws_caller2;
 	*wakes = k70_rws_wake_count;
 }
-
-static volatile uint32_t k70_rws_wake_count;
 
 void
 k70_rws_wake(void)
