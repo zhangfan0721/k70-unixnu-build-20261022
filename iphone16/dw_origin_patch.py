@@ -704,8 +704,6 @@ def install_diag(root):
         (3, chr(9) + 'if ((error = vnode_size(vp, &fsize, ctx)) != 0) {' + chr(10)),
         (5, chr(9) + 'if ((error = vnode_authorize(vp, NULL, KAUTH_VNODE_EXECUTE | KAUTH_VNODE_READ_DATA, ctx)) != 0) {' + chr(10)),
         (6, chr(9) + 'if ((error = VNOP_OPEN(vp, FREAD, ctx)) != 0) {' + chr(10)),
-        (10, chr(9) + 'error = fatfile_validate_fatarches((vm_offset_t)(&header->fat_header),' + chr(10)),
-        (11, chr(9) + 'error = fatfile_getbestarch_for_cputype(cputype, CPU_SUBTYPE_ANY,' + chr(10)),
     )
     for _site, _mark in _gm:
         assert text.count(_mark) == 1, (_site, text.count(_mark))
@@ -717,6 +715,18 @@ def install_diag(root):
     assert text.count(_rd2) == 1, text.count(_rd2)
     text = text.replace(_rd2, _rd2 +
         chr(9) + '\t{ extern void k70_gmv_note(int, int); k70_gmv_note(7, error); }' + chr(10))
+    _fb = (chr(9) * 2 + 'if (error != LOAD_SUCCESS) {' + chr(10) +
+            chr(9) * 3 + 'goto bad2;' + chr(10) +
+            chr(9) * 2 + '}' + chr(10))
+    _id_fat = 10
+    _start = 0
+    for _k in range(2):
+        _pos = text.find(_fb, _start)
+        assert _pos >= 0, ('fat block', _k)
+        _note = chr(9) * 3 + '{ extern void k70_gmv_note(int, int); k70_gmv_note(%d, error); }' % _id_fat + chr(10)
+        text = text[:_pos + len(_fb)] + _note + text[_pos + len(_fb):]
+        _start = _pos + len(_fb) + len(_note)
+        _id_fat = 11
     _ct = chr(9) + 'if ((cpu_type_t)header->mach_header.cputype != cputype) {' + chr(10)
     assert text.count(_ct) == 1, text.count(_ct)
     text = text.replace(_ct, _ct +
