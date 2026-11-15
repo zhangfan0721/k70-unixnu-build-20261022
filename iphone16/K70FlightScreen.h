@@ -170,7 +170,17 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
    if(r->kind==KF_PANIC && r->pmap_assert.pending)kf_orig_line(&l,&r->pmap_assert,row-18);
    else if(row==18 && r->kind==KF_PANIC){kf_text(&l,"PANIC TXT ");kf_text(&l,k70_panic_text);}
   }
-  else if(row>=23 && row<=25){if(r->kind==KF_PANIC)kf_abort_line(&l,row-23,r->pmap_assert.ppnum);}
+  else if(row>=23 && row<=25){
+   if(r->kind==KF_PANIC){
+    if(row==23){extern void k70_vn_get(unsigned int*,int*,long long*);unsigned int vs;int ve;long long vr;
+     k70_vn_get(&vs,&ve,&vr);kf_text(&l,"VN s");kf_hex(&l,(uint64_t)vs);kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)ve);
+     kf_text(&l," r");kf_hex(&l,(uint64_t)(uint32_t)(int32_t)vr);}
+    else if(row==24){extern void k70_win_get(uint64_t*,uint64_t*,uint64_t*,int*);uint64_t wc,wo,wl;int wr;
+     k70_win_get(&wc,&wo,&wl,&wr);kf_text(&l,"WIN n");kf_hex(&l,wc&0xffff);kf_text(&l," o");kf_hex(&l,wo&0xffffff);
+     kf_text(&l," l");kf_hex(&l,wl&0xffff);kf_text(&l," r");kf_hex(&l,(uint64_t)(uint32_t)wr);}
+    else {kf_abort_line(&l,0,r->pmap_assert.ppnum);}
+   } else kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
+  }
   else if(row>=26&&row<=29){
    if(r->kind==KF_PANIC){
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
