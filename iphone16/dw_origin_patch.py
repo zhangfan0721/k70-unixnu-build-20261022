@@ -668,6 +668,19 @@ def install_diag(root):
         '\t  vm_map_offset_t _sb = (vm_map_offset_t)scratch_addr & ~(vm_map_offset_t)(_ps - 1);\n'
         '\t  (void) vm_map_unwire(current_map(), _sb, _sb + _ps, FALSE); }\n' + _ex)
     path.write_text(text)
+    # v56: without AMFI the entitlement vtable is null, and every kext that asks
+    # for an entitlement takes a data abort. Answer negatively instead.
+    path = root / 'iokit/bsddev/IOKitBSDInit.cpp'
+    text = path.read_text()
+    for _call in ('queryEntitlementStringWithProc',
+                  'queryEntitlementBooleanWithProc',
+                  'copyEntitlementAsOSObjectWithProc'):
+        _pat = '\tkern_return_t ret = amfi->OSEntitlements.' + _call + '(\n'
+        if text.count(_pat) == 1:
+            text = text.replace(_pat,
+                '\tif (amfi == (void *)0) { return%s; }\n' %
+                (' NULL' if _call.startswith('copy') else ' false') + _pat)
+    path.write_text(text)
     # v51: record the two counters the object paging wait watches.
     path = root / 'osfmk/vm/vm_object.c'
     text = path.read_text()
