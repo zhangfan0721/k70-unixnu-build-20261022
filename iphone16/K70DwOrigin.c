@@ -172,6 +172,25 @@ k70_outer_get(void)
 	return k70_outer_lr;
 }
 
+static volatile uintptr_t k70_obj_addr;
+static volatile int k70_obj_paging, k70_obj_activity;
+
+void
+k70_obj_note(uintptr_t object, int paging, int activity)
+{
+	k70_obj_addr = object;
+	k70_obj_paging = paging;
+	k70_obj_activity = activity;
+}
+
+void
+k70_obj_get(uintptr_t *object, int *paging, int *activity)
+{
+	*object = k70_obj_addr;
+	*paging = k70_obj_paging;
+	*activity = k70_obj_activity;
+}
+
 static volatile uintptr_t k70_rws_lck2, k70_rws_event2, k70_rws_caller2;
 static volatile uint32_t k70_rws_action2;
 static volatile uint32_t k70_rws_wake_count;

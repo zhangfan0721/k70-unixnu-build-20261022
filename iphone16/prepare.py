@@ -554,6 +554,7 @@ def integration_patch(core, source, font, staging):
                   'osfmk/arm/machine_routines_common.c',
                   'bsd/kern/mach_loader.c',
                   'osfmk/kern/lock_rw.c',
+                  'osfmk/vm/vm_object.c',
                   'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):

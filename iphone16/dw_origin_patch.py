@@ -349,6 +349,18 @@ def install_diag(root):
         '              bp_out_hex(&ho, rr2->outer, 16);\n'
         '              boot_progress_stage(hl);\n'
         '            } }\n'
+        '          { extern void k70_obj_get(uintptr_t *, int *, int *);\n'
+        '            uintptr_t oa; int op, oq;\n'
+        '            k70_obj_get(&oa, &op, &oq);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "OBJ ");\n'
+        '            bp_out_hex(&ho, oa, 12);\n'
+        '            bp_out_puts(&ho, " P");\n'
+        '            bp_out_dec(&ho, (uint32_t)op);\n'
+        '            bp_out_puts(&ho, " A");\n'
+        '            bp_out_dec(&ho, (uint32_t)oq);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern void k70_rws_read(uintptr_t *, uintptr_t *, uint32_t *, uintptr_t *, uint32_t *);\n'
         '            uintptr_t q1, q2, q3; uint32_t q4, q5;\n'
         '            k70_rws_read(&q1, &q2, &q4, &q3, &q5);\n'
@@ -598,6 +610,16 @@ def install_diag(root):
     if 'k70_win_note' not in text:
         text = text.replace(_ec,
             _ec + 'void k70_win_note(unsigned long long, unsigned long long, int);\n', 1)
+    path.write_text(text)
+    # v51: record the two counters the object paging wait watches.
+    path = root / 'osfmk/vm/vm_object.c'
+    text = path.read_text()
+    _pw = '\tvm_object_paging_wait(src_object, THREAD_UNINT);\n'
+    assert text.count(_pw) >= 1, text.count(_pw)
+    text = text.replace(_pw,
+        '\t{ extern void k70_obj_note(uintptr_t, int, int);\n'
+        '\t  k70_obj_note((uintptr_t)src_object, src_object->paging_in_progress,\n'
+        '\t      src_object->activity_in_progress); }\n' + _pw, 1)
     path.write_text(text)
     # v49: the rw sleep now names its own caller, event and lock. The lock file is
     # plain C, so a block scope declaration is legal here.

@@ -190,6 +190,9 @@ void k70_rws_get(uintptr_t *lck, uintptr_t *event, uint32_t *action, uintptr_t *
 void k70_rws_wake(void);
 uint32_t k70_rws_wakes(void);
 void k70_rws_entry(uintptr_t thread, uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller);
+/* v51: the two counters an object paging wait actually watches. */
+void k70_obj_note(uintptr_t object, int paging, int activity);
+void k70_obj_get(uintptr_t *object, int *paging, int *activity);
 void k70_rws_read(uintptr_t *lck, uintptr_t *event, uint32_t *action, uintptr_t *caller, uint32_t *wakes);
 /* v45: the caller one frame above a blocking site, taken from the frame pointer. */
 void k70_outer_note(uintptr_t thread, uintptr_t lr);
