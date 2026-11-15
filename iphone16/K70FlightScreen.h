@@ -174,7 +174,6 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row>=26&&row<=29){
    if(r->kind==KF_PANIC){
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
-    extern void k70_cs_get(unsigned int*,int*,unsigned long long*,unsigned long long*);
     if(row==26){int p1,s1;unsigned long long f1,rs,ra,rb,cl;
      k70_psignal_get(&p1,&s1,&f1,&rs,&ra,&rb,&cl);
      kf_text(&l,"PSG p");kf_hex(&l,(uint64_t)(uint32_t)p1);kf_text(&l," s");kf_hex(&l,(uint64_t)(uint32_t)s1);
@@ -182,10 +181,8 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
     else if(row==27){int p1,s1;unsigned long long f1,rs,ra,rb,cl;
      k70_psignal_get(&p1,&s1,&f1,&rs,&ra,&rb,&cl);
      kf_text(&l,"RSN a");kf_hex(&l,ra);kf_text(&l," b");kf_hex(&l,rb);}
-    else if(row==28){int p1,s1;unsigned long long f1,rs,ra,rb,cl;
-     k70_psignal_get(&p1,&s1,&f1,&rs,&ra,&rb,&cl);unsigned cc;int cp;unsigned long long cv,cf;
-     k70_cs_get(&cc,&cp,&cv,&cf);
-     kf_text(&l,"CSI n");kf_hex(&l,(uint64_t)cc);kf_text(&l," v");kf_hex(&l,cv);}
+    else if(row==28){extern void k70_load_get(int*,unsigned int*);int lr2;unsigned int st;k70_load_get(&lr2,&st);
+     kf_text(&l,"LDR l");kf_hex(&l,(uint64_t)(uint32_t)lr2);kf_text(&l," st");kf_hex(&l,(uint64_t)st);}
     else {extern void k70_exec_fail_get(int*,int*,long long*,int*);int xs,xn,xe;long long xc;
      k70_exec_fail_get(&xs,&xn,&xc,&xe);extern int k70_act_get(void);
      kf_text(&l,"EXF s");kf_hex(&l,(uint64_t)(uint32_t)xs);kf_text(&l," c");kf_hex(&l,(uint64_t)xc);

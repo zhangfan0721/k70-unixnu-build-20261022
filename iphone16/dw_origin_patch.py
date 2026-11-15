@@ -711,6 +711,17 @@ def install_diag(root):
                 '\tif (amfi == (void *)0) { return%s; }\n' %
                 (' NULL' if _call.startswith('copy') else ' false') + _pat)
     path.write_text(text)
+    # v64: keep the raw load_machfile result and the image cpu subtype, the two
+    # inputs behind the BAD_MACHO failure reason.
+    path = root / 'bsd/kern/kern_exec.c'
+    text = path.read_text()
+    _ld = chr(9) + 'lret = load_machfile(imgp, mach_header, thread, &map, &load_result);' + chr(10)
+    assert text.count(_ld) == 1, text.count(_ld)
+    text = text.replace(_ld, _ld +
+        chr(9) + '{ extern void k70_load_note(int, unsigned int);' + chr(10) +
+        chr(9) + '  k70_load_note((int)lret, (unsigned int)imgp->ip_origcpusubtype); }' + chr(10))
+    path.write_text(text)
+
     # v63: the signature pass after the image activation can kill the boot task
     # without going through the two exec failure exits, so latch that site too.
     path = root / 'bsd/kern/kern_exec.c'
@@ -754,11 +765,12 @@ def install_diag(root):
         _sig +
         '\t\t{ extern void k70_psignal_note(int, int, unsigned long long, unsigned long long,\n'
         '\t\t      unsigned long long, unsigned long long, unsigned long long);\n'
-        '\t\t  unsigned long long *raw = (unsigned long long *)((char *)signal_reason + 0x20);\n'
+        '\t\t  unsigned long long *raw = (unsigned long long *)(void *)signal_reason;\n'
+        '\t\t  unsigned long long r0 = 0, r1 = 0;\n'
+        '\t\t  if (signal_reason != 0) { r0 = raw[4]; r1 = raw[5]; }\n'
         '\t\t  k70_psignal_note(p->p_pid, signum, (unsigned long long)proc_getcsflags(p),\n'
-        '\t\t      (unsigned long long)(uintptr_t)signal_reason,\n'
-        '\t\t      signal_reason ? raw[0] : 0, signal_reason ? raw[1] : 0,\n'
-        '\t\t      (unsigned long long)(uintptr_t)__builtin_return_address(0)); }\n')
+        '\t\t      (unsigned long long)(unsigned long)signal_reason, r0, r1,\n'
+        '\t\t      (unsigned long long)(unsigned long)__builtin_return_address(0)); }\n')
     path.write_text(text)
     path = root / 'bsd/kern/kern_cs.c'
     text = path.read_text()

@@ -174,6 +174,23 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_ld_lret;
+static volatile unsigned int k70_ld_subtype;
+
+void
+k70_load_note(int lret, unsigned int subtype)
+{
+	k70_ld_lret = lret;
+	k70_ld_subtype = subtype;
+}
+
+void
+k70_load_get(int *lret, unsigned int *subtype)
+{
+	*lret = k70_ld_lret;
+	*subtype = k70_ld_subtype;
+}
+
 static volatile int k70_act_kr;
 
 void
