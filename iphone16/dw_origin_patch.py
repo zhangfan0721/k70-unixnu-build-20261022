@@ -696,6 +696,14 @@ def install_diag(root):
         '\t\t  k70_lm_bad_note((unsigned long long)macho_size, (unsigned long long)file_size); }\n'
         '\t\treturn LOAD_BADMACHO;\n')
     path.write_text(text)
+    # v69: most loader failures assign LOAD_BADMACHO to a local and return it later,
+    # so number those statements too.
+    _parts2 = text.split('ret = LOAD_BADMACHO;')
+    _out2 = _parts2[0]
+    for _j, _tail2 in enumerate(_parts2[1:], 101):
+        _out2 += ('{ extern void k70_lm_site(int); k70_lm_site(%d); } ret = LOAD_BADMACHO;' % _j) + _tail2
+    text = _out2
+    path.write_text(text)
     # v67: number every bad-Mach-O return so one boot names the failing check.
     _parts = text.split('return LOAD_BADMACHO;')
     _out = _parts[0]
