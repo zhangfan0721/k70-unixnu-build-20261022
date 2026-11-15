@@ -172,23 +172,31 @@ k70_outer_get(void)
 	return k70_outer_lr;
 }
 
-static volatile uintptr_t k70_wire_map, k70_wire_entry;
-static volatile int k70_wire_count;
+static struct k70_wire_rec k70_wire_state;
 
 void
-k70_wire_note(uintptr_t map, uintptr_t entry, int count)
+k70_wire_note(uintptr_t map, uintptr_t entry, uint64_t start, uint64_t end,
+    int wired, int user_wired, int in_transition, int needs_wakeup,
+    uintptr_t caller, int is_kernel_map, int is_task_map)
 {
-	k70_wire_map = map;
-	k70_wire_entry = entry;
-	k70_wire_count = count;
+	volatile struct k70_wire_rec *w = &k70_wire_state;
+	w->map = map;
+	w->entry = entry;
+	w->start = start;
+	w->end = end;
+	w->wired = wired;
+	w->user_wired = user_wired;
+	w->in_transition = in_transition;
+	w->needs_wakeup = needs_wakeup;
+	w->caller = caller;
+	w->is_kernel_map = is_kernel_map;
+	w->is_task_map = is_task_map;
 }
 
-void
-k70_wire_get(uintptr_t *map, uintptr_t *entry, int *count)
+const struct k70_wire_rec *
+k70_wire_get(void)
 {
-	*map = k70_wire_map;
-	*entry = k70_wire_entry;
-	*count = k70_wire_count;
+	return &k70_wire_state;
 }
 
 static volatile uintptr_t k70_obj_addr;

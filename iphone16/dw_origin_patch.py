@@ -349,16 +349,31 @@ def install_diag(root):
         '              bp_out_hex(&ho, rr2->outer, 16);\n'
         '              boot_progress_stage(hl);\n'
         '            } }\n'
-        '          { extern void k70_wire_get(uintptr_t *, uintptr_t *, int *);\n'
-        '            uintptr_t wm, we; int wc;\n'
-        '            k70_wire_get(&wm, &we, &wc);\n'
+        '          { extern const struct k70_wire_rec *k70_wire_get(void);\n'
+        '            const struct k70_wire_rec *wr2 = k70_wire_get();\n'
         '            bp_out_begin(&ho, hl);\n'
-        '            bp_out_puts(&ho, "WIRE ");\n'
-        '            bp_out_hex(&ho, wm, 12);\n'
+        '            bp_out_puts(&ho, "WRE ");\n'
+        '            bp_out_hex(&ho, wr2->map, 12);\n'
         '            bp_out_puts(&ho, "/");\n'
-        '            bp_out_hex(&ho, we, 12);\n'
-        '            bp_out_puts(&ho, " C");\n'
-        '            bp_out_dec(&ho, (uint32_t)wc);\n'
+        '            bp_out_hex(&ho, wr2->entry, 12);\n'
+        '            bp_out_puts(&ho, " K");\n'
+        '            bp_out_dec(&ho, (uint32_t)wr2->is_kernel_map);\n'
+        '            bp_out_puts(&ho, " T");\n'
+        '            bp_out_dec(&ho, (uint32_t)wr2->is_task_map);\n'
+        '            boot_progress_stage(hl);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "WRC ");\n'
+        '            bp_out_dec(&ho, (uint32_t)wr2->wired);\n'
+        '            bp_out_puts(&ho, "/");\n'
+        '            bp_out_dec(&ho, (uint32_t)wr2->user_wired);\n'
+        '            bp_out_puts(&ho, " T");\n'
+        '            bp_out_dec(&ho, (uint32_t)wr2->in_transition);\n'
+        '            bp_out_puts(&ho, " N");\n'
+        '            bp_out_dec(&ho, (uint32_t)wr2->needs_wakeup);\n'
+        '            boot_progress_stage(hl);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "WRL ");\n'
+        '            bp_out_hex(&ho, wr2->caller, 16);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
         '          { extern void k70_obj_get(uintptr_t *, int *, int *);\n'
@@ -623,14 +638,22 @@ def install_diag(root):
         text = text.replace(_ec,
             _ec + 'void k70_win_note(unsigned long long, unsigned long long, int);\n', 1)
     path.write_text(text)
-    # v53: name the entry whose kernel wiring blocks the map teardown.
+    # v53: latch the whole entry at the second delete wait, so one hop tells whether
+    # this is our own unmap, an IOKit mapping cleanup or a real map teardown.
     path = root / 'osfmk/vm/vm_map.c'
     text = path.read_text()
     _w = '\t\t\t\tentry->needs_wakeup = TRUE;\n'
     assert text.count(_w) >= 1, text.count(_w)
-    text = text.replace(_w,
-        '\t\t\t\t{ extern void k70_wire_note(uintptr_t, uintptr_t, int);\n'
-        '\t\t\t\t  k70_wire_note((uintptr_t)map, (uintptr_t)entry, entry->wired_count); }\n' + _w, 1)
+    _note = ('\t\t\t\t{ extern void k70_wire_note(uintptr_t, uintptr_t, uint64_t, uint64_t,\n'
+             '\t\t\t\t      int, int, int, int, uintptr_t, int, int);\n'
+             '\t\t\t\t  k70_wire_note((uintptr_t)map, (uintptr_t)entry,\n'
+             '\t\t\t\t      (uint64_t)entry->vme_start, (uint64_t)entry->vme_end,\n'
+             '\t\t\t\t      entry->wired_count, entry->user_wired_count,\n'
+             '\t\t\t\t      (int)entry->in_transition, (int)entry->needs_wakeup,\n'
+             '\t\t\t\t      (uintptr_t)__builtin_return_address(0),\n'
+             '\t\t\t\t      (map == kernel_map) ? 1 : 0,\n'
+             '\t\t\t\t      (map == current_task()->map) ? 1 : 0); }\n')
+    text = text.replace(_w, _note + _w, 1)
     path.write_text(text)
     # v51: record the two counters the object paging wait watches.
     path = root / 'osfmk/vm/vm_object.c'
