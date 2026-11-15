@@ -174,21 +174,20 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row>=26&&row<=29){
    if(r->kind==KF_PANIC){
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
+    extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
     if(row==26){int p1,s1;unsigned long long f1,rs,ra,rb,cl;
      k70_psignal_get(&p1,&s1,&f1,&rs,&ra,&rb,&cl);
      kf_text(&l,"PSG p");kf_hex(&l,(uint64_t)(uint32_t)p1);kf_text(&l," s");kf_hex(&l,(uint64_t)(uint32_t)s1);
      kf_text(&l," f");kf_hex(&l,f1);}
     else if(row==27){extern void k70_lm_site_get(int*,int*);int ls,lc;k70_lm_site_get(&ls,&lc);
-     extern void k70_lm_bad_get(unsigned long long*,unsigned long long*);unsigned long long bm,bf;
-     k70_lm_bad_get(&bm,&bf);
-     kf_text(&l,"LMS s");kf_hex(&l,(uint64_t)(uint32_t)ls);kf_text(&l," m");kf_hex(&l,bm&0xffffffff);
-     kf_text(&l," f");kf_hex(&l,bf&0xffffffff);}
-    else if(row==28){extern void k70_load_get(int*,unsigned int*);int lr2;unsigned int st;k70_load_get(&lr2,&st);
-     kf_text(&l,"LDR l");kf_hex(&l,(uint64_t)(uint32_t)lr2);kf_text(&l," st");kf_hex(&l,(uint64_t)st);}
-    else {extern void k70_exec_fail_get(int*,int*,long long*,int*);int xs,xn,xe;long long xc;
-     k70_exec_fail_get(&xs,&xn,&xc,&xe);extern int k70_act_get(void);
-     kf_text(&l,"EXF s");kf_hex(&l,(uint64_t)(uint32_t)xs);kf_text(&l," c");kf_hex(&l,(uint64_t)xc);
-     kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)xe);kf_text(&l," A");kf_hex(&l,(uint64_t)(uint32_t)k70_act_get());}
+     kf_text(&l,"LMS s");kf_hex(&l,(uint64_t)(uint32_t)ls);kf_text(&l," n");kf_hex(&l,(uint64_t)(uint32_t)lc);}
+    else if(row==28){int br;unsigned long long bx,by;k70_bd_get(1,&br,&bx,&by);
+     kf_text(&l,"B1 r");kf_hex(&l,(uint64_t)(uint32_t)br);kf_text(&l," f");kf_hex(&l,bx&0xffffffff);
+     kf_text(&l," t");kf_hex(&l,by&0xffffffff);}
+    else {int br;unsigned long long bx,by;k70_bd_get(2,&br,&bx,&by);
+     kf_text(&l,"B2 r");kf_hex(&l,(uint64_t)(uint32_t)br);kf_text(&l," m");kf_hex(&l,bx&0xffffffff);
+     kf_text(&l," d");kf_hex(&l,by&0xffffffff);kf_text(&l," B3 ");k70_bd_get(3,&br,&bx,&by);
+     kf_hex(&l,(uint64_t)(uint32_t)br);}
    } else kf_kabort_line(&l,row-26);
   }
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");

@@ -174,6 +174,28 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_bd_ret[4];
+static volatile unsigned long long k70_bd_x[4], k70_bd_y[4];
+
+void
+k70_bd_note(int id, int ret, unsigned long long x, unsigned long long y)
+{
+	if (id > 0 && id < 4) {
+		k70_bd_ret[id] = ret;
+		k70_bd_x[id] = x;
+		k70_bd_y[id] = y;
+	}
+}
+
+void
+k70_bd_get(int id, int *ret, unsigned long long *x, unsigned long long *y)
+{
+	int i = (id > 0 && id < 4) ? id : 0;
+	*ret = k70_bd_ret[i];
+	*x = k70_bd_x[i];
+	*y = k70_bd_y[i];
+}
+
 static volatile unsigned long long k70_lmb_macho, k70_lmb_file;
 
 void

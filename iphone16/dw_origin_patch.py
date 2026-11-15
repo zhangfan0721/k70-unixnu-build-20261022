@@ -696,13 +696,33 @@ def install_diag(root):
         '\t\t  k70_lm_bad_note((unsigned long long)macho_size, (unsigned long long)file_size); }\n'
         '\t\treturn LOAD_BADMACHO;\n')
     path.write_text(text)
+    # v71: the dyld lookup and the recursive dyld parse returns, so a failure can be
+    # placed before the main image parse instead of being inferred.
+    path = root / 'bsd/kern/mach_loader.c'
+    text = path.read_text()
+    _g = chr(9) + 'ret = get_macho_vnode(name, cputype, header,' + chr(10)
+    _g2 = chr(9) + '    &file_offset, &macho_size, macho_data, &vp, imgp);' + chr(10)
+    assert text.count(_g + _g2) == 1, text.count(_g + _g2)
+    text = text.replace(_g + _g2, _g + _g2 +
+        chr(9) + '{ extern void k70_bd_note(int, int, unsigned long long, unsigned long long);' + chr(10) +
+        chr(9) + '  k70_bd_note(1, (int)ret, (unsigned long long)file_offset,' + chr(10) +
+        chr(9) + '      ((unsigned long long)(unsigned)header->cputype << 32) | (unsigned)header->cpusubtype); }' + chr(10))
+    _p = chr(9) + 'ret = parse_machfile(vp, map, thread, header, file_offset,' + chr(10)
+    _p2 = chr(9) + '    macho_size, depth, slide, 0, myresult, result, imgp);' + chr(10)
+    assert text.count(_p + _p2) == 1, text.count(_p + _p2)
+    text = text.replace(_p + _p2, _p + _p2 +
+        chr(9) + '{ extern void k70_bd_note(int, int, unsigned long long, unsigned long long);' + chr(10) +
+        chr(9) + '  k70_bd_note(2, (int)ret, (unsigned long long)macho_size, (unsigned long long)depth); }' + chr(10))
+    path.write_text(text)
     # v70: every loader failure that ends as LOAD_BADMACHO is marked at the point it
     # is produced, whichever variable carries it, across the loader and the fat reader.
     _hdr = root / 'bsd/kern/mach_loader.h'
     _ht = _hdr.read_text()
     if 'k70lm_mark' not in _ht:
-        _ht += ('\nstatic inline load_return_t k70lm_mark(int s, load_return_t v)\n'	
-                '{ extern void k70_lm_site(int); k70_lm_site(s); return v; }\n')
+        _ht += ('\n#ifndef K70LM_MARK_DEF\n#define K70LM_MARK_DEF\n'
+                'extern void k70_lm_site(int);\n'
+                '#define k70lm_mark(s, v) (k70_lm_site(s), (v))\n'
+                '#endif\n')
         _hdr.write_text(_ht)
     _id = 1
     for _name in ('bsd/kern/mach_loader.c', 'bsd/kern/mach_fat.c'):
