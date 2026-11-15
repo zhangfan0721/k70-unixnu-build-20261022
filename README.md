@@ -33,39 +33,62 @@ Hardware observations apply to the recorded test images.
 | 4. DarwinBoot | Verified on device | Loader hands off to XNU at EL1 |
 | 5. Kernel | Verified on device | XNU prints its version, matches the ADT, handles timer interrupts and creates the PID 1 task and thread |
 | 6. Storage and root volume | Verified on device | HFS RAM root mounts in `root06`. A separate HFS+ test root mounts through the declared UFS window |
-| 7. iOS userland | Blocked | PID 1 reaches `load_init_program`. Later hardware evidence shows a page reclamation assertion before any confirmed `launchd` execution |
+| 7. iOS userland | In progress | Kernel exec completes and the userland `dyld` runs; the boot task now stops inside dyld because the shared cache cannot be mapped yet |
 
 ### Storage and root volume
 
-The older [UFS-TAKEOVER05 build](https://github.com/zhangfan0721/k70-unixnu-build-20261022/actions/runs/42207233095)
-has a matching handset record for capacity, GPT and four read digests. This
-branch exposes a declared UFS extent through a BSD block device. The first
-512 KiB of the HFS+ volume matched its reference digest, and `vfs_mountroot`
-reported a successful mount. APFS is included in the prelink set. Native APFS
-root mounting remains unverified.
+The test extent is 9 GiB on this handset, in the gap between `sda27` and `sda28`
+and outside the active Android `super` and `userdata` partitions. The boot path
+serves that extent read-only through a BSD block device and stops if the
+requested window cannot open. The offset depends on the handset's partition
+history: on this unit the extent starts at byte 864,288,768 (sector 1,688,064)
+and the window is opened with `k70rd=0x33840,0xC0000`.
 
-The test extent is 9 GiB on this handset, outside its active Android `super` and
-`userdata` partitions. It was provisioned separately with a repacked HFS+ image
-from 20H392 containing selected system files, `launchd`, `dyld` and the shared
-cache. The boot path serves that extent read-only, rejects writes, and stops
-if the requested root window cannot open. The offset and capacity depend on
-the handset's partition history.
+The extent currently carries a 3 GiB HFS+ volume (`K70ROOT16`, 4096-byte
+blocks) provisioned from the 20H392 system volume: `/sbin/launchd`,
+`/usr/lib/dyld` and the 50 files of the arm64 dyld shared cache under
+`/System/Library/Caches/com.apple.dyld/`. Files are copied with the
+`hfsplus` tool from `planetbeing/libdmg-hfsplus`; POSIX modes are set
+explicitly because the tool records 0644 otherwise, and a non-executable
+`dyld` is rejected later by `vnode_authorize` with `EPERM`.
+
+Two shared-cache subcaches on the source volume are stored with the
+`LZBITMAP` `decmpfs` type (type 14) and could not be decompressed with
+7-Zip 23.01, 7-Zip 26.06 or `lzfse`. Their absence keeps dyld from accepting
+the cache, so it falls back to loading dylibs from the file system and fails
+on `libSystem`.
 
 ### PID 1 and the latest diagnostic
 
-Earlier boots stalled during the first argv `copyout` in `load_init_program`.
-A later build used XNU's scoped PAN handling for user copies and reached a
-`pmap_assert_free` panic. The [`8fc6792` diagnostic](https://github.com/zhangfan0721/k70-unixnu-build-20261022/commit/8fc67921ae4d1d8949731587f2fd9dea1a80add9)
-recorded a live kernel mapping on a page being checked for reclamation, with
-`vm_page_free_list` in the call chain. The mapping's origin and any link to the
-earlier `copyout` fault remain open.
+The kernel side of the first `execve` now completes: `load_machfile` returns,
+the port map is terminated, and the userland `dyld` runs. What remains is a
+userland failure, reported by dyld itself as
 
-`799f65f` adds the caller for the specific free-list invocation and the mapping
-virtual address when it can be decoded, while preserving the assertion and
-panic. CI and image inspection verified the new diagnostic. A handset run is
-still needed to capture those fields. The HFS+ repack covers the early boot
-experiment. A complete 20H392 userspace and a separate writable iOS Data volume
-still need validation.
+    initproc failed
+    Library not loaded: /usr/lib/libSystem.B.dylib (no such file)
+
+Before that point the capture panel provided the evidence used to clear the
+earlier blockers: an unpaired kernel wiring on the scratch page kept
+`vm_map_delete` waiting; an absent AMFI vtable made entitlement queries fault;
+the `Image4` gate had to answer negative; and the provisioned `dyld` lacked
+execute permission. The panel exposes the current evidence: signal provenance
+(`PSG`), loader failure site and value (`LMS`), dyld boundary returns (`B1`,
+`B2`), the failing check inside the dyld lookup (`GMV`), file and window read
+records (`VN`, `WIN`) and the exec failure latch (`EXF`).
+
+### Local image pipeline
+
+A complete local pipeline rebuilt on 2026-11-15 turns a CI kernel artifact into
+a bootable image without any hardware access:
+
+1. `rootchain/emit_storage_prelink.py` prelinks the nine storage components.
+2. `seal-source-crypto-kernel.py` fills the POST HMAC field.
+3. `rootchain/check_storage_inputs.py`, `rootchain/check_loader.py` and
+   `rootchain/verify_ufs_link.py` produce the three proofs.
+4. The `Image4` entitlement gate is patched to answer negative and every proof
+   that binds kernel bytes is rebound to the patched hash.
+5. `rootchain/build.py pack` assembles the image, and
+   `formal-xnu/personalize.py` writes a fresh private identity.
 
 ## Prerequisites
 
