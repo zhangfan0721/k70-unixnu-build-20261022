@@ -698,6 +698,7 @@ def install_diag(root):
         '\t\t\t/* The fetch filled the whole buffer. */\n'
         '\t\t\tbuf_setresid(bp, 0);\n'
         '\t\t}\n'
+        '\t\tbuf_unmap(bp);\n'
         '\t\tbuf_biodone(bp);\n')
     path.write_text(text)
     # v29: persistent exec bits plus the first failing loader read.
