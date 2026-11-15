@@ -711,24 +711,6 @@ def install_diag(root):
                 '\tif (amfi == (void *)0) { return%s; }\n' %
                 (' NULL' if _call.startswith('copy') else ' false') + _pat)
     path.write_text(text)
-    # v58: this port runs without AMFI, so a code-signing page fault must not
-    # terminate the boot process; keep the fault counted and the page denied.
-    path = root / 'bsd/kern/kern_cs.c'
-    text = path.read_text()
-    _kill = '\t/* CS_KILL triggers a kill signal, and no you can\'t have the page. Nothing else. */\n\tif (flags & CS_KILL) {\n'
-    assert text.count(_kill) == 1, text.count(_kill)
-    text = text.replace(_kill,
-        '\tif (proc_getpid(p) == 1) { flags &= ~(CS_KILL | CS_HARD); }\n' + _kill)
-    path.write_text(text)
-    # v61: keep the raw return of activate_exec_state, the last step that can send
-    # the boot task into the post-commit-point failure path.
-    path = root / 'bsd/kern/kern_exec.c'
-    text = path.read_text()
-    _act = '\tlret = activate_exec_state(task, p, thread, &load_result);\n'
-    assert text.count(_act) == 1, text.count(_act)
-    text = text.replace(_act, _act + '\t{ extern void k70_act_note(int); k70_act_note((int)lret); }\n')
-    path.write_text(text)
-
     # v60: latch the exec failure that ends the boot task, with its site, reason
     # namespace/code and the error the exec returned.
     path = root / 'bsd/kern/kern_exec.c'
@@ -752,10 +734,14 @@ def install_diag(root):
     _sig = '\tif (signum == SIGKILL && p == initproc) {\n'
     assert text.count(_sig) == 1, text.count(_sig)
     text = text.replace(_sig,
-        '\t{ extern void k70_psignal_note(int, int, unsigned long long, int, long long);\n'
-        '\t  k70_psignal_note(p->p_pid, signum, (unsigned long long)proc_getcsflags(p),\n'
-        '\t      signal_reason ? (int)signal_reason->osr_namespace : -1,\n'
-        '\t      signal_reason ? (long long)signal_reason->osr_code : (long long)-1); }\n' + _sig)
+        _sig +
+        '\t\t{ extern void k70_psignal_note(int, int, unsigned long long, unsigned long long,\n'
+        '\t\t      unsigned long long, unsigned long long, unsigned long long);\n'
+        '\t\t  unsigned long long *raw = (unsigned long long *)((char *)signal_reason + 0x20);\n'
+        '\t\t  k70_psignal_note(p->p_pid, signum, (unsigned long long)proc_getcsflags(p),\n'
+        '\t\t      (unsigned long long)(uintptr_t)signal_reason,\n'
+        '\t\t      signal_reason ? raw[0] : 0, signal_reason ? raw[1] : 0,\n'
+        '\t\t      (unsigned long long)(uintptr_t)__builtin_return_address(0)); }\n')
     path.write_text(text)
     path = root / 'bsd/kern/kern_cs.c'
     text = path.read_text()

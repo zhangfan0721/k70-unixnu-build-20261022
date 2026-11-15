@@ -224,9 +224,12 @@ void k70_exec_fail_note(int site, int ns, long long code, int err);
 void k70_exec_fail_get(int *site, int *ns, long long *code, int *err);
 
 /* v57: initproc signal and code-signing fault provenance. */
-void k70_psignal_note(int pid, int signum, unsigned long long csflags, int ns, long long code);
+void k70_psignal_note(int pid, int signum, unsigned long long csflags, unsigned long long reason,
+    unsigned long long raw0, unsigned long long raw1, unsigned long long caller);
 void k70_cs_note(int pid, unsigned long long vaddr, unsigned long long csflags);
-void k70_psignal_get(int *pid, int *signum, unsigned long long *csflags, int *ns, long long *code);
+void k70_psignal_get(int *pid, int *signum, unsigned long long *csflags,
+    unsigned long long *reason, unsigned long long *raw0, unsigned long long *raw1,
+    unsigned long long *caller);
 void k70_cs_get(unsigned int *count, int *pid, unsigned long long *vaddr, unsigned long long *csflags);
 
 void k70_dw_try_begin(uintptr_t thread, uintptr_t input_object, uintptr_t dw_caller,

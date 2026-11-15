@@ -215,32 +215,38 @@ k70_exec_fail_get(int *site, int *ns, long long *code, int *err)
 
 static volatile int k70_ps_pid, k70_ps_sig;
 static volatile unsigned long long k70_ps_cs;
-static volatile int k70_ps_ns;
-static volatile long long k70_ps_code;
+static volatile unsigned long long k70_ps_reason, k70_ps_raw0, k70_ps_raw1, k70_ps_caller;
 static volatile unsigned int k70_cs_count;
 static volatile int k70_cs_pid;
 static volatile unsigned long long k70_cs_va, k70_cs_flags;
 
 void
-k70_psignal_note(int pid, int signum, unsigned long long csflags, int ns, long long code)
+k70_psignal_note(int pid, int signum, unsigned long long csflags, unsigned long long reason,
+    unsigned long long raw0, unsigned long long raw1, unsigned long long caller)
 {
 	if (k70_ps_pid == 0) {
 		k70_ps_pid = pid;
 		k70_ps_sig = signum;
 		k70_ps_cs = csflags;
-		k70_ps_ns = ns;
-		k70_ps_code = code;
+		k70_ps_reason = reason;
+		k70_ps_raw0 = raw0;
+		k70_ps_raw1 = raw1;
+		k70_ps_caller = caller;
 	}
 }
 
 void
-k70_psignal_get(int *pid, int *signum, unsigned long long *csflags, int *ns, long long *code)
+k70_psignal_get(int *pid, int *signum, unsigned long long *csflags,
+    unsigned long long *reason, unsigned long long *raw0, unsigned long long *raw1,
+    unsigned long long *caller)
 {
 	*pid = k70_ps_pid;
 	*signum = k70_ps_sig;
 	*csflags = k70_ps_cs;
-	*ns = k70_ps_ns;
-	*code = k70_ps_code;
+	*reason = k70_ps_reason;
+	*raw0 = k70_ps_raw0;
+	*raw1 = k70_ps_raw1;
+	*caller = k70_ps_caller;
 }
 
 void
