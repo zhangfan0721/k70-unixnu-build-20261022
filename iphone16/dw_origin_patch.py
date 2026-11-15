@@ -696,22 +696,30 @@ def install_diag(root):
         '\t\t  k70_lm_bad_note((unsigned long long)macho_size, (unsigned long long)file_size); }\n'
         '\t\treturn LOAD_BADMACHO;\n')
     path.write_text(text)
-    # v69: most loader failures assign LOAD_BADMACHO to a local and return it later,
-    # so number those statements too.
-    _parts2 = text.split('ret = LOAD_BADMACHO;')
-    _out2 = _parts2[0]
-    for _j, _tail2 in enumerate(_parts2[1:], 101):
-        _out2 += ('{ extern void k70_lm_site(int); k70_lm_site(%d); } ret = LOAD_BADMACHO;' % _j) + _tail2
-    text = _out2
-    path.write_text(text)
-    # v67: number every bad-Mach-O return so one boot names the failing check.
-    _parts = text.split('return LOAD_BADMACHO;')
-    _out = _parts[0]
-    for _i, _tail in enumerate(_parts[1:], 1):
-        _out += ('{ extern void k70_lm_site(int); k70_lm_site(%d); } return LOAD_BADMACHO;' % _i) + _tail
-    text = _out
-    path.write_text(text)
-
+    # v70: every loader failure that ends as LOAD_BADMACHO is marked at the point it
+    # is produced, whichever variable carries it, across the loader and the fat reader.
+    _hdr = root / 'bsd/kern/mach_loader.h'
+    _ht = _hdr.read_text()
+    if 'k70lm_mark' not in _ht:
+        _ht += ('\nstatic inline load_return_t k70lm_mark(int s, load_return_t v)\n'	
+                '{ extern void k70_lm_site(int); k70_lm_site(s); return v; }\n')
+        _hdr.write_text(_ht)
+    _id = 1
+    for _name in ('bsd/kern/mach_loader.c', 'bsd/kern/mach_fat.c'):
+        _p = root / _name
+        _t = _p.read_text()
+        for _pat, _repl in (('return LOAD_BADMACHO;', 'return k70lm_mark(%d, LOAD_BADMACHO);'),
+                             ('ret = LOAD_BADMACHO;', 'ret = k70lm_mark(%d, LOAD_BADMACHO);'),
+                             ('error = LOAD_BADMACHO;', 'error = k70lm_mark(%d, LOAD_BADMACHO);')):
+            _parts = _t.split(_pat)
+            if len(_parts) == 1:
+                continue
+            _out = _parts[0]
+            for _tail in _parts[1:]:
+                _out += (_repl % _id) + _tail
+                _id += 1
+            _t = _out
+        _p.write_text(_t)
     # v64: keep the raw load_machfile result and the image cpu subtype, the two
     # inputs behind the BAD_MACHO failure reason.
     path = root / 'bsd/kern/kern_exec.c'
