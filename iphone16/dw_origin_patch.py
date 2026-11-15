@@ -720,6 +720,15 @@ def install_diag(root):
     text = text.replace(_kill,
         '\tif (proc_getpid(p) == 1) { flags &= ~(CS_KILL | CS_HARD); }\n' + _kill)
     path.write_text(text)
+    # v61: keep the raw return of activate_exec_state, the last step that can send
+    # the boot task into the post-commit-point failure path.
+    path = root / 'bsd/kern/kern_exec.c'
+    text = path.read_text()
+    _act = '\tlret = activate_exec_state(task, p, thread, &load_result);\n'
+    assert text.count(_act) == 1, text.count(_act)
+    text = text.replace(_act, _act + '\t{ extern void k70_act_note(int); k70_act_note((int)lret); }\n')
+    path.write_text(text)
+
     # v60: latch the exec failure that ends the boot task, with its site, reason
     # namespace/code and the error the exec returned.
     path = root / 'bsd/kern/kern_exec.c'

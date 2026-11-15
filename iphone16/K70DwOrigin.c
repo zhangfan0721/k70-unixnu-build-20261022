@@ -174,6 +174,20 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_act_kr;
+
+void
+k70_act_note(int kr)
+{
+	k70_act_kr = kr;
+}
+
+int
+k70_act_get(void)
+{
+	return k70_act_kr;
+}
+
 static volatile int k70_xf_site;
 static volatile int k70_xf_ns;
 static volatile long long k70_xf_code;

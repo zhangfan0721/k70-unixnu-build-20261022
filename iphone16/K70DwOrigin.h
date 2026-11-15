@@ -215,6 +215,10 @@ const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
+/* v61: raw activate_exec_state return. */
+void k70_act_note(int kr);
+int k70_act_get(void);
+
 /* v60: latched exec failure that kills the boot process. */
 void k70_exec_fail_note(int site, int ns, long long code, int err);
 void k70_exec_fail_get(int *site, int *ns, long long *code, int *err);

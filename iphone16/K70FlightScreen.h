@@ -183,6 +183,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
     else if(row==28){extern void k70_exec_fail_get(int*,int*,long long*,int*);int xs,xn,xe;long long xc;
      k70_exec_fail_get(&xs,&xn,&xc,&xe);kf_text(&l,"EXF s");kf_hex(&l,(uint64_t)xs);kf_text(&l," n");kf_hex(&l,(uint64_t)xn);
      kf_text(&l," c");kf_hex(&l,(uint64_t)xc);kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)xe);}
+    else if(row==29){extern int k70_act_get(void);kf_text(&l,"ACT " );kf_hex(&l,(uint64_t)(uint32_t)k70_act_get());}
     else kf_kabort_line(&l,row-26);
    } else kf_kabort_line(&l,row-26);
   }
