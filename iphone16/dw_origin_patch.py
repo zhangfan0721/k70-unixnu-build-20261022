@@ -375,6 +375,7 @@ def install_diag(root):
         '            bp_out_puts(&ho, "WRL ");\n'
         '            bp_out_hex(&ho, wr2->caller, 16);\n'
         '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern void k70_obj_get(uintptr_t *, int *, int *);\n'
         '            uintptr_t oa; int op, oq;\n'
         '            k70_obj_get(&oa, &op, &oq);\n'
@@ -734,12 +735,11 @@ def install_diag(root):
         _sig +
         '\t\t{ extern void k70_psignal_note(int, int, unsigned long long, unsigned long long,\n'
         '\t\t      unsigned long long, unsigned long long, unsigned long long);\n'
-        '\t\t  unsigned long long *raw = (unsigned long long *)(void *)signal_reason;\n'
-        '\t\t  unsigned long long r0 = 0, r1 = 0;\n'
-        '\t\t  if (signal_reason != 0) { r0 = raw[4]; r1 = raw[5]; }\n'
+        '\t\t  unsigned long long *raw = (unsigned long long *)((char *)signal_reason + 0x20);\n'
         '\t\t  k70_psignal_note(p->p_pid, signum, (unsigned long long)proc_getcsflags(p),\n'
-        '\t\t      (unsigned long long)(unsigned long)signal_reason, r0, r1,\n'
-        '\t\t      (unsigned long long)(unsigned long)__builtin_return_address(0)); }\n')
+        '\t\t      (unsigned long long)(uintptr_t)signal_reason,\n'
+        '\t\t      signal_reason ? raw[0] : 0, signal_reason ? raw[1] : 0,\n'
+        '\t\t      (unsigned long long)(uintptr_t)__builtin_return_address(0)); }\n')
     path.write_text(text)
     path = root / 'bsd/kern/kern_cs.c'
     text = path.read_text()
@@ -932,4 +932,3 @@ def install_diag(root):
         _p1 + '\t{ extern void k70_role_note(uint32_t, uintptr_t);\n'
         '\t  k70_role_note(3u, (uintptr_t)current_thread()); }\n')
     path.write_text(text)
-
