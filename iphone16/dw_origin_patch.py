@@ -681,6 +681,16 @@ def install_diag(root):
                 '\tif (amfi == (void *)0) { return%s; }\n' %
                 (' NULL' if _call.startswith('copy') else ' false') + _pat)
     path.write_text(text)
+    # v67: number every bad-Mach-O return so one boot names the failing check.
+    path = root / 'bsd/kern/mach_loader.c'
+    text = path.read_text()
+    _parts = text.split('return LOAD_BADMACHO;')
+    _out = _parts[0]
+    for _i, _tail in enumerate(_parts[1:], 1):
+        _out += ('{ extern void k70_lm_site(int); k70_lm_site(%d); } return LOAD_BADMACHO;' % _i) + _tail
+    text = _out
+    path.write_text(text)
+
     # v64: keep the raw load_machfile result and the image cpu subtype, the two
     # inputs behind the BAD_MACHO failure reason.
     path = root / 'bsd/kern/kern_exec.c'

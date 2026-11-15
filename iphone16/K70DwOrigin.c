@@ -174,6 +174,22 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_lms_site, k70_lms_count;
+
+void
+k70_lm_site(int site)
+{
+	k70_lms_site = site;
+	k70_lms_count++;
+}
+
+void
+k70_lm_site_get(int *site, int *count)
+{
+	*site = k70_lms_site;
+	*count = k70_lms_count;
+}
+
 static volatile int k70_ld_lret;
 static volatile unsigned int k70_ld_subtype;
 
