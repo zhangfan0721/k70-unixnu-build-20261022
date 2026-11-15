@@ -655,6 +655,19 @@ def install_diag(root):
              '\t\t\t\t      (map == current_task()->map) ? 1 : 0); }\n')
     text = text.replace(_w, _note + _w, 1)
     path.write_text(text)
+    # v55: the scratch page this port wires before execve stays wired while the
+    # loader halts and terminates the task map, so the delete waits for that one
+    # kernel wiring forever. Unwire the page before the final execve call.
+    path = root / 'bsd/kern/kern_exec.c'
+    text = path.read_text()
+    _ex = '\terror = execve(p, &init_exec_args, retval);\n'
+    assert text.count(_ex) == 1, text.count(_ex)
+    text = text.replace(_ex,
+        '\t{ extern kern_return_t vm_map_unwire(vm_map_t, vm_map_offset_t, vm_map_offset_t, boolean_t);\n'
+        '\t  vm_map_offset_t _ps = vm_map_page_size(current_map());\n'
+        '\t  vm_map_offset_t _sb = (vm_map_offset_t)scratch_addr & ~(vm_map_offset_t)(_ps - 1);\n'
+        '\t  (void) vm_map_unwire(current_map(), _sb, _sb + _ps, FALSE); }\n' + _ex)
+    path.write_text(text)
     # v51: record the two counters the object paging wait watches.
     path = root / 'osfmk/vm/vm_object.c'
     text = path.read_text()
