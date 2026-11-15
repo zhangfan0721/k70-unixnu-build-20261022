@@ -215,6 +215,10 @@ const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
+/* v60: latched exec failure that kills the boot process. */
+void k70_exec_fail_note(int site, int ns, long long code, int err);
+void k70_exec_fail_get(int *site, int *ns, long long *code, int *err);
+
 /* v57: initproc signal and code-signing fault provenance. */
 void k70_psignal_note(int pid, int signum, unsigned long long csflags, int ns, long long code);
 void k70_cs_note(int pid, unsigned long long vaddr, unsigned long long csflags);

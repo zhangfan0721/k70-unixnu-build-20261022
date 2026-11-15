@@ -720,6 +720,22 @@ def install_diag(root):
     text = text.replace(_kill,
         '\tif (proc_getpid(p) == 1) { flags &= ~(CS_KILL | CS_HARD); }\n' + _kill)
     path.write_text(text)
+    # v60: latch the exec failure that ends the boot task, with its site, reason
+    # namespace/code and the error the exec returned.
+    path = root / 'bsd/kern/kern_exec.c'
+    text = path.read_text()
+    _f1 = '\t\t\tpsignal_with_reason(current_proc(), SIGKILL, exec_failure_reason);\n'
+    _f2 = '\t\tpsignal_with_reason(p, SIGKILL, exec_failure_reason);\n'
+    assert text.count(_f1) == 1 and text.count(_f2) == 1, (text.count(_f1), text.count(_f2))
+    text = text.replace(_f1,
+        '\t\t\t{ extern void k70_exec_fail_note(int, int, long long, int);\n'
+        '\t\t\t  k70_exec_fail_note(1, (int)exec_failure_reason->osr_namespace,\n'
+        '\t\t\t      (long long)exec_failure_reason->osr_code, error); }\n' + _f1)
+    text = text.replace(_f2,
+        '\t\t{ extern void k70_exec_fail_note(int, int, long long, int);\n'
+        '\t\t  k70_exec_fail_note(2, (int)exec_failure_reason->osr_namespace,\n'
+        '\t\t      (long long)exec_failure_reason->osr_code, error); }\n' + _f2)
+    path.write_text(text)
     # v57: latch who kills initproc, with the exit-reason namespace/code and the
     # owning code-signing flags, and count code-signing page faults.
     path = root / 'bsd/kern/kern_sig.c'

@@ -180,6 +180,9 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
      kf_text(&l," c");kf_hex(&l,(uint64_t)c1);kf_text(&l," f");kf_hex(&l,f1);}
     else if(row==27){unsigned cc;int cp;unsigned long long cv,cf;k70_cs_get(&cc,&cp,&cv,&cf);
      kf_text(&l,"CSI n");kf_hex(&l,(uint64_t)cc);kf_text(&l," p");kf_hex(&l,(uint64_t)cp);kf_text(&l," v");kf_hex(&l,cv);kf_text(&l," f");kf_hex(&l,cf);}
+    else if(row==28){extern void k70_exec_fail_get(int*,int*,long long*,int*);int xs,xn,xe;long long xc;
+     k70_exec_fail_get(&xs,&xn,&xc,&xe);kf_text(&l,"EXF s");kf_hex(&l,(uint64_t)xs);kf_text(&l," n");kf_hex(&l,(uint64_t)xn);
+     kf_text(&l," c");kf_hex(&l,(uint64_t)xc);kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)xe);}
     else kf_kabort_line(&l,row-26);
    } else kf_kabort_line(&l,row-26);
   }

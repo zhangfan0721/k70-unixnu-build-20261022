@@ -174,6 +174,31 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_xf_site;
+static volatile int k70_xf_ns;
+static volatile long long k70_xf_code;
+static volatile int k70_xf_err;
+
+void
+k70_exec_fail_note(int site, int ns, long long code, int err)
+{
+	if (k70_xf_site == 0) {
+		k70_xf_site = site;
+		k70_xf_ns = ns;
+		k70_xf_code = code;
+		k70_xf_err = err;
+	}
+}
+
+void
+k70_exec_fail_get(int *site, int *ns, long long *code, int *err)
+{
+	*site = k70_xf_site;
+	*ns = k70_xf_ns;
+	*code = k70_xf_code;
+	*err = k70_xf_err;
+}
+
 static volatile int k70_ps_pid, k70_ps_sig;
 static volatile unsigned long long k70_ps_cs;
 static volatile int k70_ps_ns;
