@@ -376,6 +376,36 @@ def install_diag(root):
         '            bp_out_hex(&ho, wr2->caller, 16);\n'
         '            boot_progress_stage(hl);\n'
         '          }\n'
+        '          { extern void k70_psignal_get(int *, int *, unsigned long long *, int *, long long *);\n'
+        '            int sp_pid, sp_sig, sp_ns; unsigned long long sp_cs; long long sp_code;\n'
+        '            k70_psignal_get(&sp_pid, &sp_sig, &sp_cs, &sp_ns, &sp_code);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "PSG ");\n'
+        '            bp_out_dec(&ho, (uint32_t)sp_pid);\n'
+        '            bp_out_puts(&ho, " S");\n'
+        '            bp_out_dec(&ho, (uint32_t)sp_sig);\n'
+        '            bp_out_puts(&ho, " N");\n'
+        '            bp_out_dec(&ho, (uint32_t)sp_ns);\n'
+        '            bp_out_puts(&ho, " C");\n'
+        '            bp_out_dec(&ho, (uint32_t)(sp_code & 0xffffffff));\n'
+        '            bp_out_puts(&ho, " F");\n'
+        '            bp_out_hex(&ho, sp_cs, 8);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
+        '          { extern void k70_cs_get(unsigned int *, int *, unsigned long long *, unsigned long long *);\n'
+        '            unsigned int cc; int cp; unsigned long long cv, cf;\n'
+        '            k70_cs_get(&cc, &cp, &cv, &cf);\n'
+        '            bp_out_begin(&ho, hl);\n'
+        '            bp_out_puts(&ho, "CSI ");\n'
+        '            bp_out_dec(&ho, cc);\n'
+        '            bp_out_puts(&ho, " P");\n'
+        '            bp_out_dec(&ho, (uint32_t)cp);\n'
+        '            bp_out_puts(&ho, " V");\n'
+        '            bp_out_hex(&ho, cv, 12);\n'
+        '            bp_out_puts(&ho, " F");\n'
+        '            bp_out_hex(&ho, cf, 8);\n'
+        '            boot_progress_stage(hl);\n'
+        '          }\n'
         '          { extern void k70_obj_get(uintptr_t *, int *, int *);\n'
         '            uintptr_t oa; int op, oq;\n'
         '            k70_obj_get(&oa, &op, &oq);\n'
@@ -680,6 +710,26 @@ def install_diag(root):
             text = text.replace(_pat,
                 '\tif (amfi == (void *)0) { return%s; }\n' %
                 (' NULL' if _call.startswith('copy') else ' false') + _pat)
+    path.write_text(text)
+    # v57: latch who kills initproc, with the exit-reason namespace/code and the
+    # owning code-signing flags, and count code-signing page faults.
+    path = root / 'bsd/kern/kern_sig.c'
+    text = path.read_text()
+    _sig = '\tif (signum == SIGKILL && p == initproc) {\n'
+    assert text.count(_sig) == 1, text.count(_sig)
+    text = text.replace(_sig,
+        '\t{ extern void k70_psignal_note(int, int, unsigned long long, int, long long);\n'
+        '\t  k70_psignal_note(p->p_pid, signum, (unsigned long long)proc_getcsflags(p),\n'
+        '\t      signal_reason ? (int)signal_reason->osr_namespace : -1,\n'
+        '\t      signal_reason ? (long long)signal_reason->osr_code : (long long)-1); }\n' + _sig)
+    path.write_text(text)
+    path = root / 'bsd/kern/kern_cs.c'
+    text = path.read_text()
+    _cs = '\tflags = proc_getcsflags(p);\n'
+    assert text.count(_cs) >= 1, text.count(_cs)
+    text = text.replace(_cs,
+        _cs + '\t{ extern void k70_cs_note(int, unsigned long long, unsigned long long);\n'
+        '\t  k70_cs_note(proc_getpid(p), vaddr, (unsigned long long)flags); }\n', 1)
     path.write_text(text)
     # v51: record the two counters the object paging wait watches.
     path = root / 'osfmk/vm/vm_object.c'

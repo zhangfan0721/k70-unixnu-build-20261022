@@ -174,6 +174,56 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_ps_pid, k70_ps_sig;
+static volatile unsigned long long k70_ps_cs;
+static volatile int k70_ps_ns;
+static volatile long long k70_ps_code;
+static volatile unsigned int k70_cs_count;
+static volatile int k70_cs_pid;
+static volatile unsigned long long k70_cs_va, k70_cs_flags;
+
+void
+k70_psignal_note(int pid, int signum, unsigned long long csflags, int ns, long long code)
+{
+	if (k70_ps_pid == 0) {
+		k70_ps_pid = pid;
+		k70_ps_sig = signum;
+		k70_ps_cs = csflags;
+		k70_ps_ns = ns;
+		k70_ps_code = code;
+	}
+}
+
+void
+k70_psignal_get(int *pid, int *signum, unsigned long long *csflags, int *ns, long long *code)
+{
+	*pid = k70_ps_pid;
+	*signum = k70_ps_sig;
+	*csflags = k70_ps_cs;
+	*ns = k70_ps_ns;
+	*code = k70_ps_code;
+}
+
+void
+k70_cs_note(int pid, unsigned long long vaddr, unsigned long long csflags)
+{
+	k70_cs_count++;
+	if (k70_cs_pid == 0) {
+		k70_cs_pid = pid;
+		k70_cs_va = vaddr;
+		k70_cs_flags = csflags;
+	}
+}
+
+void
+k70_cs_get(unsigned int *count, int *pid, unsigned long long *vaddr, unsigned long long *csflags)
+{
+	*count = k70_cs_count;
+	*pid = k70_cs_pid;
+	*vaddr = k70_cs_va;
+	*csflags = k70_cs_flags;
+}
+
 void
 k70_wire_note(uintptr_t map, uintptr_t entry, uint64_t start, uint64_t end,
     int wired, int user_wired, int in_transition, int needs_wakeup,

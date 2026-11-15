@@ -121,7 +121,8 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
              'osfmk/console/video_console.c', 'osfmk/console/serial_console.c',
              'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
              'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c',
-             'bsd/kern/mach_loader.c')
+             'bsd/kern/mach_loader.c', 'bsd/kern/kern_sig.c',
+             'bsd/kern/kern_cs.c')
     for name in files:
         p = root / name
         p.write_text('#include <kern/boot_progress.h>\n' + p.read_text())
@@ -556,6 +557,7 @@ def integration_patch(core, source, font, staging):
                   'osfmk/kern/lock_rw.c',
                   'osfmk/vm/vm_object.c',
                   'osfmk/vm/vm_map.c',
+                  'bsd/kern/kern_sig.c', 'bsd/kern/kern_cs.c',
                   'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):
