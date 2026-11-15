@@ -711,6 +711,23 @@ def install_diag(root):
                 '\tif (amfi == (void *)0) { return%s; }\n' %
                 (' NULL' if _call.startswith('copy') else ' false') + _pat)
     path.write_text(text)
+    # v63: the signature pass after the image activation can kill the boot task
+    # without going through the two exec failure exits, so latch that site too.
+    path = root / 'bsd/kern/kern_exec.c'
+    text = path.read_text()
+    _s3 = '\t\t\tpsignal_with_reason(p, SIGKILL, signature_failure_reason);\n'
+    assert text.count(_s3) == 1, text.count(_s3)
+    text = text.replace(_s3,
+        '\t\t\t{ extern void k70_exec_fail_note(int, int, long long, int);\n'
+        '\t\t\t  k70_exec_fail_note(3, (int)signature_failure_reason->osr_namespace,\n'
+        '\t\t\t      (long long)signature_failure_reason->osr_code, error); }\n' + _s3)
+    _s4 = '\t\t\tpsignal_vfork_with_reason(p, proc_task(p), imgp->ip_new_thread,\n'
+    assert text.count(_s4) == 1, text.count(_s4)
+    text = text.replace(_s4,
+        '\t\t\t{ extern void k70_exec_fail_note(int, int, long long, int);\n'
+        '\t\t\t  k70_exec_fail_note(4, (int)signature_failure_reason->osr_namespace,\n'
+        '\t\t\t      (long long)signature_failure_reason->osr_code, error); }\n' + _s4)
+    path.write_text(text)
     # v60: latch the exec failure that ends the boot task, with its site, reason
     # namespace/code and the error the exec returned.
     path = root / 'bsd/kern/kern_exec.c'
