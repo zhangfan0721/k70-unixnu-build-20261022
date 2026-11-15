@@ -174,6 +174,24 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_gmv_site, k70_gmv_err;
+
+void
+k70_gmv_note(int site, int err)
+{
+	if (k70_gmv_site == 0) {
+		k70_gmv_site = site;
+		k70_gmv_err = err;
+	}
+}
+
+void
+k70_gmv_get(int *site, int *err)
+{
+	*site = k70_gmv_site;
+	*err = k70_gmv_err;
+}
+
 static volatile int k70_bd_ret[4];
 static volatile unsigned long long k70_bd_x[4], k70_bd_y[4];
 

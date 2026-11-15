@@ -696,6 +696,32 @@ def install_diag(root):
         '\t\t  k70_lm_bad_note((unsigned long long)macho_size, (unsigned long long)file_size); }\n'
         '\t\treturn LOAD_BADMACHO;\n')
     path.write_text(text)
+    # v74: name the exact check inside get_macho_vnode that ends the dyld lookup.
+    path = root / 'bsd/kern/mach_loader.c'
+    text = path.read_text()
+    _gm = (
+        (1, chr(9) + 'if ((error = namei(ndp)) != 0) {' + chr(10)),
+        (3, chr(9) + 'if ((error = vnode_size(vp, &fsize, ctx)) != 0) {' + chr(10)),
+        (5, chr(9) + 'if ((error = vnode_authorize(vp, NULL, KAUTH_VNODE_EXECUTE | KAUTH_VNODE_READ_DATA, ctx)) != 0) {' + chr(10)),
+        (6, chr(9) + 'if ((error = VNOP_OPEN(vp, FREAD, ctx)) != 0) {' + chr(10)),
+        (10, chr(9) + 'error = fatfile_validate_fatarches((vm_offset_t)(&header->fat_header),' + chr(10)),
+        (11, chr(9) + 'error = fatfile_getbestarch_for_cputype(cputype, CPU_SUBTYPE_ANY,' + chr(10)),
+    )
+    for _site, _mark in _gm:
+        assert text.count(_mark) == 1, (_site, text.count(_mark))
+        text = text.replace(_mark, _mark +
+            chr(9) + '\t{ extern void k70_gmv_note(int, int); k70_gmv_note(%d, error); }' % _site + chr(10))
+    _rd = chr(9) + 'if ((error = vn_rdwr(UIO_READ, vp, (caddr_t)header, sizeof(*header), 0,' + chr(10)
+    assert text.count(_rd) == 1, text.count(_rd)
+    _rd2 = _rd + chr(9) + '    UIO_SYSSPACE, IO_NODELOCKED, kerncred, &resid, p)) != 0) {' + chr(10)
+    assert text.count(_rd2) == 1, text.count(_rd2)
+    text = text.replace(_rd2, _rd2 +
+        chr(9) + '\t{ extern void k70_gmv_note(int, int); k70_gmv_note(7, error); }' + chr(10))
+    _ct = chr(9) + 'if ((cpu_type_t)header->mach_header.cputype != cputype) {' + chr(10)
+    assert text.count(_ct) == 1, text.count(_ct)
+    text = text.replace(_ct, _ct +
+        chr(9) + '\t{ extern void k70_gmv_note(int, int); k70_gmv_note(15, 0); }' + chr(10))
+    path.write_text(text)
     # v71: the dyld lookup and the recursive dyld parse returns, so a failure can be
     # placed before the main image parse instead of being inferred.
     path = root / 'bsd/kern/mach_loader.c'
@@ -963,31 +989,3 @@ def install_diag(root):
         '\t\t{ extern void k70_stage_set(uint32_t);\n'
         '\t\t  k70_stage_set(2); err = vfs_mountroot(); k70_stage_set(3); }\n'
         '\t\tif (0 == err) {\n')
-    _li = '\tload_init_program(p);\n'
-    if text.count(_li) == 1:
-        text = text.replace(_li,
-            '\t{ extern void k70_stage_set(uint32_t); k70_stage_set(4); }\n' + _li)
-    path.write_text(text)
-    # v23: tag the three boot threads by role at their entry points.
-    path = root / 'osfmk/kern/startup.c'
-    text = path.read_text()
-    _kb = 'kernel_bootstrap_thread(void)\n{\n'
-    assert text.count(_kb) == 1
-    text = text.replace(_kb,
-        _kb + '\t{ extern void k70_role_note(uint32_t, uintptr_t);\n'
-        '\t  k70_role_note(1u, (uintptr_t)current_thread()); }\n')
-    path.write_text(text)
-
-    path = root / 'bsd/kern/bsd_init.c'
-    text = path.read_text()
-    _bs = '\nbsd_init(void)\n{\n'
-    assert text.count(_bs) == 1
-    text = text.replace(_bs,
-        _bs + '\t{ extern void k70_role_note(uint32_t, uintptr_t);\n'
-        '\t  k70_role_note(2u, (uintptr_t)current_thread()); }\n')
-    _p1 = '\nbsdinit_task(void)\n{\n'
-    assert text.count(_p1) == 1
-    text = text.replace(_p1,
-        _p1 + '\t{ extern void k70_role_note(uint32_t, uintptr_t);\n'
-        '\t  k70_role_note(3u, (uintptr_t)current_thread()); }\n')
-    path.write_text(text)

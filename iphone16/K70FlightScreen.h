@@ -178,7 +178,8 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
     else if(row==24){extern void k70_win_get(uint64_t*,uint64_t*,uint64_t*,int*);uint64_t wc,wo,wl;int wr;
      k70_win_get(&wc,&wo,&wl,&wr);kf_text(&l,"WIN n");kf_hex(&l,wc&0xffff);kf_text(&l," o");kf_hex(&l,wo&0xffffff);
      kf_text(&l," l");kf_hex(&l,wl&0xffff);kf_text(&l," r");kf_hex(&l,(uint64_t)(uint32_t)wr);}
-    else {kf_abort_line(&l,0,r->pmap_assert.ppnum);}
+    else {extern void k70_gmv_get(int*,int*);int gs,ge;k70_gmv_get(&gs,&ge);
+     kf_text(&l,"GMV s");kf_hex(&l,(uint64_t)(uint32_t)gs);kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)ge);}
    } else kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
   }
   else if(row>=26&&row<=29){

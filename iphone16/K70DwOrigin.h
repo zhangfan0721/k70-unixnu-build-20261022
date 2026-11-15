@@ -215,6 +215,10 @@ const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
+/* v74: which check inside get_macho_vnode failed. */
+void k70_gmv_note(int site, int err);
+void k70_gmv_get(int *site, int *err);
+
 /* v71: loader boundary returns. */
 void k70_bd_note(int id, int ret, unsigned long long x, unsigned long long y);
 void k70_bd_get(int id, int *ret, unsigned long long *x, unsigned long long *y);
