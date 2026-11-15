@@ -586,27 +586,31 @@ def install_diag(root):
     text = path.read_text()
     _ec = 'extern "C" {\n'
     assert text.count(_ec) >= 1, text.count(_ec)
-    text = text.replace(_ec,
-        _ec + 'void k70_win_note(unsigned long long, unsigned long long, int);\n', 1)
+    if 'k70_win_note' not in text:
+        text = text.replace(_ec,
+            _ec + 'void k70_win_note(unsigned long long, unsigned long long, int);\n', 1)
     path.write_text(text)
     # v39: record every ram-window fetch, so a read that never completes shows up.
     path = root / 'iokit/bsddev/K70UfsWindow.inc'
     text = path.read_text()
     _sig = 'static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)\n{\n'
-    assert text.count(_sig) == 1, text.count(_sig)
-    text = text.replace(_sig, _sig +
-        '  {\n'
-        '    k70_win_note(offset, (uint64_t)length, -1); }\n')
     _ok = '  if (served == K70Window::kServed) {\n    return 0;\n  }'
-    assert text.count(_ok) == 1, text.count(_ok)
-    text = text.replace(_ok,
-        '  if (served == K70Window::kServed) {\n'
-        '    { k70_win_note(offset, (uint64_t)length, 0); }\n'
-        '    return 0;\n  }')
     _poison = '  gWindowState = 2;                // poison: never retry a half-served root\n  return EIO;'
-    assert text.count(_poison) == 1, text.count(_poison)
-    text = text.replace(_poison,
-        '  { k70_win_note(offset, (uint64_t)length, 9); }\n' + _poison)
+    # The file may already carry the probe when it was synced back from a build,
+    # so each injection is skipped once rather than asserted.
+    if 'k70_win_note' not in text:
+        assert text.count(_sig) == 1, text.count(_sig)
+        text = text.replace(_sig, _sig +
+            '  {\n'
+            '    k70_win_note(offset, (uint64_t)length, -1); }\n')
+        assert text.count(_ok) == 1, text.count(_ok)
+        text = text.replace(_ok,
+            '  if (served == K70Window::kServed) {\n'
+            '    { k70_win_note(offset, (uint64_t)length, 0); }\n'
+            '    return 0;\n  }')
+        assert text.count(_poison) == 1, text.count(_poison)
+        text = text.replace(_poison,
+            '  { k70_win_note(offset, (uint64_t)length, 9); }\n' + _poison)
     path.write_text(text)
     # v37: this kernel runs without AMFI, so the amfi vtable is null and the
     # first code-signature blob would dereference it and abort the kernel.

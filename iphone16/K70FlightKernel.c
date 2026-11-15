@@ -180,8 +180,8 @@ void k70_flight_wait(uintptr_t thread,uintptr_t event,uint64_t state,uintptr_t c
  /* v45: one frame up gives the caller of the function that blocked, which is the
   * site worth resolving; the frame chain is the only safe way to reach it. */
  if (fp != 0 && kf_readable(fp) && kf_readable(fp + 8)) {
-  { extern void k70_outer_note(uintptr_t);
-    k70_outer_note(*(const volatile uintptr_t *)(fp + 8)); }
+  { extern void k70_outer_note(uintptr_t, uintptr_t);
+    k70_outer_note(thread, *(const volatile uintptr_t *)(fp + 8)); }
  }
  /* The scheduler call site checks its private TH_WAIT flag before calling. */
  if(!k70_flight_state.active || thread!=k70_flight_state.target)return;

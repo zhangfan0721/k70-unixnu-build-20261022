@@ -151,10 +151,17 @@ k70_rws_note(uintptr_t lck, uintptr_t event, uint32_t action, uintptr_t caller)
 static volatile uintptr_t k70_outer_lr;
 
 void
-k70_outer_note(uintptr_t lr)
+k70_outer_note(uintptr_t thread, uintptr_t lr)
 {
-	if (lr >= 0xfffffff000000000ull) {
-		k70_outer_lr = lr;
+	/* v46: the console worker blocks constantly, so only a boot-role thread's
+	 * caller is worth keeping. */
+	for (uint32_t i = 1; i <= 3u; i++) {
+		if (k70_role_state[i].thread == thread && thread != 0) {
+			if (lr >= 0xfffffff000000000ull) {
+				k70_outer_lr = lr;
+			}
+			return;
+		}
 	}
 }
 
