@@ -168,6 +168,7 @@ void k70_worker_note(uintptr_t thread);
 #define K70_ROLE_PID1      3u
 struct k70_role_rec {
  uintptr_t thread, lr, event;
+ uintptr_t outer;   /* v48: caller one frame above the block site */
  uint64_t hit, blocks;
 };
 void k70_role_note(uint32_t role, uintptr_t thread);

@@ -153,12 +153,13 @@ static volatile uintptr_t k70_outer_lr;
 void
 k70_outer_note(uintptr_t thread, uintptr_t lr)
 {
-	/* v46: the console worker blocks constantly, so only a boot-role thread's
-	 * caller is worth keeping. */
+	/* v48: keep the caller per role, so one role's blocking cannot overwrite
+	 * the one that matters. */
 	for (uint32_t i = 1; i <= 3u; i++) {
-		if (k70_role_state[i].thread == thread && thread != 0) {
+		volatile struct k70_role_rec *r = &k70_role_state[i];
+		if (r->thread == thread && thread != 0) {
 			if (lr >= 0xfffffff000000000ull) {
-				k70_outer_lr = lr;
+				r->outer = lr;
 			}
 			return;
 		}
