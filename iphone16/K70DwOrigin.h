@@ -215,6 +215,10 @@ const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
+/* v68: sizes behind the first bad-Mach-O check. */
+void k70_lm_bad_note(unsigned long long macho_size, unsigned long long file_size);
+void k70_lm_bad_get(unsigned long long *macho_size, unsigned long long *file_size);
+
 /* v67: which bad-Mach-O site fired. */
 void k70_lm_site(int site);
 void k70_lm_site_get(int *site, int *count);

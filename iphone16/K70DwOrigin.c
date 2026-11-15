@@ -174,6 +174,22 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile unsigned long long k70_lmb_macho, k70_lmb_file;
+
+void
+k70_lm_bad_note(unsigned long long macho_size, unsigned long long file_size)
+{
+	k70_lmb_macho = macho_size;
+	k70_lmb_file = file_size;
+}
+
+void
+k70_lm_bad_get(unsigned long long *macho_size, unsigned long long *file_size)
+{
+	*macho_size = k70_lmb_macho;
+	*file_size = k70_lmb_file;
+}
+
 static volatile int k70_lms_site, k70_lms_count;
 
 void

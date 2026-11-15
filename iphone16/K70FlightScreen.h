@@ -179,7 +179,10 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
      kf_text(&l,"PSG p");kf_hex(&l,(uint64_t)(uint32_t)p1);kf_text(&l," s");kf_hex(&l,(uint64_t)(uint32_t)s1);
      kf_text(&l," f");kf_hex(&l,f1);}
     else if(row==27){extern void k70_lm_site_get(int*,int*);int ls,lc;k70_lm_site_get(&ls,&lc);
-     kf_text(&l,"LMS s");kf_hex(&l,(uint64_t)(uint32_t)ls);kf_text(&l," n");kf_hex(&l,(uint64_t)(uint32_t)lc);}
+     extern void k70_lm_bad_get(unsigned long long*,unsigned long long*);unsigned long long bm,bf;
+     k70_lm_bad_get(&bm,&bf);
+     kf_text(&l,"LMS s");kf_hex(&l,(uint64_t)(uint32_t)ls);kf_text(&l," m");kf_hex(&l,bm&0xffffffff);
+     kf_text(&l," f");kf_hex(&l,bf&0xffffffff);}
     else if(row==28){extern void k70_load_get(int*,unsigned int*);int lr2;unsigned int st;k70_load_get(&lr2,&st);
      kf_text(&l,"LDR l");kf_hex(&l,(uint64_t)(uint32_t)lr2);kf_text(&l," st");kf_hex(&l,(uint64_t)st);}
     else {extern void k70_exec_fail_get(int*,int*,long long*,int*);int xs,xn,xe;long long xc;

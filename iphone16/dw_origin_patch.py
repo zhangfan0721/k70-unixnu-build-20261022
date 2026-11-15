@@ -681,9 +681,22 @@ def install_diag(root):
                 '\tif (amfi == (void *)0) { return%s; }\n' %
                 (' NULL' if _call.startswith('copy') else ' false') + _pat)
     path.write_text(text)
-    # v67: number every bad-Mach-O return so one boot names the failing check.
+    # v68: the first bad-Mach-O check compares the declared slice size with the vnode
+    # data size, so keep both.
     path = root / 'bsd/kern/mach_loader.c'
     text = path.read_text()
+    _bb = ('\tif (os_add_overflow(file_offset, macho_size, &total_size) ||\n'
+           '\t    total_size > file_size) {\n'
+           '\t\treturn LOAD_BADMACHO;\n')
+    assert text.count(_bb) == 1, text.count(_bb)
+    text = text.replace(_bb,
+        '\tif (os_add_overflow(file_offset, macho_size, &total_size) ||\n'
+        '\t    total_size > file_size) {\n'
+        '\t\t{ extern void k70_lm_bad_note(unsigned long long, unsigned long long);\n'
+        '\t\t  k70_lm_bad_note((unsigned long long)macho_size, (unsigned long long)file_size); }\n'
+        '\t\treturn LOAD_BADMACHO;\n')
+    path.write_text(text)
+    # v67: number every bad-Mach-O return so one boot names the failing check.
     _parts = text.split('return LOAD_BADMACHO;')
     _out = _parts[0]
     for _i, _tail in enumerate(_parts[1:], 1):
