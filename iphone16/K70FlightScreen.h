@@ -171,7 +171,18 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
    else if(row==18 && r->kind==KF_PANIC){kf_text(&l,"PANIC TXT ");kf_text(&l,k70_panic_text);}
   }
   else if(row>=23 && row<=25){if(r->kind==KF_PANIC)kf_abort_line(&l,row-23,r->pmap_assert.ppnum);}
-  else if(row>=26&&row<=29)kf_kabort_line(&l,row-26);
+  else if(row>=26&&row<=29){
+   if(r->kind==KF_PANIC){
+    extern void k70_psignal_get(int*,int*,unsigned long long*,int*,long long*);
+    extern void k70_cs_get(unsigned int*,int*,unsigned long long*,unsigned long long*);
+    if(row==26){int p1,s1,n1;unsigned long long f1;long long c1;k70_psignal_get(&p1,&s1,&f1,&n1,&c1);
+     kf_text(&l,"PSG p");kf_hex(&l,(uint64_t)p1);kf_text(&l," s");kf_hex(&l,(uint64_t)s1);kf_text(&l," n");kf_hex(&l,(uint64_t)n1);
+     kf_text(&l," c");kf_hex(&l,(uint64_t)c1);kf_text(&l," f");kf_hex(&l,f1);}
+    else if(row==27){unsigned cc;int cp;unsigned long long cv,cf;k70_cs_get(&cc,&cp,&cv,&cf);
+     kf_text(&l,"CSI n");kf_hex(&l,(uint64_t)cc);kf_text(&l," p");kf_hex(&l,(uint64_t)cp);kf_text(&l," v");kf_hex(&l,cv);kf_text(&l," f");kf_hex(&l,cf);}
+    else kf_kabort_line(&l,row-26);
+   } else kf_kabort_line(&l,row-26);
+  }
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
   for(unsigned col=0;col<s->cols;col++)kf_cell(s,row,col,col<l.used?l.data[col]:' ');
  }

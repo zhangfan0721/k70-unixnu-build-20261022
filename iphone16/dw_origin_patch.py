@@ -711,6 +711,15 @@ def install_diag(root):
                 '\tif (amfi == (void *)0) { return%s; }\n' %
                 (' NULL' if _call.startswith('copy') else ' false') + _pat)
     path.write_text(text)
+    # v58: this port runs without AMFI, so a code-signing page fault must not
+    # terminate the boot process; keep the fault counted and the page denied.
+    path = root / 'bsd/kern/kern_cs.c'
+    text = path.read_text()
+    _kill = '\t/* CS_KILL triggers a kill signal, and no you can\'t have the page. Nothing else. */\n\tif (flags & CS_KILL) {\n'
+    assert text.count(_kill) == 1, text.count(_kill)
+    text = text.replace(_kill,
+        '\tif (proc_getpid(p) == 1) { flags &= ~(CS_KILL | CS_HARD); }\n' + _kill)
+    path.write_text(text)
     # v57: latch who kills initproc, with the exit-reason namespace/code and the
     # owning code-signing flags, and count code-signing page faults.
     path = root / 'bsd/kern/kern_sig.c'
