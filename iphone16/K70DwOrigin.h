@@ -218,7 +218,7 @@ int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 /* v57: initproc signal and code-signing fault provenance. */
 void k70_psignal_note(int pid, int signum, unsigned long long csflags, int ns, long long code);
 void k70_cs_note(int pid, unsigned long long vaddr, unsigned long long csflags);
-void k70_psignal_get(int *pid, int *signum, unsigned long long *csflags);
+void k70_psignal_get(int *pid, int *signum, unsigned long long *csflags, int *ns, long long *code);
 void k70_cs_get(unsigned int *count, int *pid, unsigned long long *vaddr, unsigned long long *csflags);
 
 void k70_dw_try_begin(uintptr_t thread, uintptr_t input_object, uintptr_t dw_caller,
