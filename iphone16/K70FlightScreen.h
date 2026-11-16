@@ -185,7 +185,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       }
   }
   else if(row>=26&&row<=29){
-   if(r->kind==KF_PANIC){
+   {
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
     extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
     if(row==26){int p1,s1;unsigned long long f1,rs,ra,rb,cl;
@@ -201,7 +201,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
      kf_text(&l,"B2 r");kf_hex(&l,(uint64_t)(uint32_t)br);kf_text(&l," m");kf_hex(&l,bx&0xffffffff);
      kf_text(&l," d");kf_hex(&l,by&0xffffffff);kf_text(&l," B3 ");k70_bd_get(3,&br,&bx,&by);
      kf_hex(&l,(uint64_t)(uint32_t)br);}
-   } else kf_kabort_line(&l,row-26);
+   }
   }
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
   for(unsigned col=0;col<s->cols;col++)kf_cell(s,row,col,col<l.used?l.data[col]:' ');
