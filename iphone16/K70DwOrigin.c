@@ -194,6 +194,42 @@ k70_rc_get(int *a, int *b)
 }
 
 
+
+static volatile int k70_cp_id, k70_cp_v1, k70_cp_v2, k70_cp_n;
+
+void
+k70_cp_note(int id, int v1, int v2)
+{
+	k70_cp_id = id;
+	k70_cp_v1 = v1;
+	k70_cp_v2 = v2;
+	k70_cp_n++;
+}
+
+int
+k70_cp_count(void)
+{
+	return k70_cp_n;
+}
+
+int
+k70_cp_last_id(void)
+{
+	return k70_cp_id;
+}
+
+int
+k70_cp_last_v1(void)
+{
+	return k70_cp_v1;
+}
+
+int
+k70_cp_last_v2(void)
+{
+	return k70_cp_v2;
+}
+
 static volatile int k70_ev_val[3];
 static volatile int k70_ev_arg[3];
 static volatile int k70_ev_op[3];

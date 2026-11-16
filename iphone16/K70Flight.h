@@ -24,6 +24,7 @@ void k70_flight_pmap_assert(uintptr_t caller, uint32_t ppnum, uintptr_t pvh,
 void k70_flight_wait(uintptr_t,uintptr_t,uint64_t,uintptr_t,uintptr_t);
 void k70_flight_bind(uintptr_t,unsigned,unsigned,unsigned,unsigned);
 void k70_flight_refresh(void);
+unsigned k70_flight_draw_seq_get(void);
 unsigned k70_flight_log_height(unsigned);
 #ifdef __cplusplus
 }

@@ -43,7 +43,10 @@ static int kf_kernel_pair(uintptr_t fp,uintptr_t *next,uintptr_t *pc,void *ctx) 
  if(!kf_readable(fp) || !kf_readable(fp+15))return 0;
  *next=*(const volatile uintptr_t *)fp;*pc=*(const volatile uintptr_t *)(fp+8);return 1;
 }
+static volatile unsigned k70_flight_draw_seq;
+unsigned k70_flight_draw_seq_get(void){return k70_flight_draw_seq;}
 static void kf_paint(void) {
+ k70_flight_draw_seq++;
  (void)kf_screen_draw(&k70_flight_screen,&k70_flight_state,kf_write_probe,0);
  __asm__ volatile("dsb sy":::"memory");
 }

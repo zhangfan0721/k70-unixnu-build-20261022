@@ -277,6 +277,7 @@ static void k70_formal_worker(void *argument, wait_result_t result)
         bp_out_puts(&out, " D");
         bp_out_hex(&out, k70_window_last_daif, 2);
         boot_progress_stage(line);
+        { extern void k70_flight_refresh(void); k70_flight_refresh(); }
         /* Each subsequent turn requires a scheduler wakeup after one second.
          * Unlike a busy counter loop this can establish continued scheduling. */
         uint64_t deadline;
