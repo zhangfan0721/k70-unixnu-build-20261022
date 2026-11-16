@@ -743,38 +743,59 @@ def install_diag(root):
     text = text.replace(_ct, _ct +
         chr(9) + '\t{ extern void k70_gmv_note(int, int); k70_gmv_note(15, 0); }' + chr(10))
     path.write_text(text)
-    # v77: record every open/stat of a dyld-ish or cache path, with rc and result.
-    path = root / 'bsd/vfs/vfs_syscalls.c'
-    text = path.read_text()
+    # v79: integer-only event ring. No user memory is touched, so no copyin faults.
+    #   open/openat -> (fd or errno, flags, 'o')
+    #   stat/stat64 -> (errno, 0, 's')
+    #   mmap        -> (fd, len, 'm')
+    #   shared_region_check_np        -> (start_address, 0, 'c')
+    #   shared_region_map_and_slide_2 -> (files_count, mappings_count, 'R')
+    vfs = root / 'bsd/vfs/vfs_syscalls.c'
+    text = vfs.read_text()
 
-    def _hook(text, old, arg, opchar, call):
-        assert text.count(old) == 1, (opchar, text.count(old))
-        new = (chr(9) + 'int k70_kr;' + chr(10) +
-               chr(9) + 'k70_kr = ' + call + '(' + chr(10) +
-               chr(9) + '           ' + arg + ');' + chr(10) +
-               chr(9) + '{ extern void k70_open_note(const char *, int, int);' + chr(10) +
-               chr(9) + '  char k70_kb[180];' + chr(10) +
-               chr(9) + '  int k70_cr;' + chr(10) +
-               chr(9) + '  k70_kb[0] = 0;' + chr(10) +
-               chr(9) + '  k70_cr = copyinstr(uap->path, k70_kb, sizeof(k70_kb), NULL);' + chr(10) +
-               chr(9) + '  k70_open_note(k70_kb, k70_kr, (' + str(opchar) + ' << 16) | (k70_cr & 0xff));' + chr(10) +
-               chr(9) + '}' + chr(10) +
-               chr(9) + 'return k70_kr;' + chr(10) + '}')
+    def _wrap(text, old, val_expr, arg_expr, op):
+        assert text.count(old) == 1, (op, text.count(old))
+        new = (chr(9) + 'int k70_r;' + chr(10) +
+               chr(9) + 'k70_r = ' + old.split(chr(9) + 'return ', 1)[1].rstrip(chr(10)) + chr(10) +
+               chr(9) + '{ extern void k70_open_note(int, int, int);' + chr(10) +
+               chr(9) + '  k70_open_note(' + val_expr + ', ' + arg_expr + ', ' + str(op) + '); }' + chr(10) +
+               chr(9) + 'return k70_r;')
         return text.replace(old, new)
 
     for _arg in ('AT_FDCWD', 'uap->fd'):
         _old = (chr(9) + 'return openat_internal(vfs_context_current(), uap->path, uap->flags,' + chr(10) +
-                chr(9) + '           uap->mode, ' + _arg + ', UIO_USERSPACE, retval);' + chr(10) + '}')
-        text = _hook(text, _old,
-                     'vfs_context_current(), uap->path, uap->flags,' + chr(10) + chr(9) + '           uap->mode, ' + _arg + ', UIO_USERSPACE, retval',
-                     111, 'openat_internal')
+                chr(9) + '           uap->mode, ' + _arg + ', UIO_USERSPACE, retval);' + chr(10))
+        text = _wrap(text, _old, 'k70_r', '(int)uap->flags', ord('o'))
     for _flag in ('0', '1'):
         _old = (chr(9) + 'return fstatat_internal(vfs_context_current(), uap->path, uap->ub,' + chr(10) +
-                chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0);' + chr(10) + '}')
-        text = _hook(text, _old,
-                     'vfs_context_current(), uap->path, uap->ub,' + chr(10) + chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0',
-                     115, 'fstatat_internal')
-    path.write_text(text)
+                chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0);' + chr(10))
+        text = _wrap(text, _old, 'k70_r', '0', ord('s'))
+    vfs.write_text(text)
+
+    mman = root / 'bsd/kern/kern_mman.c'
+    text = mman.read_text()
+    _old = (chr(9) + 'int fd = uap->fd;' + chr(10))
+    assert text.count(_old) == 1, text.count(_old)
+    text = text.replace(_old, _old +
+        chr(9) + '{ extern void k70_open_note(int, int, int);' + chr(10) +
+        chr(9) + '  k70_open_note((int)uap->fd, (int)uap->len, ' + str(ord('m')) + '); }' + chr(10))
+    mman.write_text(text)
+
+    vmunix = root / 'bsd/vm/vm_unix.c'
+    text = vmunix.read_text()
+    _old = (chr(9) + 'int                     error = 0;' + chr(10) +
+            chr(9) + 'kern_return_t           kr;' + chr(10) +
+            chr(9) + 'task_t                  task = current_task();' + chr(10))
+    assert text.count(_old) == 1, text.count(_old)
+    text = text.replace(_old, _old +
+        chr(9) + '{ extern void k70_open_note(int, int, int);' + chr(10) +
+        chr(9) + '  k70_open_note((int)uap->start_address, 0, ' + str(ord('c')) + '); }' + chr(10))
+    _old2 = (chr(9) + 'files_count = uap->files_count;' + chr(10) +
+             chr(9) + 'mappings_count = uap->mappings_count;' + chr(10))
+    assert text.count(_old2) == 1, text.count(_old2)
+    text = text.replace(_old2, _old2 +
+        chr(9) + '{ extern void k70_open_note(int, int, int);' + chr(10) +
+        chr(9) + '  k70_open_note((int)files_count, (int)mappings_count, ' + str(ord('R')) + '); }' + chr(10))
+    vmunix.write_text(text)
 
     # v76: keep the boot task's stderr text, the only place dyld explains itself.
     path = root / 'bsd/kern/sys_generic.c'
