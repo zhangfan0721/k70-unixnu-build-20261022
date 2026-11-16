@@ -197,6 +197,34 @@ k70_rc_get(int *a, int *b)
 
 
 static volatile int k70_cp_id_h[4], k70_cp_v1_h[4], k70_cp_v2_h[4];
+
+static volatile unsigned k70_work_seq;
+static volatile unsigned k70_log_drop_n;
+
+void
+k70_log_drop(void)
+{
+	k70_log_drop_n++;
+}
+
+unsigned
+k70_log_drop_get(void)
+{
+	return k70_log_drop_n;
+}
+
+void
+k70_work_tick(void)
+{
+	k70_work_seq++;
+}
+
+unsigned
+k70_work_seq_get(void)
+{
+	return k70_work_seq;
+}
+
 static volatile unsigned k70_cp_w;
 static volatile int k70_cp_n;
 static volatile int k70_err_sid, k70_err_sv, k70_err_set;
