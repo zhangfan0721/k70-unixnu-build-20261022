@@ -177,7 +177,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   else if(row>=23 && row<=25){
    {
     if(row==23){extern int k70_open_count(void);extern int k70_open_total_count(void);int n;
-      n=k70_open_count();kf_text(&l," T ");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_total_count());kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)n);{extern unsigned k70_flight_draw_seq_get(void);kf_text(&l," D");kf_hex8(&l,(uint64_t)(uint32_t)k70_flight_draw_seq_get());}}
+      n=k70_open_count();kf_text(&l," T ");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_total_count());kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)n);{extern unsigned k70_flight_draw_seq_get(void);extern unsigned k70_work_seq_get(void);kf_text(&l," D");kf_hex8(&l,(uint64_t)(uint32_t)k70_flight_draw_seq_get());kf_text(&l," W");kf_hex8(&l,(uint64_t)(uint32_t)k70_work_seq_get());}}
       else if(row==24){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
       n=k70_open_count();kf_text(&l," N ");if(n>0){k=k70_open_w_idx();kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
       else if(row==25){extern int k70_cp_last_id(void);extern int k70_cp_last_v1(void);extern int k70_cp_last_v2(void);kf_text(&l,"C ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_id());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v1());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v2());}
