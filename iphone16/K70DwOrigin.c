@@ -174,6 +174,57 @@ k70_outer_get(void)
 
 static struct k70_wire_rec k70_wire_state;
 
+static volatile int k70_rc_a, k70_rc_b;
+
+void
+k70_rc_note(int stage, int rc)
+{
+	if (stage == 1) {
+		k70_rc_a = rc;
+	} else {
+		k70_rc_b = rc;
+	}
+}
+
+void
+k70_rc_get(int *a, int *b)
+{
+	*a = k70_rc_a;
+	*b = k70_rc_b;
+}
+
+static volatile char k70_err_buf[160];
+static volatile int k70_err_size;
+
+void
+k70_err_note(const char *buf, int len)
+{
+	int i;
+	if (len > 159) {
+		len = 159;
+	}
+	for (i = 0; i < len; i++) {
+		k70_err_buf[i] = buf[i];
+	}
+	k70_err_buf[len] = 0;
+	k70_err_size = len;
+}
+
+int
+k70_err_len(void)
+{
+	return k70_err_size;
+}
+
+char
+k70_err_at(int i)
+{
+	if (i < 0 || i >= k70_err_size) {
+		return 0;
+	}
+	return k70_err_buf[i];
+}
+
 static volatile int k70_gmv_site, k70_gmv_err;
 
 void

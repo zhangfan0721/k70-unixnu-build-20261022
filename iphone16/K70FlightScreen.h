@@ -16,6 +16,10 @@ static inline void kf_text(struct kf_line *l,const char *s) {
  while(*s && l->used<KF_COLS)l->data[l->used++]=*s++;
  l->data[l->used]=0;
 }
+static inline void kf_ch(struct kf_line *l,char c) {
+ if(c && l->used<KF_COLS)l->data[l->used++]=c;
+ l->data[l->used]=0;
+}
 static inline void kf_hex(struct kf_line *l,uint64_t v) {
  static const char digits[]="0123456789abcdef";
  for(int n=15;n>=0 && l->used<KF_COLS;n--)l->data[l->used++]=digits[(v>>(n*4))&15];
@@ -172,13 +176,11 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   }
   else if(row>=23 && row<=25){
    if(r->kind==KF_PANIC){
-    if(row==23){extern void k70_vn_get(unsigned int*,int*,long long*);unsigned int vs;int ve;long long vr;
-     k70_vn_get(&vs,&ve,&vr);kf_text(&l,"VN s");kf_hex(&l,(uint64_t)vs);kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)ve);
-     kf_text(&l," r");kf_hex(&l,(uint64_t)(uint32_t)(int32_t)vr);}
-    else if(row==24){extern void k70_win_get(uint64_t*,uint64_t*,uint64_t*,int*);uint64_t wc,wo,wl;int wr;
-     k70_win_get(&wc,&wo,&wl,&wr);kf_text(&l,"WIN n");kf_hex(&l,wc&0xffff);kf_text(&l," o");kf_hex(&l,wo&0xffffff);
-     kf_text(&l," l");kf_hex(&l,wl&0xffff);kf_text(&l," r");kf_hex(&l,(uint64_t)(uint32_t)wr);}
-    else {extern void k70_gmv_get(int*,int*);int gs,ge;k70_gmv_get(&gs,&ge);
+    if(row==23){extern int k70_err_len(void);extern char k70_err_at(int);int i,n;
+      n=k70_err_len();kf_text(&l,"E1 ");for(i=0;i<40&&i<n;i++){kf_ch(&l,k70_err_at(i));}}
+     else if(row==24){extern int k70_err_len(void);extern char k70_err_at(int);int i,n;
+      n=k70_err_len();kf_text(&l,"E2 ");for(i=40;i<80&&i<n;i++){kf_ch(&l,k70_err_at(i));}}
+     else {extern void k70_gmv_get(int*,int*);int gs,ge;k70_gmv_get(&gs,&ge);
      kf_text(&l,"GMV s");kf_hex(&l,(uint64_t)(uint32_t)gs);kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)ge);}
    } else kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
   }

@@ -696,6 +696,17 @@ def install_diag(root):
         '\t\t  k70_lm_bad_note((unsigned long long)macho_size, (unsigned long long)file_size); }\n'
         '\t\treturn LOAD_BADMACHO;\n')
     path.write_text(text)
+    # v76: read the loader return before and after the cleanup helpers, so a caller
+    # saved register that does not survive them shows up directly.
+    _close = chr(9) + '(void) VNOP_CLOSE(vp, FREAD, ctx);' + chr(10)
+    assert text.count(_close) == 1, text.count(_close)
+    text = text.replace(_close, chr(9) + '{ extern void k70_rc_note(int, int); k70_rc_note(1, error); }' + chr(10) + _close)
+    _put = chr(9) + 'vnode_put(vp);' + chr(10) + chr(9) + 'return error;' + chr(10)
+    assert text.count(_put) == 1, text.count(_put)
+    text = text.replace(_put, chr(9) + 'vnode_put(vp);' + chr(10) +
+        chr(9) + '{ extern void k70_rc_note(int, int); k70_rc_note(2, error); }' + chr(10) +
+        chr(9) + 'return error;' + chr(10))
+    path.write_text(text)
     # v74: name the exact check inside get_macho_vnode that ends the dyld lookup.
     path = root / 'bsd/kern/mach_loader.c'
     text = path.read_text()
@@ -731,6 +742,21 @@ def install_diag(root):
     assert text.count(_ct) == 1, text.count(_ct)
     text = text.replace(_ct, _ct +
         chr(9) + '\t{ extern void k70_gmv_note(int, int); k70_gmv_note(15, 0); }' + chr(10))
+    path.write_text(text)
+    # v76: keep the boot task's stderr text, the only place dyld explains itself.
+    path = root / 'bsd/kern/sys_generic.c'
+    text = path.read_text()
+    _wn = (chr(9) + 'return write_internal(p, uap->fd, uap->cbuf, uap->nbyte, (off_t)-1, 0,' + chr(10) +
+           chr(9) + '           NULL, retval);' + chr(10))
+    assert text.count(_wn) == 1, text.count(_wn)
+    text = text.replace(_wn,
+        chr(9) + '{ extern void k70_err_note(const char *, int);' + chr(10) +
+        chr(9) + '  if ((uap->fd == 1 || uap->fd == 2) && uap->nbyte > 0) {' + chr(10) +
+        chr(9) + '    char kb[96];' + chr(10) +
+        chr(9) + '    int kn = (int)uap->nbyte;' + chr(10) +
+        chr(9) + '    if (kn > 95) { kn = 95; }' + chr(10) +
+        chr(9) + '    if (copyin(uap->cbuf, kb, (size_t)kn) == 0) { k70_err_note(kb, kn); }' + chr(10) +
+        chr(9) + '  } }' + chr(10) + _wn)
     path.write_text(text)
     # v71: the dyld lookup and the recursive dyld parse returns, so a failure can be
     # placed before the main image parse instead of being inferred.

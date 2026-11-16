@@ -215,6 +215,15 @@ const struct k70_wait_rec *k70_wait_get(void);
 uint64_t k70_user_fault_count(void);
 int k70_abort_page_get(uint32_t ppn, struct k70_abort_rec *out);
 
+/* v76: loader return read before and after the cleanup calls. */
+void k70_rc_note(int stage, int rc);
+void k70_rc_get(int *a, int *b);
+
+/* v76: userland stderr text from the boot task. */
+void k70_err_note(const char *buf, int len);
+int k70_err_len(void);
+char k70_err_at(int i);
+
 /* v74: which check inside get_macho_vnode failed. */
 void k70_gmv_note(int site, int err);
 void k70_gmv_get(int *site, int *err);
