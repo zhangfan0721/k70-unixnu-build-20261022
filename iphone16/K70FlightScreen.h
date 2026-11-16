@@ -175,14 +175,14 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
    else if(row==18 && r->kind==KF_PANIC){kf_text(&l,"PANIC TXT ");kf_text(&l,k70_panic_text);}
   }
   else if(row>=23 && row<=25){
-   if(r->kind==KF_PANIC){
+   {
     if(row==23){extern int k70_open_count(void);extern int k70_open_total_count(void);int n;
       n=k70_open_count();kf_text(&l," T ");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_total_count());kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)n);}
       else if(row==24){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
       n=k70_open_count();kf_text(&l," N ");if(n>0){k=k70_open_w_idx();kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
       else if(row==25){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
       n=k70_open_count();kf_text(&l," O ");if(n>1){k=k70_open_w_idx();k=(k+2)%3;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
-      } else kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
+      }
   }
   else if(row>=26&&row<=29){
    if(r->kind==KF_PANIC){
