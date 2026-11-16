@@ -832,30 +832,49 @@ def install_diag(root):
     text = text.replace(_a11, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(11, 0, 0); }' + chr(10) + _a11)
     kexec.write_text(text)
 
-    # v89: split the permission phase from the header read.
+    # v91: every checkpoint sits BEFORE its early return and carries the error.
     text = kexec.read_text()
-    _c12 = (chr(9) + '/* Copy; avoid invocation of an interpreter overwriting the original */' + chr(10))
-    assert text.count(_c12) == 1, text.count(_c12)
-    text = text.replace(_c12, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(12, 0, 0); }' + chr(10) + _c12)
-    _c13 = (chr(9) + 'if (resid) {' + chr(10) + chr(9) + chr(9) + 'memset(imgp->ip_vdata + (PAGE_SIZE - resid), 0x0, resid);' + chr(10))
-    assert text.count(_c13) == 1, text.count(_c13)
-    text = text.replace(_c13, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(13, 0, 0); }' + chr(10) + _c13)
-    kexec.write_text(text)
 
-    # v90: split exec_check_permissions into getattr / MAC / kauth steps.
-    text = kexec.read_text()
-    _pairs = [
-        ('CP14 before vnode_getattr', (chr(9) + 'if ((error = vnode_getattr(vp, vap, imgp->ip_vfs_context)) != 0) {' + chr(10)), 14, 'pre'),
-        ('CP15 after vnode_getattr', (chr(9) + '/*' + chr(10) + chr(9) + ' * Ensure that at least one execute bit is on - otherwise root' + chr(10)), 15, 'pre'),
-        ('CP16 before mac_vnode_check_exec', (chr(9) + 'error = mac_vnode_check_exec(imgp->ip_vfs_context, vp, imgp);' + chr(10)), 16, 'pre'),
-        ('CP17 after mac_vnode_check_exec', (chr(9) + '/* Check for execute permission */' + chr(10)), 17, 'pre'),
-        ('CP18 before vnode_authorize', (chr(9) + 'if ((error = vnode_authorize(vp, NULL, action, imgp->ip_vfs_context)) != 0) {' + chr(10)), 18, 'pre'),
-        ('CP19 after vnode_authorize', (chr(9) + '/* XXX May want to indicate to underlying FS that vnode is open */' + chr(10)), 19, 'pre'),
-    ]
-    _ins = lambda n: (chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', 0, 0); }' + chr(10))
-    for _name, _old, _id, _pos in _pairs:
-        assert text.count(_old) == 1, (_name, text.count(_old))
-        text = text.replace(_old, _ins(_id) + _old, 1)
+    def _ins(n, v1='0', v2='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v1 + ', ' + v2 + '); }' + chr(10)
+
+    _perm = chr(9) + 'error = exec_check_permissions(imgp);' + chr(10)
+    assert text.count(_perm) == 1, text.count(_perm)
+    text = text.replace(_perm, _perm + _ins(12, 'error'), 1)
+
+    _hdr = (chr(9) + 'error = vn_rdwr(UIO_READ, imgp->ip_vp, imgp->ip_vdata, PAGE_SIZE, 0,' + chr(10) +
+            chr(9) + '    UIO_SYSSPACE, IO_NODELOCKED,' + chr(10) +
+            chr(9) + '    vfs_context_ucred(imgp->ip_vfs_context),' + chr(10) +
+            chr(9) + '    &resid, vfs_context_proc(imgp->ip_vfs_context));' + chr(10))
+    assert text.count(_hdr) == 1, text.count(_hdr)
+    text = text.replace(_hdr, _hdr + _ins(13, 'error', '(int)resid'), 1)
+
+    _bad = chr(10) + 'bad:' + chr(10)
+    assert text.count(_bad) == 1, text.count(_bad)
+    text = text.replace(_bad, _bad + _ins(20, 'error'), 1)
+
+    _g = (chr(9) + 'if ((error = vnode_getattr(vp, vap, imgp->ip_vfs_context)) != 0) {' + chr(10) +
+          chr(9) + chr(9) + 'return error;' + chr(10) + chr(9) + '}' + chr(10))
+    assert text.count(_g) == 1, text.count(_g)
+    text = text.replace(_g,
+        _ins(14) +
+        chr(9) + 'error = vnode_getattr(vp, vap, imgp->ip_vfs_context);' + chr(10) +
+        _ins(15, 'error') +
+        chr(9) + 'if (error != 0) {' + chr(10) + chr(9) + chr(9) + 'return error;' + chr(10) + chr(9) + '}' + chr(10), 1)
+
+    _m = chr(9) + 'error = mac_vnode_check_exec(imgp->ip_vfs_context, vp, imgp);' + chr(10)
+    assert text.count(_m) == 1, text.count(_m)
+    text = text.replace(_m, _ins(16) + _m + _ins(17, 'error'), 1)
+
+    _au = (chr(9) + 'if ((error = vnode_authorize(vp, NULL, action, imgp->ip_vfs_context)) != 0) {' + chr(10) +
+           chr(9) + chr(9) + 'return error;' + chr(10) + chr(9) + '}' + chr(10))
+    assert text.count(_au) == 1, text.count(_au)
+    text = text.replace(_au,
+        _ins(18) +
+        chr(9) + 'error = vnode_authorize(vp, NULL, action, imgp->ip_vfs_context);' + chr(10) +
+        _ins(19, 'error') +
+        chr(9) + 'if (error != 0) {' + chr(10) + chr(9) + chr(9) + 'return error;' + chr(10) + chr(9) + '}' + chr(10), 1)
+
     kexec.write_text(text)
 
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
