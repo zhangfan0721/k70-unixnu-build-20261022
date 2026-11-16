@@ -842,6 +842,22 @@ def install_diag(root):
     text = text.replace(_c13, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(13, 0, 0); }' + chr(10) + _c13)
     kexec.write_text(text)
 
+    # v90: split exec_check_permissions into getattr / MAC / kauth steps.
+    text = kexec.read_text()
+    _pairs = [
+        ('CP14 before vnode_getattr', (chr(9) + 'if ((error = vnode_getattr(vp, vap, imgp->ip_vfs_context)) != 0) {' + chr(10)), 14, 'pre'),
+        ('CP15 after vnode_getattr', (chr(9) + '/*' + chr(10) + chr(9) + ' * Ensure that at least one execute bit is on - otherwise root' + chr(10)), 15, 'pre'),
+        ('CP16 before mac_vnode_check_exec', (chr(9) + 'error = mac_vnode_check_exec(imgp->ip_vfs_context, vp, imgp);' + chr(10)), 16, 'pre'),
+        ('CP17 after mac_vnode_check_exec', (chr(9) + '/* Check for execute permission */' + chr(10)), 17, 'pre'),
+        ('CP18 before vnode_authorize', (chr(9) + 'if ((error = vnode_authorize(vp, NULL, action, imgp->ip_vfs_context)) != 0) {' + chr(10)), 18, 'pre'),
+        ('CP19 after vnode_authorize', (chr(9) + '/* XXX May want to indicate to underlying FS that vnode is open */' + chr(10)), 19, 'pre'),
+    ]
+    _ins = lambda n: (chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', 0, 0); }' + chr(10))
+    for _name, _old, _id, _pos in _pairs:
+        assert text.count(_old) == 1, (_name, text.count(_old))
+        text = text.replace(_old, _ins(_id) + _old, 1)
+    kexec.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
