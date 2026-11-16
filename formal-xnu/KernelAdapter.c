@@ -215,9 +215,7 @@ static void k70_formal_worker(void *argument, wait_result_t result)
     (void)argument;
     (void)result;
     for (;;) {
-        { extern void k70_work_tick(void); static unsigned k70_rn;
-          k70_work_tick();
-          if ((++k70_rn % 10u) == 0u) { extern void k70_flight_refresh(void); k70_flight_refresh(); } }
+        { extern void k70_work_tick(void); k70_work_tick(); }
         char line[BP_MAX_COLS + 1];
         struct bp_out out;
         bp_out_begin(&out, line);

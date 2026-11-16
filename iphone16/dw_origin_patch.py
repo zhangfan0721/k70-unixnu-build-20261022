@@ -750,17 +750,23 @@ def install_diag(root):
     assert text.count(_entry) == 1, text.count(_entry)
     text = text.replace(_entry, _entry +
         chr(9) + '{ extern void k70_cp_note(int, int, int);' + chr(10) +
-        chr(9) + '  k70_cp_note(1, (int)imgp->ip_flags, 0); }' + chr(10))
+        chr(9) + '  extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
+        chr(9) + '  k70_cp_note(1, (int)imgp->ip_flags, 0);' + chr(10) +
+        chr(9) + '  k70_formal_cpu_trace("CP1 exec_mach_imgact flags", (uint64_t)imgp->ip_flags); }' + chr(10))
     _lm = (chr(9) + 'lret = load_machfile(imgp, mach_header, thread, &map, &load_result);' + chr(10))
     assert text.count(_lm) == 1, text.count(_lm)
     text = text.replace(_lm, _lm +
         chr(9) + '{ extern void k70_cp_note(int, int, int);' + chr(10) +
-        chr(9) + '  k70_cp_note(2, (int)lret, (int)map); }' + chr(10))
+        chr(9) + '  extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
+        chr(9) + '  k70_cp_note(2, (int)lret, (int)map);' + chr(10) +
+        chr(9) + '  k70_formal_cpu_trace("CP2 load_machfile lret", (uint64_t)lret); }' + chr(10))
     _act = (chr(9) + 'lret = activate_exec_state(task, p, thread, &load_result);' + chr(10))
     assert text.count(_act) == 1, text.count(_act)
     text = text.replace(_act, _act +
         chr(9) + '{ extern void k70_cp_note(int, int, int);' + chr(10) +
-        chr(9) + '  k70_cp_note(4, (int)lret, 0); }' + chr(10))
+        chr(9) + '  extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
+        chr(9) + '  k70_cp_note(4, (int)lret, 0);' + chr(10) +
+        chr(9) + '  k70_formal_cpu_trace("CP4 activate_exec_state", (uint64_t)lret); }' + chr(10))
     kexec.write_text(text)
 
     sysc = root / 'bsd/dev/arm/systemcalls.c'
@@ -769,7 +775,13 @@ def install_diag(root):
     assert text.count(_code) == 1, text.count(_code)
     text = text.replace(_code, _code +
         chr(9) + '{ extern void k70_cp_note(int, int, int);' + chr(10) +
-        chr(9) + '  k70_cp_note(3, (int)code, (int)proc_getpid(proc)); }' + chr(10))
+        chr(9) + '  static unsigned k70_sc;' + chr(10) +
+        chr(9) + '  k70_cp_note(3, (int)code, (int)proc_getpid(proc));' + chr(10) +
+        chr(9) + '  if (k70_sc < 8u || (k70_sc % 256u) == 0u) {' + chr(10) +
+        chr(9) + '    extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
+        chr(9) + '    k70_formal_cpu_trace("CP3 syscall code", (uint64_t)code);' + chr(10) +
+        chr(9) + '  }' + chr(10) +
+        chr(9) + '  k70_sc++; }' + chr(10))
     sysc.write_text(text)
 
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
