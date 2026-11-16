@@ -798,6 +798,26 @@ def install_diag(root):
         chr(9) + '  k70_sc++; }' + chr(10))
     sysc.write_text(text)
 
+    # v86: mark the init-load path so a single boot shows how far bsd_init got.
+    bsdinit = root / 'bsd/kern/bsd_init.c'
+    text = bsdinit.read_text()
+    _lip = (chr(9) + 'load_init_program(p);' + chr(10))
+    assert text.count(_lip) == 1, text.count(_lip)
+    text = text.replace(_lip,
+        chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(6, 0, 0); }' + chr(10) + _lip)
+    bsdinit.write_text(text)
+
+    text = kexec.read_text()
+    _lip_entry = (chr(9) + 'mach_vm_size_t map_page_size = vm_map_page_size(map);' + chr(10))
+    assert text.count(_lip_entry) == 1, text.count(_lip_entry)
+    text = text.replace(_lip_entry, _lip_entry +
+        chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(7, 0, 0); }' + chr(10))
+    text = text.replace(
+        chr(9) + '  k70_formal_cpu_trace("CP0 exec_activate_image", (uint64_t)imgp->ip_flags); }',
+        chr(9) + '  { extern void k70_cp_note(int, int, int); k70_cp_note(5, 0, 0); }' + chr(10) +
+        chr(9) + '  k70_formal_cpu_trace("CP0 exec_activate_image", (uint64_t)imgp->ip_flags); }')
+    kexec.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
