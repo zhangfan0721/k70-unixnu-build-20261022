@@ -195,40 +195,18 @@ k70_rc_get(int *a, int *b)
 
 
 
-static volatile int k70_cp_id, k70_cp_v1, k70_cp_v2, k70_cp_n;
-static volatile unsigned k70_work_seq;
-static volatile unsigned k70_log_drop_n;
 
-void
-k70_log_drop(void)
-{
-	k70_log_drop_n++;
-}
-
-unsigned
-k70_log_drop_get(void)
-{
-	return k70_log_drop_n;
-}
-
-void
-k70_work_tick(void)
-{
-	k70_work_seq++;
-}
-
-unsigned
-k70_work_seq_get(void)
-{
-	return k70_work_seq;
-}
+static volatile int k70_cp_id_h[4], k70_cp_v1_h[4], k70_cp_v2_h[4];
+static volatile unsigned k70_cp_w;
+static volatile int k70_cp_n;
 
 void
 k70_cp_note(int id, int v1, int v2)
 {
-	k70_cp_id = id;
-	k70_cp_v1 = v1;
-	k70_cp_v2 = v2;
+	k70_cp_w = (k70_cp_w + 1u) & 3u;
+	k70_cp_id_h[k70_cp_w] = id;
+	k70_cp_v1_h[k70_cp_w] = v1;
+	k70_cp_v2_h[k70_cp_w] = v2;
 	k70_cp_n++;
 }
 
@@ -239,21 +217,39 @@ k70_cp_count(void)
 }
 
 int
+k70_cp_hist_id(int slot)
+{
+	return k70_cp_id_h[(k70_cp_w - (unsigned)slot) & 3u];
+}
+
+int
+k70_cp_hist_v1(int slot)
+{
+	return k70_cp_v1_h[(k70_cp_w - (unsigned)slot) & 3u];
+}
+
+int
+k70_cp_hist_v2(int slot)
+{
+	return k70_cp_v2_h[(k70_cp_w - (unsigned)slot) & 3u];
+}
+
+int
 k70_cp_last_id(void)
 {
-	return k70_cp_id;
+	return k70_cp_hist_id(0);
 }
 
 int
 k70_cp_last_v1(void)
 {
-	return k70_cp_v1;
+	return k70_cp_hist_v1(0);
 }
 
 int
 k70_cp_last_v2(void)
 {
-	return k70_cp_v2;
+	return k70_cp_hist_v2(0);
 }
 
 static volatile int k70_ev_val[3];

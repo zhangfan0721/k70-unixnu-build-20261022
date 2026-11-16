@@ -220,7 +220,9 @@ static void k70_formal_worker(void *argument, wait_result_t result)
           if ((++k70_rr % 10u) == 0u) {
               extern int k70_cp_last_id(void); extern int k70_cp_last_v1(void); extern int k70_cp_last_v2(void);
               extern unsigned k70_log_drop_get(void); extern void k70_formal_cpu_trace(const char *, uint64_t);
+              extern int k70_cp_hist_id(int); extern int k70_cp_hist_v1(int);
               k70_formal_cpu_trace("CPLAST id/v1", ((uint64_t)k70_cp_last_id() << 48) | ((uint64_t)(k70_cp_last_v1() & 0xffffu) << 32) | (uint64_t)k70_cp_last_v2());
+              k70_formal_cpu_trace("CPPREV id/v1", ((uint64_t)k70_cp_hist_id(1) << 48) | ((uint64_t)(k70_cp_hist_v1(1) & 0xffffu) << 32) | (uint64_t)k70_cp_hist_v2(1));
               k70_formal_cpu_trace("CPDROP dropped lines", (uint64_t)k70_log_drop_get());
           } }
         char line[BP_MAX_COLS + 1];

@@ -228,6 +228,10 @@ unsigned k70_work_seq_get(void);
 
 void k70_cp_note(int id, int v1, int v2);
 int k70_cp_count(void);
+int k70_cp_hist_id(int slot);
+int k70_cp_hist_v1(int slot);
+int k70_cp_hist_v2(int slot);
+
 int k70_cp_last_id(void);
 int k70_cp_last_v1(void);
 int k70_cp_last_v2(void);
