@@ -232,6 +232,9 @@ int k70_cp_hist_id(int slot);
 int k70_cp_hist_v1(int slot);
 int k70_cp_hist_v2(int slot);
 
+int k70_err_id(void);
+int k70_err_val(void);
+
 int k70_cp_last_id(void);
 int k70_cp_last_v1(void);
 int k70_cp_last_v2(void);

@@ -224,6 +224,8 @@ static void k70_formal_worker(void *argument, wait_result_t result)
               k70_formal_cpu_trace("CPLAST id/v1", ((uint64_t)k70_cp_last_id() << 48) | ((uint64_t)(k70_cp_last_v1() & 0xffffu) << 32) | (uint64_t)k70_cp_last_v2());
               k70_formal_cpu_trace("CPPREV id/v1", ((uint64_t)k70_cp_hist_id(1) << 48) | ((uint64_t)(k70_cp_hist_v1(1) & 0xffffu) << 32) | (uint64_t)k70_cp_hist_v2(1));
               k70_formal_cpu_trace("CPDROP dropped lines", (uint64_t)k70_log_drop_get());
+              { extern int k70_err_id(void); extern int k70_err_val(void);
+                k70_formal_cpu_trace("ERRSRC id/err", ((uint64_t)k70_err_id() << 48) | ((uint64_t)(k70_err_val() & 0xffffu) << 32)); }
           } }
         char line[BP_MAX_COLS + 1];
         struct bp_out out;

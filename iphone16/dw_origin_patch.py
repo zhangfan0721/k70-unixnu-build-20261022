@@ -877,6 +877,19 @@ def install_diag(root):
 
     kexec.write_text(text)
 
+    # v94: prove whether the failing exec returns from the cleanup path.
+    text = kexec.read_text()
+    _c21 = (chr(9) + 'proc_transend(p, 0);' + chr(10) + chr(10) + 'bad_notrans:' + chr(10))
+    assert text.count(_c21) == 1, text.count(_c21)
+    text = text.replace(_c21, chr(9) + 'proc_transend(p, 0);' + chr(10) +
+        chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(21, error, 0); }' + chr(10) +
+        chr(10) + 'bad_notrans:' + chr(10), 1)
+    _c22 = (chr(9) + 'return error;' + chr(10) + '}' + chr(10) + chr(10) + '/*' + chr(10) + ' * exec_validate_spawnattr_policy' + chr(10))
+    assert text.count(_c22) == 1, text.count(_c22)
+    text = text.replace(_c22, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(22, error, 0); }' + chr(10) +
+        chr(9) + 'return error;' + chr(10) + '}' + chr(10) + chr(10) + '/*' + chr(10) + ' * exec_validate_spawnattr_policy' + chr(10), 1)
+    kexec.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')

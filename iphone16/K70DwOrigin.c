@@ -199,6 +199,7 @@ k70_rc_get(int *a, int *b)
 static volatile int k70_cp_id_h[4], k70_cp_v1_h[4], k70_cp_v2_h[4];
 static volatile unsigned k70_cp_w;
 static volatile int k70_cp_n;
+static volatile int k70_err_sid, k70_err_sv, k70_err_set;
 
 void
 k70_cp_note(int id, int v1, int v2)
@@ -208,6 +209,11 @@ k70_cp_note(int id, int v1, int v2)
 	k70_cp_v1_h[k70_cp_w] = v1;
 	k70_cp_v2_h[k70_cp_w] = v2;
 	k70_cp_n++;
+	if (!k70_err_set && v1 != 0) {
+		k70_err_sid = id;
+		k70_err_sv = v1;
+		k70_err_set = 1;
+	}
 }
 
 int
@@ -232,6 +238,18 @@ int
 k70_cp_hist_v2(int slot)
 {
 	return k70_cp_v2_h[(k70_cp_w - (unsigned)slot) & 3u];
+}
+
+int
+k70_err_id(void)
+{
+	return k70_err_sid;
+}
+
+int
+k70_err_val(void)
+{
+	return k70_err_sv;
 }
 
 int
