@@ -176,13 +176,13 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   }
   else if(row>=23 && row<=25){
    if(r->kind==KF_PANIC){
-    if(row==23){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);int i,n;
-      n=k70_open_count();kf_text(&l,"P1 ");if(n>0){const char*s=k70_open_path_at(0);for(i=0;i<36;s++,i++){kf_ch(&l,*s);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(0));}}
-     else if(row==24){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);int i,n;
-      n=k70_open_count();kf_text(&l,"P2 ");if(n>1){const char*s=k70_open_path_at(1);for(i=0;i<36;s++,i++){kf_ch(&l,*s);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(1));}}
-     else {extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);int i,n;
-      n=k70_open_count();kf_text(&l,"P3 ");if(n>2){const char*s=k70_open_path_at(2);for(i=0;i<36;s++,i++){kf_ch(&l,*s);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(2));}}
-   } else kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
+    if(row==23){extern int k70_open_count(void);extern int k70_open_total_count(void);int i,n;
+     n=k70_open_count();kf_text(&l," T ");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_total_count());kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)n);}
+     else if(row==24){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);extern char k70_open_op_at(int);extern int k70_open_w_idx(void);int i,k,n;
+     n=k70_open_count();kf_text(&l," N ");if(n>0){k=k70_open_w_idx();kf_ch(&l,k70_open_op_at(k));kf_text(&l," ");{const char*s=k70_open_path_at(k);for(i=0;i<40;s++,i++){if(!*s)break;kf_ch(&l,*s);}}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(k));}}
+     else {extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);extern char k70_open_op_at(int);extern int k70_open_w_idx(void);int i,k,n;
+     n=k70_open_count();kf_text(&l," O ");if(n>1){k=k70_open_w_idx();k=(k+2)%3;kf_ch(&l,k70_open_op_at(k));kf_text(&l," ");{const char*s=k70_open_path_at(k);for(i=0;i<40;s++,i++){if(!*s)break;kf_ch(&l,*s);}}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(k));}}
+     }kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
   }
   else if(row>=26&&row<=29){
    if(r->kind==KF_PANIC){

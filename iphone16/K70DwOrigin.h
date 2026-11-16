@@ -220,10 +220,13 @@ void k70_rc_note(int stage, int rc);
 void k70_rc_get(int *a, int *b);
 
 /* v76: userland stderr text from the boot task. */
-void k70_open_note(const char *path, int ret);
+void k70_open_note(const char *path, int ret, int op);
+int k70_open_total_count(void);
 int k70_open_count(void);
 const char *k70_open_path_at(int slot);
 int k70_open_ret_at(int slot);
+char k70_open_op_at(int slot);
+int k70_open_w_idx(void);
 
 void k70_err_note(const char *buf, int len);
 int k70_err_len(void);

@@ -755,11 +755,28 @@ def install_diag(root):
                 chr(9) + 'k70_kr = openat_internal(vfs_context_current(), uap->path, uap->flags,' +
                 chr(10) + chr(9) + '           uap->mode, ' + _arg + ', UIO_USERSPACE, retval);' + chr(10) +
                 chr(9) + '{ extern void k70_open_note(const char *, int);' + chr(10) +
-                chr(9) + '  char k70_kb[48];' + chr(10) +
+                chr(9) + '  char k70_kb[180];' + chr(10) +
                 chr(9) + '  if (copyinstr(uap->path, k70_kb, sizeof(k70_kb), NULL) == 0) {' + chr(10) +
-                chr(9) + '    k70_open_note(k70_kb, k70_kr);' + chr(10) +
+                chr(9) + '    k70_open_note(k70_kb, k70_kr, 111);' + chr(10) +
                 chr(9) + '  } }' + chr(10) +
                 chr(9) + 'return k70_kr;' + chr(10) + '}')
+        text = text.replace(_old, _new)
+    path.write_text(text)
+    # v77b: record stat/stat64 results for the same paths, dyld may only stat the cache.
+    text = path.read_text()
+    for _fn, _flag in (('stat', '0'), ('stat64', '1')):
+        _old = (chr(9) + 'return fstatat_internal(vfs_context_current(), uap->path, uap->ub,' + chr(10) +
+                chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0);' + chr(10) + '}')
+        assert text.count(_old) == 1, (_fn, text.count(_old))
+        _new = (chr(9) + 'int k70_sr;' + chr(10) +
+                chr(9) + 'k70_sr = fstatat_internal(vfs_context_current(), uap->path, uap->ub,' + chr(10) +
+                chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0);' + chr(10) +
+                chr(9) + '{ extern void k70_open_note(const char *, int, int);' + chr(10) +
+                chr(9) + '  char k70_sb[180];' + chr(10) +
+                chr(9) + '  if (copyinstr(uap->path, k70_sb, sizeof(k70_sb), NULL) == 0) {' + chr(10) +
+                chr(9) + '    k70_open_note(k70_sb, k70_sr, 115);' + chr(10) +
+                chr(9) + '  } }' + chr(10) +
+                chr(9) + 'return k70_sr;' + chr(10) + '}')
         text = text.replace(_old, _new)
     path.write_text(text)
     # v76: keep the boot task's stderr text, the only place dyld explains itself.
@@ -944,103 +961,3 @@ def install_diag(root):
             '  { k70_win_note(offset, (uint64_t)length, 9); }\n' + _poison)
     path.write_text(text)
     # v37: this kernel runs without AMFI, so the amfi vtable is null and the
-    # first code-signature blob would dereference it and abort the kernel.
-    path = root / 'bsd/kern/ubc_subr.c'
-    text = path.read_text()
-    _acc = 'static errno_t\naccelerate_entitlement_queries(\n\tstruct cs_blob *cs_blob)\n{\n'
-    assert text.count(_acc) == 1, text.count(_acc)
-    text = text.replace(_acc,
-        _acc + '\tif (amfi == (void *)0) {\n'
-        '\t\treturn 0;\n'
-        '\t}\n')
-    _inv = 'amfi->OSEntitlements_invalidate(blob->csb_entitlements);'
-    if text.count(_inv) == 1:
-        text = text.replace(_inv,
-            'if (amfi != (void *)0) { amfi->OSEntitlements_invalidate(blob->csb_entitlements); }')
-    path.write_text(text)
-    # v36: complete a fetched buffer; the residual was left at full length on
-    # success, so every loader/namei read still looked short and became EIO.
-    path = root / 'bsd/dev/memdev.c'
-    text = path.read_text()
-    _res = ('\t\tif (ferror != 0) {\n'
-            '\t\t\tbuf_seterror(bp, ferror);\n'
-            '\t\t\tbuf_setresid(bp, buf_count(bp));\n'
-            '\t\t}\n'
-            '\t\tbuf_biodone(bp);\n')
-    assert text.count(_res) == 1, text.count(_res)
-    text = text.replace(_res,
-        '\t\tif (ferror != 0) {\n'
-        '\t\t\tbuf_seterror(bp, ferror);\n'
-        '\t\t\tbuf_setresid(bp, buf_count(bp));\n'
-        '\t\t} else {\n'
-        '\t\t\t/* The fetch filled the whole buffer. */\n'
-        '\t\t\tbuf_setresid(bp, 0);\n'
-        '\t\t}\n'
-        '\t\tbuf_unmap(bp);\n'
-        '\t\tbuf_biodone(bp);\n')
-    path.write_text(text)
-    # v29: persistent exec bits plus the first failing loader read.
-    path = root / 'bsd/kern/kern_exec.c'
-    text = path.read_text()
-    _emi = 'exec_mach_imgact(struct image_params *imgp)\n{\n'
-    assert text.count(_emi) == 1
-    text = text.replace(_emi, _emi +
-        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(0); }\n')
-    _mi = '\tlret = load_machfile(imgp, mach_header, thread, &map, &load_result);\n'
-    assert text.count(_mi) == 1
-    text = text.replace(_mi,
-        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(1); }\n' + _mi +
-        '\t{ extern void k70_exec_mark(uint32_t); extern volatile int k70_loadmach_ret;\n'
-        '\t  k70_loadmach_ret = (int)lret; k70_exec_mark(2); }\n')
-    _ae = '\tlret = activate_exec_state(task, p, thread, &load_result);\n'
-    assert text.count(_ae) == 1
-    text = text.replace(_ae,
-        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(3); }\n' + _ae +
-        '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(4); }\n')
-    path.write_text(text)
-
-    path = root / 'bsd/kern/mach_loader.c'
-    text = path.read_text()
-    sites = [
-        (1, '\terror = vn_rdwr(UIO_READ, vp, addr, (int)alloc_size, file_offset,\n'
-            '\t    UIO_SYSSPACE, 0, vfs_context_ucred(imgp->ip_vfs_context), &resid, p);\n'),
-        (2, '\terror = vn_rdwr(UIO_READ, imgp->ip_vp, addr, (int)alloc_size, file_offset,\n'
-            '\t    UIO_SYSSPACE, IO_NODELOCKED, cred, &resid, p);\n'),
-        (3, '\t    &resid,\n\t    current_proc());\n'),
-        (4, '\tif ((error = vn_rdwr(UIO_READ, vp, (caddr_t)header, sizeof(*header), 0,\n'
-            '\t    UIO_SYSSPACE, IO_NODELOCKED, kerncred, &resid, p)) != 0) {\n'),
-        (5, '\t\terror = vn_rdwr(UIO_READ, vp, (caddr_t)&header->mach_header,\n'
-            '\t\t    sizeof(header->mach_header), fat_arch.offset,\n'
-            '\t\t    UIO_SYSSPACE, IO_NODELOCKED, kerncred, &resid, p);\n'),
-    ]
-    for site, anchor in sites:
-        assert text.count(anchor) == 1, (site, text.count(anchor))
-        if site == 4:
-            text = text.replace(anchor,
-                '\tif ((error = vn_rdwr(UIO_READ, vp, (caddr_t)header, sizeof(*header), 0,\n'
-                '\t    UIO_SYSSPACE, IO_NODELOCKED, kerncred, &resid, p)) != 0) {\n'
-                '\t\t{ extern void k70_vn_note(uint32_t, int, int64_t);\n'
-                '\t\t  k70_vn_note(4u, error, (int64_t)resid); }\n')
-        else:
-            note = ('\t{ extern void k70_vn_note(uint32_t, int, int64_t);\n'
-                    '\t  if (error) { k70_vn_note(%du, error, (int64_t)resid); } }\n' % site)
-            text = text.replace(anchor, anchor + note)
-    path.write_text(text)
-    # v24: mark the key boot spans so the heartbeat shows the last completed one.
-    path = root / 'osfmk/kern/startup.c'
-    text = path.read_text()
-    _pl = '\tPE_lockdown_iokit();\n'
-    assert text.count(_pl) == 1
-    text = text.replace(_pl,
-        '\t{ extern void k70_stage_set(uint32_t); k70_stage_set(0); }\n' + _pl +
-        '\t{ extern void k70_stage_set(uint32_t); k70_stage_set(1); }\n')
-    path.write_text(text)
-
-    path = root / 'bsd/kern/bsd_init.c'
-    text = path.read_text()
-    _vm = '\t\tif (0 == (err = vfs_mountroot())) {\n'
-    assert text.count(_vm) == 1
-    text = text.replace(_vm,
-        '\t\t{ extern void k70_stage_set(uint32_t);\n'
-        '\t\t  k70_stage_set(2); err = vfs_mountroot(); k70_stage_set(3); }\n'
-        '\t\tif (0 == err) {\n')
