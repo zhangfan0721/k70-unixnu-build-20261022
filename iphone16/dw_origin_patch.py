@@ -832,6 +832,16 @@ def install_diag(root):
     text = text.replace(_a11, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(11, 0, 0); }' + chr(10) + _a11)
     kexec.write_text(text)
 
+    # v89: split the permission phase from the header read.
+    text = kexec.read_text()
+    _c12 = (chr(9) + '/* Copy; avoid invocation of an interpreter overwriting the original */' + chr(10))
+    assert text.count(_c12) == 1, text.count(_c12)
+    text = text.replace(_c12, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(12, 0, 0); }' + chr(10) + _c12)
+    _c13 = (chr(9) + 'if (resid) {' + chr(10) + chr(9) + chr(9) + 'memset(imgp->ip_vdata + (PAGE_SIZE - resid), 0x0, resid);' + chr(10))
+    assert text.count(_c13) == 1, text.count(_c13)
+    text = text.replace(_c13, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(13, 0, 0); }' + chr(10) + _c13)
+    kexec.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
