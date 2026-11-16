@@ -27,7 +27,7 @@
  dev_t           mdevlookup(int devid);
  void            mdevremoveall(void);
  int             mdevgetrange(int devid, uint64_t *base, uint64_t *size);
-@@ -303,6 +311,21 @@
+@@ -303,6 +311,24 @@
  	if (buf_map(bp, (caddr_t *)&vaddr)) {
  		panic("ramstrategy: buf_map failed");
  	}
@@ -52,7 +52,7 @@
  
  	fvaddr = (mdev[devid].mdBase << 12) + blkoff;           /* Point to offset into ram disk */
  
-@@ -712,6 +735,79 @@
+@@ -712,7 +735,80 @@
  	return mdev[devid].mdBDev;
  }
  
