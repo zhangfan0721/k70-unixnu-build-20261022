@@ -743,42 +743,39 @@ def install_diag(root):
     text = text.replace(_ct, _ct +
         chr(9) + '\t{ extern void k70_gmv_note(int, int); k70_gmv_note(15, 0); }' + chr(10))
     path.write_text(text)
-    # v77: record which dyld/cache paths the boot task opens, and what it got back.
+    # v77: record every open/stat of a dyld-ish or cache path, with rc and result.
     path = root / 'bsd/vfs/vfs_syscalls.c'
     text = path.read_text()
-    _tail = (chr(10) + chr(9) + '           uap->mode, %s, UIO_USERSPACE, retval);' + chr(10) + '}')
+
+    def _hook(text, old, arg, opchar, call):
+        assert text.count(old) == 1, (opchar, text.count(old))
+        new = (chr(9) + 'int k70_kr;' + chr(10) +
+               chr(9) + 'k70_kr = ' + call + '(' + chr(10) +
+               chr(9) + '           ' + arg + ');' + chr(10) +
+               chr(9) + '{ extern void k70_open_note(const char *, int, int);' + chr(10) +
+               chr(9) + '  char k70_kb[180];' + chr(10) +
+               chr(9) + '  int k70_cr;' + chr(10) +
+               chr(9) + '  k70_kb[0] = 0;' + chr(10) +
+               chr(9) + '  k70_cr = copyinstr(uap->path, k70_kb, sizeof(k70_kb), NULL);' + chr(10) +
+               chr(9) + '  k70_open_note(k70_kb, k70_kr, (' + str(opchar) + ' << 16) | (k70_cr & 0xff));' + chr(10) +
+               chr(9) + '}' + chr(10) +
+               chr(9) + 'return k70_kr;' + chr(10) + '}')
+        return text.replace(old, new)
+
     for _arg in ('AT_FDCWD', 'uap->fd'):
-        _old = (chr(9) + 'return openat_internal(vfs_context_current(), uap->path, uap->flags,' +
-                (_tail % _arg))
-        assert text.count(_old) == 1, (text.count(_old), _arg)
-        _new = (chr(9) + 'int k70_kr;' + chr(10) +
-                chr(9) + 'k70_kr = openat_internal(vfs_context_current(), uap->path, uap->flags,' +
-                chr(10) + chr(9) + '           uap->mode, ' + _arg + ', UIO_USERSPACE, retval);' + chr(10) +
-                chr(9) + '{ extern void k70_open_note(const char *, int);' + chr(10) +
-                chr(9) + '  char k70_kb[180];' + chr(10) +
-                chr(9) + '  if (copyinstr(uap->path, k70_kb, sizeof(k70_kb), NULL) == 0) {' + chr(10) +
-                chr(9) + '    k70_open_note(k70_kb, k70_kr, 111);' + chr(10) +
-                chr(9) + '  } }' + chr(10) +
-                chr(9) + 'return k70_kr;' + chr(10) + '}')
-        text = text.replace(_old, _new)
-    path.write_text(text)
-    # v77b: record stat/stat64 results for the same paths, dyld may only stat the cache.
-    text = path.read_text()
-    for _fn, _flag in (('stat', '0'), ('stat64', '1')):
+        _old = (chr(9) + 'return openat_internal(vfs_context_current(), uap->path, uap->flags,' + chr(10) +
+                chr(9) + '           uap->mode, ' + _arg + ', UIO_USERSPACE, retval);' + chr(10) + '}')
+        text = _hook(text, _old,
+                     'vfs_context_current(), uap->path, uap->flags,' + chr(10) + chr(9) + '           uap->mode, ' + _arg + ', UIO_USERSPACE, retval',
+                     111, 'openat_internal')
+    for _flag in ('0', '1'):
         _old = (chr(9) + 'return fstatat_internal(vfs_context_current(), uap->path, uap->ub,' + chr(10) +
                 chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0);' + chr(10) + '}')
-        assert text.count(_old) == 1, (_fn, text.count(_old))
-        _new = (chr(9) + 'int k70_sr;' + chr(10) +
-                chr(9) + 'k70_sr = fstatat_internal(vfs_context_current(), uap->path, uap->ub,' + chr(10) +
-                chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0);' + chr(10) +
-                chr(9) + '{ extern void k70_open_note(const char *, int, int);' + chr(10) +
-                chr(9) + '  char k70_sb[180];' + chr(10) +
-                chr(9) + '  if (copyinstr(uap->path, k70_sb, sizeof(k70_sb), NULL) == 0) {' + chr(10) +
-                chr(9) + '    k70_open_note(k70_sb, k70_sr, 115);' + chr(10) +
-                chr(9) + '  } }' + chr(10) +
-                chr(9) + 'return k70_sr;' + chr(10) + '}')
-        text = text.replace(_old, _new)
+        text = _hook(text, _old,
+                     'vfs_context_current(), uap->path, uap->ub,' + chr(10) + chr(9) + '           0, 0, ' + _flag + ', UIO_USERSPACE, AT_FDCWD, 0',
+                     115, 'fstatat_internal')
     path.write_text(text)
+
     # v76: keep the boot task's stderr text, the only place dyld explains itself.
     path = root / 'bsd/kern/sys_generic.c'
     text = path.read_text()

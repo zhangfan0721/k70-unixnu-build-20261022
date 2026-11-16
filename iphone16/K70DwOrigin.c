@@ -197,6 +197,9 @@ k70_rc_get(int *a, int *b)
 static volatile char k70_open_path[3][168];
 static volatile int k70_open_ret[3];
 static volatile char k70_open_op[3];
+static volatile int k70_open_len[3];
+static volatile int k70_open_rc[3];
+static volatile int k70_open_kind[3];
 static volatile int k70_open_n;
 static volatile int k70_open_w;
 static volatile int k70_open_total;
@@ -204,7 +207,7 @@ static volatile int k70_open_total;
 void
 k70_open_note(const char *path, int ret, int op)
 {
-	int i;
+	int i, kind = 0, rc = op & 0xff;
 	k70_open_total++;
 	k70_open_w = (k70_open_w + 1) % 3;
 	for (i = 0; i < 167 && path[i]; i++) {
@@ -212,7 +215,16 @@ k70_open_note(const char *path, int ret, int op)
 	}
 	k70_open_path[k70_open_w][i] = 0;
 	k70_open_ret[k70_open_w] = ret;
-	k70_open_op[k70_open_w] = (char)op;
+	k70_open_op[k70_open_w] = (char)(op >> 16);
+	k70_open_len[k70_open_w] = i;
+	k70_open_rc[k70_open_w] = rc;
+	for (i = 0; i + 9 < 168 && path[i]; i++) {
+		if (path[i] == 'd' && path[i+1] == 'y' && path[i+2] == 'l' && path[i+3] == 'd' && path[i+4] == 'l' && path[i+5] == 'i') { kind = 3; }
+		if (path[i] == 'd' && path[i+1] == 'y' && path[i+2] == 'l' && path[i+3] == 'd' && path[i+4] == '_') { kind = 2; }
+		if (path[i] == 'l' && path[i+1] == 'i' && path[i+2] == 'b' && path[i+3] == 's' && path[i+4] == 'y') { kind = 4; }
+	}
+	if (path[0] == '/' && path[1] == 'u' && path[2] == 's' && path[3] == 'r' && path[4] == '/' && path[5] == 'l' && path[6] == 'i' && path[7] == 'b' && path[8] == '/' && path[9] == 'd') { kind = 1; }
+	k70_open_kind[k70_open_w] = kind;
 	if (k70_open_n < 3) {
 		k70_open_n++;
 	}
@@ -234,6 +246,24 @@ const char *
 k70_open_path_at(int slot)
 {
 	return (const char *)k70_open_path[slot % 3];
+}
+
+int
+k70_open_len_at(int slot)
+{
+	return k70_open_len[slot % 3];
+}
+
+int
+k70_open_rc_at(int slot)
+{
+	return k70_open_rc[slot % 3];
+}
+
+int
+k70_open_kind_at(int slot)
+{
+	return k70_open_kind[slot % 3];
 }
 
 int

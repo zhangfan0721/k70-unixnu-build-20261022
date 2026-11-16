@@ -178,11 +178,11 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
    if(r->kind==KF_PANIC){
     if(row==23){extern int k70_open_count(void);extern int k70_open_total_count(void);int i,n;
      n=k70_open_count();kf_text(&l," T ");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_total_count());kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)n);}
-     else if(row==24){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);extern char k70_open_op_at(int);extern int k70_open_w_idx(void);int i,k,n;
-     n=k70_open_count();kf_text(&l," N ");if(n>0){k=k70_open_w_idx();kf_ch(&l,k70_open_op_at(k));kf_text(&l," ");{const char*s=k70_open_path_at(k);for(i=0;i<40;s++,i++){if(!*s)break;kf_ch(&l,*s);}}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(k));}}
-     else {extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);extern char k70_open_op_at(int);extern int k70_open_w_idx(void);int i,k,n;
-     n=k70_open_count();kf_text(&l," O ");if(n>1){k=k70_open_w_idx();k=(k+2)%3;kf_ch(&l,k70_open_op_at(k));kf_text(&l," ");{const char*s=k70_open_path_at(k);for(i=0;i<40;s++,i++){if(!*s)break;kf_ch(&l,*s);}}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(k));}}
-     }kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
+     else if(row==24){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);extern int k70_open_w_idx(void);extern int k70_open_len_at(int);extern int k70_open_rc_at(int);extern int k70_open_kind_at(int);int i,k,n,st,ln;
+      n=k70_open_count();kf_text(&l,"N ");if(n>0){k=k70_open_w_idx();kf_ch(&l,(char)('0'+k70_open_kind_at(k)));kf_text(&l," rc");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_rc_at(k));kf_text(&l," ");ln=k70_open_len_at(k);st=ln>24?ln-24:0;for(i=st;i<ln;i++){kf_ch(&l,k70_open_path_at(k)[i]);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(k));}}
+     else if(row==25){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);extern int k70_open_w_idx(void);extern int k70_open_len_at(int);extern int k70_open_rc_at(int);extern int k70_open_kind_at(int);int i,k,n,st,ln;
+      n=k70_open_count();kf_text(&l,"O ");if(n>1){k=k70_open_w_idx();k=(k+2)%3;kf_ch(&l,(char)('0'+k70_open_kind_at(k)));kf_text(&l," rc");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_rc_at(k));kf_text(&l," ");ln=k70_open_len_at(k);st=ln>24?ln-24:0;for(i=st;i<ln;i++){kf_ch(&l,k70_open_path_at(k)[i]);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(k));}}
+     } else kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
   }
   else if(row>=26&&row<=29){
    if(r->kind==KF_PANIC){

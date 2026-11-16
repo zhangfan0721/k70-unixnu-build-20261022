@@ -227,6 +227,9 @@ const char *k70_open_path_at(int slot);
 int k70_open_ret_at(int slot);
 char k70_open_op_at(int slot);
 int k70_open_w_idx(void);
+int k70_open_len_at(int slot);
+int k70_open_rc_at(int slot);
+int k70_open_kind_at(int slot);
 
 void k70_err_note(const char *buf, int len);
 int k70_err_len(void);
