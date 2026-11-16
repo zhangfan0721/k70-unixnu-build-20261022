@@ -548,6 +548,9 @@ def install_diag(root):
            '\tload_result_t           *result\n'
            '\t)\n{\n')
     assert text.count(_lm) == 1, text.count(_lm)
+    _lm_pre = (chr(9) + 'lret = load_machfile(imgp, mach_header, thread, &map, &load_result);' + chr(10))
+    text = text.replace(_lm_pre, chr(9) + '{ extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
+        chr(9) + '  k70_formal_cpu_trace("CP2A before load_machfile", (uint64_t)imgp->ip_flags); }' + chr(10) + _lm_pre, 1)
     text = text.replace(_lm, _lm +
         '\t{ extern void k70_exec_mark(uint32_t); k70_exec_mark(5); }\n')
     _pm = ('static\nload_return_t\nparse_machfile(\n'
@@ -746,6 +749,14 @@ def install_diag(root):
     # v82: explicit exec checkpoints, each with its own id so a stale value is visible.
     kexec = root / 'bsd/kern/kern_exec.c'
     text = kexec.read_text()
+    _eai = (chr(9) + 'proc_t p = vfs_context_proc(imgp->ip_vfs_context);' + chr(10) + chr(10) +
+            chr(9) + '/*' + chr(10) + chr(9) + ' * For exec, the translock needs to be taken on old proc and not' + chr(10))
+    assert text.count(_eai) == 1, text.count(_eai)
+    text = text.replace(_eai,
+        chr(9) + 'proc_t p = vfs_context_proc(imgp->ip_vfs_context);' + chr(10) +
+        chr(9) + '{ extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
+        chr(9) + '  k70_formal_cpu_trace("CP0 exec_activate_image", (uint64_t)imgp->ip_flags); }' + chr(10) +
+        chr(10) + chr(9) + '/*' + chr(10) + chr(9) + ' * For exec, the translock needs to be taken on old proc and not' + chr(10))
     _entry = (chr(9) + 'char *                  userspace_coredump_name = NULL;' + chr(10))
     assert text.count(_entry) == 1, text.count(_entry)
     text = text.replace(_entry, _entry +
@@ -762,6 +773,9 @@ def install_diag(root):
         chr(9) + '  k70_formal_cpu_trace("CP2 load_machfile lret", (uint64_t)lret); }' + chr(10))
     _act = (chr(9) + 'lret = activate_exec_state(task, p, thread, &load_result);' + chr(10))
     assert text.count(_act) == 1, text.count(_act)
+    _act_pre = (chr(9) + 'lret = activate_exec_state(task, p, thread, &load_result);' + chr(10))
+    text = text.replace(_act_pre, chr(9) + '{ extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
+        chr(9) + '  k70_formal_cpu_trace("CP4A before activate_exec_state", 0); }' + chr(10) + _act_pre, 1)
     text = text.replace(_act, _act +
         chr(9) + '{ extern void k70_cp_note(int, int, int);' + chr(10) +
         chr(9) + '  extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
@@ -779,7 +793,7 @@ def install_diag(root):
         chr(9) + '  k70_cp_note(3, (int)code, (int)proc_getpid(proc));' + chr(10) +
         chr(9) + '  if (k70_sc < 8u || (k70_sc % 256u) == 0u) {' + chr(10) +
         chr(9) + '    extern void k70_formal_cpu_trace(const char *, uint64_t);' + chr(10) +
-        chr(9) + '    k70_formal_cpu_trace("CP3 syscall code", (uint64_t)code);' + chr(10) +
+        chr(9) + '    k70_formal_cpu_trace("CP3 pid<<32|code", ((uint64_t)proc_getpid(proc) << 32) | (uint64_t)code);' + chr(10) +
         chr(9) + '  }' + chr(10) +
         chr(9) + '  k70_sc++; }' + chr(10))
     sysc.write_text(text)

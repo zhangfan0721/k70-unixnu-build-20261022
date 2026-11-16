@@ -220,6 +220,9 @@ void k70_rc_note(int stage, int rc);
 void k70_rc_get(int *a, int *b);
 
 /* v76: userland stderr text from the boot task. */
+void k70_log_drop(void);
+unsigned k70_log_drop_get(void);
+
 void k70_work_tick(void);
 unsigned k70_work_seq_get(void);
 
