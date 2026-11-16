@@ -176,12 +176,12 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
   }
   else if(row>=23 && row<=25){
    if(r->kind==KF_PANIC){
-    if(row==23){extern int k70_err_len(void);extern char k70_err_at(int);int i,n;
-      n=k70_err_len();kf_text(&l,"E1 ");for(i=0;i<40&&i<n;i++){kf_ch(&l,k70_err_at(i));}}
-     else if(row==24){extern int k70_err_len(void);extern char k70_err_at(int);int i,n;
-      n=k70_err_len();kf_text(&l,"E2 ");for(i=40;i<80&&i<n;i++){kf_ch(&l,k70_err_at(i));}}
-     else {extern void k70_gmv_get(int*,int*);int gs,ge;k70_gmv_get(&gs,&ge);
-     kf_text(&l,"GMV s");kf_hex(&l,(uint64_t)(uint32_t)gs);kf_text(&l," e");kf_hex(&l,(uint64_t)(uint32_t)ge);}
+    if(row==23){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);int i,n;
+      n=k70_open_count();kf_text(&l,"P1 ");if(n>0){const char*s=k70_open_path_at(0);for(i=0;i<36;s++,i++){kf_ch(&l,*s);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(0));}}
+     else if(row==24){extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);int i,n;
+      n=k70_open_count();kf_text(&l,"P2 ");if(n>1){const char*s=k70_open_path_at(1);for(i=0;i<36;s++,i++){kf_ch(&l,*s);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(1));}}
+     else {extern int k70_open_count(void);extern const char* k70_open_path_at(int);extern int k70_open_ret_at(int);int i,n;
+      n=k70_open_count();kf_text(&l,"P3 ");if(n>2){const char*s=k70_open_path_at(2);for(i=0;i<36;s++,i++){kf_ch(&l,*s);}kf_text(&l," r");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_ret_at(2));}}
    } else kf_abort_line(&l,row-23,r->pmap_assert.ppnum);
   }
   else if(row>=26&&row<=29){

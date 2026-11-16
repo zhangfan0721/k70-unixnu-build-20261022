@@ -557,7 +557,7 @@ def integration_patch(core, source, font, staging):
                   'osfmk/kern/lock_rw.c',
                   'osfmk/vm/vm_object.c',
                   'osfmk/vm/vm_map.c',
-                  'bsd/kern/kern_sig.c', 'bsd/kern/kern_cs.c', 'bsd/kern/sys_generic.c',
+                  'bsd/kern/kern_sig.c', 'bsd/kern/kern_cs.c', 'bsd/kern/sys_generic.c', 'bsd/vfs/vfs_syscalls.c',
                   'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):
