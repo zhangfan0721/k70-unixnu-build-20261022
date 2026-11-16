@@ -52,7 +52,7 @@
  
  	fvaddr = (mdev[devid].mdBase << 12) + blkoff;           /* Point to offset into ram disk */
  
-@@ -712,7 +735,80 @@
+@@ -712,6 +738,79 @@
  	return mdev[devid].mdBDev;
  }
  
