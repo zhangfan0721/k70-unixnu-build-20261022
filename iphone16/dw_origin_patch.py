@@ -849,9 +849,9 @@ def install_diag(root):
     assert text.count(_hdr) == 1, text.count(_hdr)
     text = text.replace(_hdr, _hdr + _ins(13, 'error', '(int)resid'), 1)
 
-    _bad = chr(10) + 'bad:' + chr(10)
+    _bad = chr(10) + 'bad:' + chr(10) + chr(9) + 'proc_transend(p, 0);' + chr(10)
     assert text.count(_bad) == 1, text.count(_bad)
-    text = text.replace(_bad, _bad + _ins(20, 'error'), 1)
+    text = text.replace(_bad, chr(10) + 'bad:' + chr(10) + _ins(20, 'error') + chr(9) + 'proc_transend(p, 0);' + chr(10), 1)
 
     _g = (chr(9) + 'if ((error = vnode_getattr(vp, vap, imgp->ip_vfs_context)) != 0) {' + chr(10) +
           chr(9) + chr(9) + 'return error;' + chr(10) + chr(9) + '}' + chr(10))
