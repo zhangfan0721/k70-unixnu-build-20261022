@@ -818,6 +818,20 @@ def install_diag(root):
         chr(9) + '  k70_formal_cpu_trace("CP0 exec_activate_image", (uint64_t)imgp->ip_flags); }')
     kexec.write_text(text)
 
+    # v87: where inside exec_activate_image the boot stops.
+    text = kexec.read_text()
+    _a8 = (chr(9) + 'imgp->ip_ndp = ndp;     /* successful namei(); call nameidone() later */' + chr(10))
+    assert text.count(_a8) == 1, text.count(_a8)
+    text = text.replace(_a8, _a8 +
+        chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(8, 0, 0); }' + chr(10))
+    _a9 = (chr(9) + 'error = exec_check_permissions(imgp);' + chr(10))
+    assert text.count(_a9) == 1, text.count(_a9)
+    text = text.replace(_a9, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(9, 0, 0); }' + chr(10) + _a9)
+    _a11 = (chr(9) + 'for (i = 0; error == -1 && execsw[i].ex_imgact != NULL; i++) {' + chr(10))
+    assert text.count(_a11) == 1, text.count(_a11)
+    text = text.replace(_a11, chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(11, 0, 0); }' + chr(10) + _a11)
+    kexec.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
