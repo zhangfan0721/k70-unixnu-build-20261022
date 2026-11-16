@@ -39,9 +39,12 @@
 +			ferror = mdev[devid].mdFetch(devid, blkoff, (void *)vaddr,
 +			    (size_t)buf_count(bp));
 +		}
++		buf_unmap(bp);
 +		if (ferror != 0) {
 +			buf_seterror(bp, ferror);
 +			buf_setresid(bp, buf_count(bp));
++		} else {
++			buf_setresid(bp, 0);
 +		}
 +		buf_biodone(bp);
 +		return;
