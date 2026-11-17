@@ -193,13 +193,10 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
      kf_text(&l," f");kf_hex(&l,f1);}
     else if(row==27){extern void k70_lm_site_get(int*,int*);int ls,lc;k70_lm_site_get(&ls,&lc);
      kf_text(&l,"LMS s");kf_hex(&l,(uint64_t)(uint32_t)ls);kf_text(&l," n");kf_hex(&l,(uint64_t)(uint32_t)lc);}
-    else if(row==28){int br;unsigned long long bx,by;k70_bd_get(1,&br,&bx,&by);
-     kf_text(&l,"B1 r");kf_hex(&l,(uint64_t)(uint32_t)br);kf_text(&l," f");kf_hex(&l,bx&0xffffffff);
-     kf_text(&l," t");kf_hex(&l,by&0xffffffff);}
-    else {int br;unsigned long long bx,by;k70_bd_get(2,&br,&bx,&by);
-     kf_text(&l,"B2 r");kf_hex(&l,(uint64_t)(uint32_t)br);kf_text(&l," m");kf_hex(&l,bx&0xffffffff);
-     kf_text(&l," d");kf_hex(&l,by&0xffffffff);kf_text(&l," B3 ");k70_bd_get(3,&br,&bx,&by);
-     kf_hex(&l,(uint64_t)(uint32_t)br);}
+     else if(row==28){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
+      kf_text(&l,"V1 ");n=k70_open_count();if(n>0){k=k70_open_w_idx()%3;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
+     else {extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
+      kf_text(&l,"V2 ");n=k70_open_count();if(n>1){k=(k70_open_w_idx()+2)%3;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
    }
   }
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
