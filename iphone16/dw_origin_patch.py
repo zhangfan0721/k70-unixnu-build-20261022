@@ -1250,6 +1250,17 @@ def install_diag(root):
     text = text[:_e] + _ins + text[_e:]
     sc.write_text(text)
 
+    # v137: fcntl results on the error paths too.
+    kd = root / 'bsd/kern/kern_descrip.c'
+    text = kd.read_text()
+    for _lbl in ('outdrop:', 'out:'):
+        _i = text.find(chr(10) + _lbl + chr(10), text.find('sys_fcntl_nocancel(proc_t p'))
+        assert _i > 0, _lbl
+        _ls = _i + 1
+        _ins = chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int); k70_cp_note(104, (int)cmd, (int)error); k70_pf_note(3, (int)cmd, (int)error); }' + chr(10)
+        text = text[:_ls] + _ins + text[_ls:]
+    kd.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
