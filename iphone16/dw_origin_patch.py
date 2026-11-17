@@ -1236,6 +1236,20 @@ def install_diag(root):
     text = text.replace(_old, _ins, 1)
     kd.write_text(text)
 
+    # v136: syscall-level fcntl result (covers every error path).
+    sc = root / 'bsd/dev/arm/systemcalls.c'
+    text = sc.read_text()
+    _k = text.find('unix_syscall_kprintf("code %d, error %d, results %x, %x (pid %d - %s, tid %lld)')
+    assert _k > 0
+    _e = text.find(chr(10), text.find('thread_tid(current_thread()));', _k)) + 1
+    _ins = (chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int);' + chr(10) +
+            chr(9) + '  if (code == 92 || code == 464) {' + chr(10) +
+            chr(9) + '    k70_cp_note(103, (int)code, (int)error);' + chr(10) +
+            chr(9) + '    k70_pf_note(2, (int)uthread->uu_rval[0], (int)error);' + chr(10) +
+            chr(9) + '  } }' + chr(10))
+    text = text[:_e] + _ins + text[_e:]
+    sc.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
