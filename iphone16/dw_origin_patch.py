@@ -942,6 +942,42 @@ def install_diag(root):
     text = text.replace(_sw, _cp2(45, '(int)lcp->cmd', '(int)pass') + _sw, 1)
     ml.write_text(text)
 
+    # v105: code-signature path checkpoints (parse pass 1 stopped here).
+    text = ml.read_text()
+
+    def _cp3(n, v1='0', v2='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v1 + ', ' + v2 + '); }' + chr(10)
+
+    def _ins_after_line(text, needle, ins, start=0):
+        pos = text.find(needle, start)
+        assert pos >= 0, needle
+        end = text.find(chr(10), pos) + 1
+        return text[:end] + ins + text[end:], end
+
+    def _ins_before_line(text, needle, ins):
+        pos = text.find(needle)
+        assert pos >= 0, needle
+        start = text.rfind(chr(10), 0, pos) + 1
+        return text[:start] + ins + text[start:]
+
+    text = _ins_after_line(text, chr(9)*3 + 'case LC_CODE_SIGNATURE:', _cp3(50, '(int)pass'))
+    text = _ins_before_line(text, 'ret = load_code_signature(', _cp3(51, '(int)pass'))
+    _p = text.find('ret = load_code_signature(')
+    _q = text.find('if (ret != LOAD_SUCCESS) {', _p)
+    _st = text.rfind(chr(10), 0, _q) + 1
+    text = text[:_st] + _cp3(52, 'ret') + text[_st:]
+    text = _ins_after_line(text, 'while (off < alloc_size && ret == LOAD_SUCCESS) {', _cp3(53, '(int)(off >> 12)'))
+    text = _ins_before_line(text, 'valid = cs_validate_range(vp,', _cp3(54, '(int)(off >> 12)'))
+    text = _ins_before_line(text, 'if (!valid || (tainted & CS_VALIDATE_TAINTED)) {', _cp3(55, '(int)valid'))
+    text = _ins_before_line(text, 'ubc_cs_blob_get(vp, cputype', _cp3(56, 0))
+    _pg = text.find('ubc_cs_blob_get(vp, cputype')
+    _pb = text.find('if (blob != NULL) {', _pg)
+    assert _pb > _pg
+    _sb = text.rfind(chr(10), 0, _pb) + 1
+    text = text[:_sb] + _cp3(57, 0) + text[_sb:]
+
+    ml.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
