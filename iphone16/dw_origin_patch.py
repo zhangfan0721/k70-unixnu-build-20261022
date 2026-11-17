@@ -890,6 +890,35 @@ def install_diag(root):
         chr(9) + 'return error;' + chr(10) + '}' + chr(10) + chr(10) + '/*' + chr(10) + ' * exec_validate_spawnattr_policy' + chr(10), 1)
     kexec.write_text(text)
 
+    # v99: where inside load_machfile/parse_machfile the boot stops.
+    ml = root / 'bsd/kern/mach_loader.c'
+    text = ml.read_text()
+
+    def _cp(n, v='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v + ', 0); }' + chr(10)
+
+    _lm_entry = (chr(9) + 'int                     in_exec = (imgp->ip_flags & IMGPF_EXEC);' + chr(10))
+    assert text.count(_lm_entry) == 1, text.count(_lm_entry)
+    text = text.replace(_lm_entry, _lm_entry + _cp(30), 1)
+
+    _lm_parse = (chr(9) + 'lret = parse_machfile(vp, map, thread, header, file_offset, macho_size,' + chr(10) +
+                 chr(9) + '    0, aslr_page_offset, dyld_aslr_page_offset, result,' + chr(10) +
+                 chr(9) + '    NULL, imgp);' + chr(10))
+    assert text.count(_lm_parse) == 1, text.count(_lm_parse)
+    text = text.replace(_lm_parse, _cp(31) + _lm_parse + _cp(32, 'lret'), 1)
+
+    _gmv = (chr(9) + 'ret = get_macho_vnode(name, cputype, header,' + chr(10) +
+            chr(9) + '    &file_offset, &macho_size, macho_data, &vp, imgp);' + chr(10))
+    assert text.count(_gmv) == 1, text.count(_gmv)
+    text = text.replace(_gmv, _cp(33) + _gmv + _cp(34, 'ret'), 1)
+
+    _rec = (chr(9) + 'ret = parse_machfile(vp, map, thread, header, file_offset,' + chr(10) +
+            chr(9) + '    macho_size, depth, slide, 0, myresult, result, imgp);' + chr(10))
+    assert text.count(_rec) == 1, text.count(_rec)
+    text = text.replace(_rec, _cp(35) + _rec + _cp(36, 'ret'), 1)
+
+    ml.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
