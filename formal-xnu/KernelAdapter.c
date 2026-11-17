@@ -217,7 +217,7 @@ static void k70_formal_worker(void *argument, wait_result_t result)
     for (;;) {
         { extern void k70_work_tick(void); k70_work_tick(); }
         { static unsigned k70_rr;
-          if ((++k70_rr % 10u) == 0u) {
+          if ((++k70_rr % 2u) == 0u) {
               extern int k70_cp_last_id(void); extern int k70_cp_last_v1(void); extern int k70_cp_last_v2(void);
               extern unsigned k70_log_drop_get(void); extern void k70_formal_cpu_trace(const char *, uint64_t);
               extern int k70_cp_hist_id(int); extern int k70_cp_hist_v1(int);
