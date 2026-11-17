@@ -305,13 +305,14 @@ static volatile int k70_open_n;
 static volatile int k70_open_w;
 static volatile int k70_open_total;
 static volatile int k70_op_o, k70_op_s, k70_op_m, k70_op_c, k70_op_R;
-static volatile int k70_sr_rc, k70_sr_addr;
+static volatile int k70_sr_rc, k70_sr_addr_lo, k70_sr_addr_hi;
 
 void
-k70_sr_note(int rc, int addr)
+k70_sr_note(int rc, unsigned long long addr)
 {
 	k70_sr_rc = rc;
-	k70_sr_addr = addr;
+	k70_sr_addr_lo = (int)(addr & 0xffffffffu);
+	k70_sr_addr_hi = (int)((addr >> 32) & 0xffffffffu);
 }
 
 int
@@ -323,7 +324,13 @@ k70_sr_rc_get(void)
 int
 k70_sr_addr_get(void)
 {
-	return k70_sr_addr;
+	return k70_sr_addr_lo;
+}
+
+int
+k70_sr_addr_hi_get(void)
+{
+	return k70_sr_addr_hi;
 }
 
 void

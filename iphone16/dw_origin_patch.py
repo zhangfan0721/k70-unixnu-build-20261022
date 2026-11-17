@@ -1178,14 +1178,19 @@ def install_diag(root):
     assert _sr > 0
     _map = text.find('shared_region_map_and_slide_2_np(', _sr)
     assert _map > _sr
+    _sr_end = text.find(chr(10) + '}' + chr(10), _sr)
+    assert _sr_end > _sr
     _pos = _sr
-    for _i in range(3):
-        _r = text.find('return error;', _pos)
-        if _r < 0 or _r > _map:
+    while True:
+        _r = text.find('return ', _pos)
+        if _r < 0 or _r > _sr_end:
             break
         _ls = text.rfind(chr(10), 0, _r) + 1
-        text = text[:_ls] + _cp8(90, 'error') + chr(9) + '{ extern void k70_sr_note(int, int); k70_sr_note(error, 0); }' + chr(10) + text[_ls:]
-        _pos = _ls + 80
+        _ins = (_cp8(90, 'error') + chr(9) +
+                '{ extern void k70_sr_note(int, unsigned long long); k70_sr_note(error, (unsigned long long)start_address); }' + chr(10))
+        text = text[:_ls] + _ins + text[_ls:]
+        _sr_end += len(_ins)
+        _pos = _ls + len(_ins) + 4
     _map2 = text.find('shared_region_map_and_slide_2_np(', _sr)
     _done = text.find('done:', _map2)
     assert _done > _map2
