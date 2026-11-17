@@ -942,39 +942,54 @@ def install_diag(root):
     text = text.replace(_sw, _cp2(45, '(int)lcp->cmd', '(int)pass') + _sw, 1)
     ml.write_text(text)
 
-    # v105: code-signature path checkpoints (parse pass 1 stopped here).
+    # v106: position-based code-signature checkpoints (the staged source may already
+    # carry probes inside this block, so never match whole call lines).
     text = ml.read_text()
 
-    def _cp3(n, v1='0', v2='0'):
+    def _cp4(n, v1='0', v2='0'):
         return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v1 + ', ' + v2 + '); }' + chr(10)
 
-    def _ins_after_line(text, needle, ins, start=0):
-        pos = text.find(needle, start)
-        assert pos >= 0, needle
-        end = text.find(chr(10), pos) + 1
-        return text[:end] + ins + text[end:], end
+    def _line_start(pos):
+        return text.rfind(chr(10), 0, pos) + 1
 
-    def _ins_before_line(text, needle, ins):
-        pos = text.find(needle)
-        assert pos >= 0, needle
-        start = text.rfind(chr(10), 0, pos) + 1
-        return text[:start] + ins + text[start:]
+    _case = text.find('case LC_CODE_SIGNATURE:')
+    assert _case > 0
+    _e = text.find(chr(10), _case) + 1
+    text = text[:_e] + _cp4(50, '(int)pass') + text[_e:]
 
-    text = _ins_after_line(text, chr(9)*3 + 'case LC_CODE_SIGNATURE:', _cp3(50, '(int)pass'))
-    text = _ins_before_line(text, 'ret = load_code_signature(', _cp3(51, '(int)pass'))
-    _p = text.find('ret = load_code_signature(')
-    _q = text.find('if (ret != LOAD_SUCCESS) {', _p)
-    _st = text.rfind(chr(10), 0, _q) + 1
-    text = text[:_st] + _cp3(52, 'ret') + text[_st:]
-    text = _ins_after_line(text, 'while (off < alloc_size && ret == LOAD_SUCCESS) {', _cp3(53, '(int)(off >> 12)'))
-    text = _ins_before_line(text, 'valid = cs_validate_range(vp,', _cp3(54, '(int)(off >> 12)'))
-    text = _ins_before_line(text, 'if (!valid || (tainted & CS_VALIDATE_TAINTED)) {', _cp3(55, '(int)valid'))
-    text = _ins_before_line(text, 'ubc_cs_blob_get(vp, cputype', _cp3(56, 0))
-    _pg = text.find('ubc_cs_blob_get(vp, cputype')
-    _pb = text.find('if (blob != NULL) {', _pg)
-    assert _pb > _pg
-    _sb = text.rfind(chr(10), 0, _pb) + 1
-    text = text[:_sb] + _cp3(57, 0) + text[_sb:]
+    _lc = text.find('load_code_signature(', _e)
+    assert _lc > 0
+    _ls = _line_start(_lc)
+    text = text[:_ls] + _cp4(51, '(int)pass') + text[_ls:]
+
+    _if = text.find('if (ret != LOAD_SUCCESS)', _lc)
+    assert _if > _lc
+    _ifls = _line_start(_if)
+    text = text[:_ifls] + _cp4(52, 'ret') + text[_ifls:]
+
+    _wh = text.find('while (off < alloc_size', _if)
+    assert _wh > 0
+    _whe = text.find(chr(10), _wh) + 1
+    text = text[:_whe] + _cp4(53, '(int)(off >> 12)') + text[_whe:]
+
+    _cv = text.find('cs_validate_range(', _wh)
+    assert _cv > 0
+    _cvs = _line_start(_cv)
+    text = text[:_cvs] + _cp4(54, '(int)(off >> 12)') + text[_cvs:]
+
+    _tv = text.find('CS_VALIDATE_TAINTED)) {', _cv)
+    assert _tv > _cv
+    _tvs = _line_start(_tv)
+    text = text[:_tvs] + _cp4(55, '(int)valid') + text[_tvs:]
+
+    _ub = text.find('ubc_cs_blob_get(')
+    assert _ub > 0
+    _ubs = _line_start(_ub)
+    text = text[:_ubs] + _cp4(56, 0) + text[_ubs:]
+    _bl = text.find('if (blob != NULL)', _ub)
+    assert _bl > _ub
+    _bls = _line_start(_bl)
+    text = text[:_bls] + _cp4(57, 0) + text[_bls:]
 
     ml.write_text(text)
 
