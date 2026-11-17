@@ -1193,6 +1193,18 @@ def install_diag(root):
     text = text[:_de] + _cp8(91, '(int)kr', '(int)files_count') + text[_de:]
     vu.write_text(text)
 
+    # v129: record the result of fcntl(F_ADDFILESIGS*) which dyld uses as a preflight.
+    kd = root / 'bsd/kern/kern_descrip.c'
+    text = kd.read_text()
+    _case = text.find('case F_ADDFILESIGS:')
+    assert _case > 0
+    _brk = text.find(chr(9) + chr(9) + 'break;', _case)
+    assert _brk > _case
+    _ls = text.rfind(chr(10), 0, _brk) + 1
+    _ins = (chr(9) + chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(100, (int)cmd, (int)error); }' + chr(10))
+    text = text[: _ls] + _ins + text[_ls:]
+    kd.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')

@@ -120,7 +120,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     files = ('osfmk/arm/arm_init.c', 'osfmk/kern/startup.c',
              'osfmk/console/video_console.c', 'osfmk/console/serial_console.c',
              'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
-             'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c',
+             'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_descrip.c',
              'bsd/kern/mach_loader.c', 'bsd/kern/mach_loader.h', 'bsd/kern/kern_sig.c',
              'bsd/kern/kern_cs.c')
     for name in files:
