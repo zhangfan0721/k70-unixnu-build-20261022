@@ -1150,6 +1150,23 @@ def install_diag(root):
 
     ub.write_text(text)
 
+    # v118: dev policy switch for the AMFI entitlement provider (k70nosent=1).
+    text = ub.read_text()
+    _call = chr(9) + 'ret = amfi->OSEntitlements.adjustContextWithoutMonitor(' + chr(10)
+    assert text.count(_call) == 1, text.count(_call)
+    _guard = (chr(9) + '{ extern int PE_parse_boot_argn(const char *, void *, int);' + chr(10) +
+              chr(9) + '  static int k70_nosent = -1;' + chr(10) +
+              chr(9) + '  if (k70_nosent < 0) { int v = 0; k70_nosent = PE_parse_boot_argn("k70nosent", &v, sizeof(v)) ? (v != 0) : 0; }' + chr(10) +
+              chr(9) + '  if (k70_nosent) { ret = KERN_SUCCESS;' + chr(10) +
+              chr(9) + '    { extern void k70_cp_note(int, int, int); k70_cp_note(82, 0, 0); } } else {' + chr(10))
+    text = text.replace(_call, _guard + _call, 1)
+    _tail = chr(9) + chr(9) + 'cs_blob);' + chr(10)
+    _tp = text.find(_tail, text.find(_guard))
+    assert _tp > 0
+    _te = _tp + len(_tail)
+    text = text[:_te] + chr(9) + '  } }' + chr(10) + text[_te:]
+    ub.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
