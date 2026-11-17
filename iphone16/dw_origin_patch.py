@@ -929,7 +929,7 @@ def install_diag(root):
     text = ml.read_text()
 
     def _cp2(n, v1='0', v2='0'):
-        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v1 + ', ' + v2 + '); }' + chr(10)
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + str(v1) + ', ' + str(v2) + '); }' + chr(10)
 
     _spawn = (chr(9) + 'int                     spawn = (imgp->ip_flags & IMGPF_SPAWN);' + chr(10))
     if text.count(_spawn) == 1:
@@ -947,7 +947,7 @@ def install_diag(root):
     text = ml.read_text()
 
     def _cp4(n, v1='0', v2='0'):
-        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v1 + ', ' + v2 + '); }' + chr(10)
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + str(v1) + ', ' + str(v2) + '); }' + chr(10)
 
     def _line_start(pos):
         return text.rfind(chr(10), 0, pos) + 1
@@ -985,11 +985,11 @@ def install_diag(root):
     _ub = text.find('ubc_cs_blob_get(')
     assert _ub > 0
     _ubs = _line_start(_ub)
-    text = text[:_ubs] + _cp4(56, 0) + text[_ubs:]
+    text = text[:_ubs] + _cp4(56, '0') + text[_ubs:]
     _bl = text.find('if (blob != NULL)', _ub)
     assert _bl > _ub
     _bls = _line_start(_bl)
-    text = text[:_bls] + _cp4(57, 0) + text[_bls:]
+    text = text[:_bls] + _cp4(57, '0') + text[_bls:]
 
     ml.write_text(text)
 
