@@ -1062,6 +1062,35 @@ def install_diag(root):
 
     ub.write_text(text)
 
+    # v112: after setup_multilevel_hashing inside ubc_cs_blob_add.
+    text = ub.read_text()
+
+    def _cp6(n, v1='0', v2='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + str(v1) + ', ' + str(v2) + '); }' + chr(10)
+
+    _st = text.find('ubc_cs_blob_add(')
+    _sm = text.find('setup_multilevel_hashing(&tmp_blob);', _st)
+    assert _sm > _st
+    _sme = text.find(chr(10), _sm) + 1
+    text = text[:_sme] + _cp6(68, 'error') + text[_sme:]
+
+    _va = text.find('validate_auxiliary_signed_blobs(&tmp_blob);', _sm)
+    assert _va > _sm
+    _vae = text.find(chr(10), _va) + 1
+    text = text[:_vae] + _cp6(69, 'error') + text[_vae:]
+
+    _vl = text.find('vnode_lock(vp);', _va)
+    assert _vl > _va
+    _vls = text.rfind(chr(10), 0, _vl) + 1
+    text = text[:_vls] + _cp6(70, 0) + text[_vls:]
+
+    _vl2 = text.find('vnode_lock(vp);', _vls + 20)
+    assert _vl2 > _vl
+    _vl2e = text.find(chr(10), _vl2) + 1
+    text = text[:_vl2e] + _cp6(71, 0) + text[_vl2e:]
+
+    ub.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
