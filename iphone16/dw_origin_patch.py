@@ -1256,7 +1256,7 @@ def install_diag(root):
     for _lbl in ('outdrop:', 'out:'):
         _i = text.find(chr(10) + _lbl + chr(10), text.find('sys_fcntl_nocancel(proc_t p'))
         assert _i > 0, _lbl
-        _ls = _i + 1
+        _ls = _i + len(chr(10) + _lbl + chr(10))
         _ins = chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int); k70_cp_note(104, (int)cmd, (int)error); k70_pf_note(3, (int)cmd, (int)error); { extern void k70_fc_note(int,int); k70_fc_note((int)cmd, (int)error); } }' + chr(10)
         text = text[:_ls] + _ins + text[_ls:]
     kd.write_text(text)
