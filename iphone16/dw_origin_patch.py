@@ -1025,6 +1025,43 @@ def install_diag(root):
 
     ml.write_text(text)
 
+    # v110: inside ubc_cs_blob_add (parse / AMFI / multilevel hashing).
+    ub = root / 'bsd/kern/ubc_subr.c'
+    text = ub.read_text()
+
+    def _cp5(n, v1='0', v2='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + str(v1) + ', ' + str(v2) + '); }' + chr(10)
+
+    _start = text.find('ubc_cs_blob_add(')
+    assert _start > 0
+
+    _init = text.find('cs_blob_init_validated(', _start)
+    assert _init > 0
+    _il = text.rfind(chr(10), 0, _init) + 1
+    text = text[:_il] + _cp5(63, 'size') + text[_il:]
+
+    _reg = text.find('register_code_signature_monitor(', _start)
+    assert _reg > _start
+    _rl = text.rfind(chr(10), 0, _reg) + 1
+    text = text[:_rl] + _cp5(64, 'error') + text[_rl:]
+
+    _mac = text.find('mac_vnode_check_signature(', _start)
+    assert _mac > _start
+    _ml = text.rfind(chr(10), 0, _mac) + 1
+    text = text[:_ml] + _cp5(65, 'size') + text[_ml:]
+
+    _ver = text.find('verify_code_signature_monitor(', _start)
+    assert _ver > _start
+    _vl = text.rfind(chr(10), 0, _ver) + 1
+    text = text[:_vl] + _cp5(66, 'error') + text[_vl:]
+
+    _mlh = text.find('setup_multilevel_hashing(', _start)
+    assert _mlh > _start
+    _mh = text.rfind(chr(10), 0, _mlh) + 1
+    text = text[:_mh] + _cp5(67, 'error') + text[_mh:]
+
+    ub.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
