@@ -836,7 +836,7 @@ def install_diag(root):
     text = kexec.read_text()
 
     def _ins(n, v1='0', v2='0'):
-        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v1 + ', ' + v2 + '); }' + chr(10)
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + str(v1) + ', ' + str(v2) + '); }' + chr(10)
 
     _perm = chr(9) + 'error = exec_check_permissions(imgp);' + chr(10)
     assert text.count(_perm) == 1, text.count(_perm)
