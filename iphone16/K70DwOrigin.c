@@ -304,11 +304,17 @@ static volatile int k70_ev_op[8];
 static volatile int k70_open_n;
 static volatile int k70_open_w;
 static volatile int k70_open_total;
+static volatile int k70_op_o, k70_op_s, k70_op_m, k70_op_c, k70_op_R;
 
 void
 k70_open_note(int val, int arg, int op)
 {
 	k70_open_total++;
+	if (op == 0x6f) { k70_op_o++; }
+	else if (op == 0x73) { k70_op_s++; }
+	else if (op == 0x6d) { k70_op_m++; }
+	else if (op == 0x63) { k70_op_c++; }
+	else if (op == 0x52) { k70_op_R++; }
 	k70_open_w = (k70_open_w + 1) % 8;
 	k70_ev_val[k70_open_w] = val;
 	k70_ev_arg[k70_open_w] = arg;
@@ -316,6 +322,19 @@ k70_open_note(int val, int arg, int op)
 	if (k70_open_n < 8) {
 		k70_open_n++;
 	}
+}
+
+int
+k70_op_count(int which)
+{
+	switch (which) {
+	case 0x6f: return k70_op_o;
+	case 0x73: return k70_op_s;
+	case 0x6d: return k70_op_m;
+	case 0x63: return k70_op_c;
+	case 0x52: return k70_op_R;
+	}
+	return 0;
 }
 
 int

@@ -240,6 +240,7 @@ int k70_cp_last_v1(void);
 int k70_cp_last_v2(void);
 
 void k70_open_note(int val, int arg, int op);
+int k70_op_count(int which);
 int k70_open_total_count(void);
 int k70_open_count(void);
 int k70_open_w_idx(void);

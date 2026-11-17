@@ -193,8 +193,10 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       kf_text(&l,"V2 ");n=k70_open_count();if(n>1){k=(k70_open_w_idx()+8-2)%8;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
      else if(row==28){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
       kf_text(&l,"V1 ");n=k70_open_count();if(n>0){k=k70_open_w_idx()%8;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
-     else {extern int k70_open_count(void);extern int k70_open_total_count(void);
-      kf_text(&l,"OT ");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_total_count());kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_count());}
+     else {extern int k70_op_count(int);
+      kf_text(&l,"OC ");kf_text(&l,"o");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6f));kf_text(&l," s");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x73));
+      kf_text(&l," m");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6d));kf_text(&l," c");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x63));kf_text(&l," R");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x52));}
+
    }
   }
   else if(row==17)kf_text(&l,r->kind==KF_WAIT?(r->terminal_call && r->calls[r->terminal_call-1].out_sequence>r->terminal_sequence?"WAIT recorded, call has since returned":"WAIT recorded, call has not returned yet"):r->kind==KF_PANIC?"PANIC latched before ordinary panic backend":"No panic/wait evidence means inconclusive, not success");
