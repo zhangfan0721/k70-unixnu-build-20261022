@@ -890,33 +890,39 @@ def install_diag(root):
         chr(9) + 'return error;' + chr(10) + '}' + chr(10) + chr(10) + '/*' + chr(10) + ' * exec_validate_spawnattr_policy' + chr(10), 1)
     kexec.write_text(text)
 
-    # v99: where inside load_machfile/parse_machfile the boot stops.
+    # v100: line-based loader checkpoints (robust against whitespace).
     ml = root / 'bsd/kern/mach_loader.c'
     text = ml.read_text()
 
     def _cp(n, v='0'):
         return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v + ', 0); }' + chr(10)
 
-    _lm_entry = (chr(9) + 'int                     in_exec = (imgp->ip_flags & IMGPF_EXEC);' + chr(10))
-    assert text.count(_lm_entry) == 1, text.count(_lm_entry)
-    text = text.replace(_lm_entry, _lm_entry + _cp(30), 1)
+    def _after(text, needle, ins, n=1):
+        pos = -1
+        for _ in range(n):
+            pos = text.find(needle, pos + 1)
+            assert pos >= 0, needle
+        end = text.find(chr(10), pos) + 1
+        return text[:end] + ins + text[end:]
 
-    _lm_parse = (chr(9) + 'lret = parse_machfile(vp, map, thread, header, file_offset, macho_size,' + chr(10) +
-                 chr(9) + '    0, aslr_page_offset, dyld_aslr_page_offset, result,' + chr(10) +
-                 chr(9) + '    NULL, imgp);' + chr(10))
-    assert text.count(_lm_parse) == 1, text.count(_lm_parse)
-    text = text.replace(_lm_parse, _cp(31) + _lm_parse + _cp(32, 'lret'), 1)
+    def _before(text, needle, ins):
+        pos = text.find(needle)
+        assert pos >= 0, needle
+        start = text.rfind(chr(10), 0, pos) + 1
+        return text[:start] + ins + text[start:]
 
-    _gmv = (chr(9) + 'ret = get_macho_vnode(name, cputype, header,' + chr(10) +
-            chr(9) + '    &file_offset, &macho_size, macho_data, &vp, imgp);' + chr(10))
-    assert text.count(_gmv) == 1, text.count(_gmv)
-    text = text.replace(_gmv, _cp(33) + _gmv + _cp(34, 'ret'), 1)
-
-    _rec = (chr(9) + 'ret = parse_machfile(vp, map, thread, header, file_offset,' + chr(10) +
-            chr(9) + '    macho_size, depth, slide, 0, myresult, result, imgp);' + chr(10))
-    assert text.count(_rec) == 1, text.count(_rec)
-    text = text.replace(_rec, _cp(35) + _rec + _cp(36, 'ret'), 1)
-
+    text = _after(text, 'in_exec = (imgp->ip_flags & IMGPF_EXEC);', _cp(30))
+    text = _before(text, 'lret = parse_machfile(vp, map, thread, header, file_offset, macho_size,', _cp(31))
+    _p1 = text.find('0, aslr_page_offset, dyld_aslr_page_offset, result,')
+    assert _p1 > 0
+    _p2 = text.find('NULL, imgp);', _p1)
+    assert _p2 > _p1
+    _line_end = text.find(chr(10), _p2) + 1
+    text = text[:_line_end] + _cp(32, 'lret') + text[_line_end:]
+    text = _before(text, 'ret = get_macho_vnode(name, cputype, header,', _cp(33))
+    text = _after(text, '&file_offset, &macho_size, macho_data, &vp, imgp);', _cp(34, 'ret'))
+    text = _before(text, chr(9) + 'ret = parse_machfile(vp, map, thread, header, file_offset,', _cp(35))
+    text = _after(text, 'macho_size, depth, slide, 0, myresult, result, imgp);', _cp(36, 'ret'))
     ml.write_text(text)
 
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
