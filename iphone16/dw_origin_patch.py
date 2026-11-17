@@ -1091,6 +1091,47 @@ def install_diag(root):
 
     ub.write_text(text)
 
+    # v114: entitlement acceleration / memory_object_signed / ro update / out.
+    text = ub.read_text()
+
+    def _cp7(n, v1='0', v2='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + str(v1) + ', ' + str(v2) + '); }' + chr(10)
+
+    _f = text.find('ubc_cs_blob_add(')
+    _acc = text.find('accelerate_entitlement_queries(&tmp_blob)', _f)
+    assert _acc > _f
+    _accs = text.rfind(chr(10), 0, _acc) + 1
+    text = text[:_accs] + _cp7(72, 0) + text[_accs:]
+    _acc2 = text.find('accelerate_entitlement_queries(&tmp_blob)', _accs + 30)
+    assert _acc2 > _accs
+    _acc2e = text.find(chr(10), _acc2) + 1
+    text = text[:_acc2e] + _cp7(73, 'error') + text[_acc2e:]
+
+    _mos = text.find('memory_object_signed(uip->ui_control, TRUE)', _acc2)
+    assert _mos > _acc2
+    _moss = text.rfind(chr(10), 0, _mos) + 1
+    text = text[:_moss] + _cp7(74, 0) + text[_moss:]
+    _mos2 = text.find('memory_object_signed(uip->ui_control, TRUE)', _moss + 30)
+    assert _mos2 > _moss
+    _mos2e = text.find(chr(10), _mos2) + 1
+    text = text[:_mos2e] + _cp7(75, 'kr') + text[_mos2e:]
+
+    _ro = text.find('zalloc_ro_update_elem(ZONE_ID_CS_BLOB, blob_ro, &tmp_blob);', _mos2)
+    assert _ro > _mos2
+    _ros = text.rfind(chr(10), 0, _ro) + 1
+    text = text[:_ros] + _cp7(76, 'error') + text[_ros:]
+    _ro2 = text.find('zalloc_ro_update_elem(ZONE_ID_CS_BLOB, blob_ro, &tmp_blob);', _ros + 30)
+    assert _ro2 > _ros
+    _ro2e = text.find(chr(10), _ro2) + 1
+    text = text[:_ro2e] + _cp7(77, 'error') + text[_ro2e:]
+
+    _out = text.find(chr(10) + 'out:' + chr(10), _ro2)
+    assert _out > _ro2
+    _oute = text.find(chr(10), _out + 1) + 1
+    text = text[:_oute] + _cp7(78, 'error') + text[_oute:]
+
+    ub.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
