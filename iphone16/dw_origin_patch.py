@@ -1132,6 +1132,24 @@ def install_diag(root):
 
     ub.write_text(text)
 
+    # v116: the AMFI entitlement provider call itself.
+    text = ub.read_text()
+
+    _acf = text.find('accelerate_entitlement_queries(')
+    _adj = text.find('adjustContextWithoutMonitor(', _acf)
+    assert _acf > 0 and _adj > _acf
+    _adjs = text.rfind(chr(10), 0, _adj) + 1
+    text = text[:_adjs] + _cp7(80, '(int)(uintptr_t)amfi', '0') + text[_adjs:]
+
+    _adj2 = text.find('adjustContextWithoutMonitor(', _adjs + 40)
+    assert _adj2 > _adjs
+    _end = text.find(');', _adj2)
+    assert _end > _adj2
+    _eol = text.find(chr(10), _end) + 1
+    text = text[:_eol] + _cp7(81, 'ret') + text[_eol:]
+
+    ub.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
