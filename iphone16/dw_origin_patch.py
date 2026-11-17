@@ -939,7 +939,7 @@ def install_diag(root):
     text = text.replace(_loop, _loop + _cp2(44, '(int)ncmds'), 1)
     _sw = (chr(9) + chr(9) + chr(9) + 'switch (lcp->cmd) {' + chr(10))
     assert text.count(_sw) == 1, text.count(_sw)
-    text = text.replace(_sw, _sw + _cp2(45, '(int)lcp->cmd', '(int)ncmds'), 1)
+    text = text.replace(_sw, _cp2(45, '(int)lcp->cmd', '(int)ncmds') + _sw, 1)
     ml.write_text(text)
 
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
