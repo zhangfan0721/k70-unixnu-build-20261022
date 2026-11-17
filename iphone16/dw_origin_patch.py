@@ -925,6 +925,23 @@ def install_diag(root):
     text = _after(text, 'macho_size, depth, slide, 0, myresult, result, imgp);', _cp(36, 'ret'))
     ml.write_text(text)
 
+    # v102: progress inside parse_machfile (command loop).
+    text = ml.read_text()
+
+    def _cp2(n, v1='0', v2='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + v1 + ', ' + v2 + '); }' + chr(10)
+
+    _spawn = (chr(9) + 'int                     spawn = (imgp->ip_flags & IMGPF_SPAWN);' + chr(10))
+    if text.count(_spawn) == 1:
+        text = text.replace(_spawn, _spawn + _cp2(41, 'depth'), 1)
+    _loop = (chr(9) + chr(9) + 'while (ncmds--) {' + chr(10))
+    assert text.count(_loop) == 1, text.count(_loop)
+    text = text.replace(_loop, _loop + _cp2(44, '(int)ncmds'), 1)
+    _sw = (chr(9) + chr(9) + chr(9) + 'switch (lcp->cmd) {' + chr(10))
+    assert text.count(_sw) == 1, text.count(_sw)
+    text = text.replace(_sw, _sw + _cp2(45, '(int)lcp->cmd', '(int)ncmds'), 1)
+    ml.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
