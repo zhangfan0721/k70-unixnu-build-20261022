@@ -993,6 +993,38 @@ def install_diag(root):
 
     ml.write_text(text)
 
+    # v109: inside load_code_signature after the blob lookup.
+    text = ml.read_text()
+
+    _bl2 = text.find('ubc_cs_blob_get(')
+    assert _bl2 > 0
+    _rs = text.find('resid = 0;', _bl2)
+    assert _rs > _bl2
+    _rss = text.rfind(chr(10), 0, _rs) + 1
+    text = text[:_rss] + _cp4(58, '(int)(uintptr_t)blob') + text[_rss:]
+
+    _vr = text.find('error = vn_rdwr(UIO_READ,', _rs)
+    assert _vr > 0
+    _vrs = text.rfind(chr(10), 0, _vr) + 1
+    text = text[:_vrs] + _cp4(59, '(int)lcp->datasize') + text[_vrs:]
+
+    _ei = text.find('if (error || resid != 0)', _vr)
+    assert _ei > _vr
+    _eis = text.rfind(chr(10), 0, _ei) + 1
+    text = text[:_eis] + _cp4(60, 'error', '(int)resid') + text[_eis:]
+
+    _ad = text.find('if (ubc_cs_blob_add(', _ei)
+    assert _ad > _ei
+    _ads = text.rfind(chr(10), 0, _ad) + 1
+    text = text[:_ads] + _cp4(61, '(int)lcp->datasize') + text[_ads:]
+
+    _bb = text.find('#if CHECK_CS_VALIDATION_BITMAP', _ad)
+    assert _bb > _ad
+    _bbs = text.rfind(chr(10), 0, _bb) + 1
+    text = text[:_bbs] + _cp4(62, 'ret') + text[_bbs:]
+
+    ml.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
