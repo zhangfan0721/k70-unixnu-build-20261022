@@ -1184,7 +1184,7 @@ def install_diag(root):
         if _r < 0 or _r > _map:
             break
         _ls = text.rfind(chr(10), 0, _r) + 1
-        text = text[:_ls] + _cp8(90, 'error') + text[_ls:]
+        text = text[:_ls] + _cp8(90, 'error') + chr(9) + '{ extern void k70_sr_note(int, int); k70_sr_note(error, 0); }' + chr(10) + text[_ls:]
         _pos = _ls + 80
     _map2 = text.find('shared_region_map_and_slide_2_np(', _sr)
     _done = text.find('done:', _map2)
