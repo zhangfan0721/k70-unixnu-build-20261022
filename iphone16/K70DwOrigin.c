@@ -306,6 +306,19 @@ static volatile int k70_open_w;
 static volatile int k70_open_total;
 static volatile int k70_op_o, k70_op_s, k70_op_m, k70_op_c, k70_op_R;
 static volatile int k70_sr_rc, k70_sr_addr_lo, k70_sr_addr_hi;
+static volatile int k70_pf_op, k70_pf_a, k70_pf_b;
+
+void
+k70_pf_note(int op, int a, int b)
+{
+	k70_pf_op = op;
+	k70_pf_a = a;
+	k70_pf_b = b;
+}
+
+int k70_pf_op_get(void) { return k70_pf_op; }
+int k70_pf_a_get(void) { return k70_pf_a; }
+int k70_pf_b_get(void) { return k70_pf_b; }
 
 void
 k70_sr_note(int rc, unsigned long long addr)

@@ -1210,6 +1210,32 @@ def install_diag(root):
     text = text[: _ls] + _ins + text[_ls:]
     kd.write_text(text)
 
+    # v133: pread / fcntl preflight results (sticky).
+    sg = root / 'bsd/kern/sys_generic.c'
+    text = sg.read_text()
+    _pn = text.find('pread_nocancel(struct proc *p')
+    assert _pn > 0
+    _ret = text.find('return read_internal(p, uap->fd, uap->buf, uap->nbyte, uap->offset,', _pn)
+    assert _ret > _pn
+    _ls = text.rfind(chr(10), 0, _ret) + 1
+    _call_end = text.find('retval);', _ret)
+    assert _call_end > _ret
+    _ce = text.find(chr(10), _call_end) + 1
+    _body = (chr(9) + 'int _k70_rc = read_internal(p, uap->fd, uap->buf, uap->nbyte, uap->offset,' + chr(10) +
+             chr(9) + chr(9) + 'FOF_OFFSET, retval);' + chr(10) +
+             chr(9) + '{ extern void k70_pf_note(int, int, int); k70_pf_note(0, (int)uap->fd, _k70_rc); }' + chr(10) +
+             chr(9) + 'return _k70_rc;' + chr(10))
+    text = text[:_ls] + _body + text[_ce:]
+    sg.write_text(text)
+
+    kd = root / 'bsd/kern/kern_descrip.c'
+    text = kd.read_text()
+    _ins = chr(9) + chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int); k70_cp_note(100, (int)cmd, (int)error); k70_pf_note(1, (int)cmd, (int)error); }' + chr(10)
+    _old = chr(9) + chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(100, (int)cmd, (int)error); }' + chr(10)
+    assert _old in text
+    text = text.replace(_old, _ins, 1)
+    kd.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
