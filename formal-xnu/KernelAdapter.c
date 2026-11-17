@@ -224,6 +224,16 @@ static void k70_formal_worker(void *argument, wait_result_t result)
               k70_formal_cpu_trace("CPLAST id/v1", ((uint64_t)k70_cp_last_id() << 48) | ((uint64_t)(k70_cp_last_v1() & 0xffffu) << 32) | (uint64_t)k70_cp_last_v2());
               k70_formal_cpu_trace("CPPREV id/v1", ((uint64_t)k70_cp_hist_id(1) << 48) | ((uint64_t)(k70_cp_hist_v1(1) & 0xffffu) << 32) | (uint64_t)k70_cp_hist_v2(1));
               k70_formal_cpu_trace("CPDROP dropped lines", (uint64_t)k70_log_drop_get());
+              { extern int k70_open_count(void); extern int k70_open_w_idx(void);
+                extern int k70_ev_val_at(int); extern int k70_ev_arg_at(int); extern int k70_ev_op_at(int);
+                int _n = k70_open_count(); int _w = k70_open_w_idx(); int _i;
+                for (_i = 0; _i < _n && _i < 3; _i++) {
+                    int _s = (_w + 3 - _i) % 3;
+                    k70_formal_cpu_trace("EV op/val/arg",
+                        ((uint64_t)(k70_ev_op_at(_s) & 0xff) << 56) |
+                        ((uint64_t)(k70_ev_val_at(_s) & 0xffffff) << 32) |
+                        (uint64_t)(k70_ev_arg_at(_s) & 0xffffffff));
+                } }
               { extern int k70_err_id(void); extern int k70_err_val(void);
                 k70_formal_cpu_trace("ERRSRC id/err", ((uint64_t)k70_err_id() << 48) | ((uint64_t)(k70_err_val() & 0xffffu) << 32)); }
           } }
