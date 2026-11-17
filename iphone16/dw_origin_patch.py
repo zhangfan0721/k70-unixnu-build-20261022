@@ -1167,6 +1167,32 @@ def install_diag(root):
     text = text[:_te] + chr(9) + '  } }' + chr(10) + text[_te:]
     ub.write_text(text)
 
+    # v126: return codes of the shared-region syscalls.
+    vu = root / 'bsd/vm/vm_unix.c'
+    text = vu.read_text()
+
+    def _cp8(n, v1='0', v2='0'):
+        return chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(' + str(n) + ', ' + str(v1) + ', ' + str(v2) + '); }' + chr(10)
+
+    _sr = text.find('shared_region_check_np(')
+    assert _sr > 0
+    _map = text.find('shared_region_map_and_slide_2_np(', _sr)
+    assert _map > _sr
+    _pos = _sr
+    for _i in range(3):
+        _r = text.find('return error;', _pos)
+        if _r < 0 or _r > _map:
+            break
+        _ls = text.rfind(chr(10), 0, _r) + 1
+        text = text[:_ls] + _cp8(90, 'error') + text[_ls:]
+        _pos = _ls + 80
+    _map2 = text.find('shared_region_map_and_slide_2_np(', _sr)
+    _done = text.find('done:', _map2)
+    assert _done > _map2
+    _de = text.find(chr(10), _done) + 1
+    text = text[:_de] + _cp8(91, '(int)kr', '(int)files_count') + text[_de:]
+    vu.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
