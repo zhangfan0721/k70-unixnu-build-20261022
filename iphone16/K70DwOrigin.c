@@ -307,6 +307,15 @@ static volatile int k70_open_total;
 static volatile int k70_op_o, k70_op_s, k70_op_m, k70_op_c, k70_op_R;
 static volatile int k70_sr_rc, k70_sr_addr_lo, k70_sr_addr_hi;
 static volatile int k70_pf_op, k70_pf_a, k70_pf_b;
+static volatile int k70_pre_bytes, k70_pre_nbyte;
+static volatile int k70_fc_cmd, k70_fc_err;
+
+void k70_pre_note(int bytes, int nbyte) { k70_pre_bytes = bytes; k70_pre_nbyte = nbyte; }
+int k70_pre_bytes_get(void) { return k70_pre_bytes; }
+int k70_pre_nbyte_get(void) { return k70_pre_nbyte; }
+void k70_fc_note(int cmd, int err) { k70_fc_cmd = cmd; k70_fc_err = err; }
+int k70_fc_cmd_get(void) { return k70_fc_cmd; }
+int k70_fc_err_get(void) { return k70_fc_err; }
 
 void
 k70_pf_note(int op, int a, int b)

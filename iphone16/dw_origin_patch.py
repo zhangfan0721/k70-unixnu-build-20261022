@@ -1223,7 +1223,7 @@ def install_diag(root):
     _ce = text.find(chr(10), _call_end) + 1
     _body = (chr(9) + 'int _k70_rc = read_internal(p, uap->fd, uap->buf, uap->nbyte, uap->offset,' + chr(10) +
              chr(9) + chr(9) + 'FOF_OFFSET, retval);' + chr(10) +
-             chr(9) + '{ extern void k70_pf_note(int, int, int); k70_pf_note(0, (int)*retval, (int)uap->nbyte); }' + chr(10) +
+             chr(9) + '{ extern void k70_pf_note(int, int, int); extern void k70_pre_note(int, int); k70_pf_note(0, (int)*retval, (int)uap->nbyte); k70_pre_note((int)*retval, (int)uap->nbyte); }' + chr(10) +
              chr(9) + 'return _k70_rc;' + chr(10))
     text = text[:_ls] + _body + text[_ce:]
     sg.write_text(text)
@@ -1257,7 +1257,7 @@ def install_diag(root):
         _i = text.find(chr(10) + _lbl + chr(10), text.find('sys_fcntl_nocancel(proc_t p'))
         assert _i > 0, _lbl
         _ls = _i + 1
-        _ins = chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int); k70_cp_note(104, (int)cmd, (int)error); k70_pf_note(3, (int)cmd, (int)error); }' + chr(10)
+        _ins = chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int); k70_cp_note(104, (int)cmd, (int)error); k70_pf_note(3, (int)cmd, (int)error); { extern void k70_fc_note(int,int); k70_fc_note((int)cmd, (int)error); } }' + chr(10)
         text = text[:_ls] + _ins + text[_ls:]
     kd.write_text(text)
 
