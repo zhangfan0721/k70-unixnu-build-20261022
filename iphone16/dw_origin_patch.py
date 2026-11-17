@@ -1223,7 +1223,7 @@ def install_diag(root):
     _ce = text.find(chr(10), _call_end) + 1
     _body = (chr(9) + 'int _k70_rc = read_internal(p, uap->fd, uap->buf, uap->nbyte, uap->offset,' + chr(10) +
              chr(9) + chr(9) + 'FOF_OFFSET, retval);' + chr(10) +
-             chr(9) + '{ extern void k70_pf_note(int, int, int); k70_pf_note(0, (int)uap->fd, _k70_rc); }' + chr(10) +
+             chr(9) + '{ extern void k70_pf_note(int, int, int); k70_pf_note(0, (int)*retval, (int)uap->nbyte); }' + chr(10) +
              chr(9) + 'return _k70_rc;' + chr(10))
     text = text[:_ls] + _body + text[_ce:]
     sg.write_text(text)
