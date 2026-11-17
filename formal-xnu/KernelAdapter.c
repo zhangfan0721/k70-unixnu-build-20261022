@@ -227,8 +227,8 @@ static void k70_formal_worker(void *argument, wait_result_t result)
               { extern int k70_open_count(void); extern int k70_open_w_idx(void);
                 extern int k70_ev_val_at(int); extern int k70_ev_arg_at(int); extern int k70_ev_op_at(int);
                 int _n = k70_open_count(); int _w = k70_open_w_idx(); int _i;
-                for (_i = 0; _i < _n && _i < 3; _i++) {
-                    int _s = (_w + 3 - _i) % 3;
+                for (_i = 0; _i < _n && _i < 8; _i++) {
+                    int _s = (_w + 8 - _i) % 8;
                     k70_formal_cpu_trace("EV op/val/arg",
                         ((uint64_t)(k70_ev_op_at(_s) & 0xff) << 56) |
                         ((uint64_t)(k70_ev_val_at(_s) & 0xffffff) << 32) |

@@ -298,9 +298,9 @@ k70_cp_last_v2(void)
 	return k70_cp_hist_v2(0);
 }
 
-static volatile int k70_ev_val[3];
-static volatile int k70_ev_arg[3];
-static volatile int k70_ev_op[3];
+static volatile int k70_ev_val[8];
+static volatile int k70_ev_arg[8];
+static volatile int k70_ev_op[8];
 static volatile int k70_open_n;
 static volatile int k70_open_w;
 static volatile int k70_open_total;
@@ -309,11 +309,11 @@ void
 k70_open_note(int val, int arg, int op)
 {
 	k70_open_total++;
-	k70_open_w = (k70_open_w + 1) % 3;
+	k70_open_w = (k70_open_w + 1) % 8;
 	k70_ev_val[k70_open_w] = val;
 	k70_ev_arg[k70_open_w] = arg;
 	k70_ev_op[k70_open_w] = op & 0xff;
-	if (k70_open_n < 3) {
+	if (k70_open_n < 8) {
 		k70_open_n++;
 	}
 }
@@ -339,19 +339,19 @@ k70_open_w_idx(void)
 int
 k70_ev_val_at(int slot)
 {
-	return k70_ev_val[slot % 3];
+	return k70_ev_val[slot % 8];
 }
 
 int
 k70_ev_arg_at(int slot)
 {
-	return k70_ev_arg[slot % 3];
+	return k70_ev_arg[slot % 8];
 }
 
 int
 k70_ev_op_at(int slot)
 {
-	return k70_ev_op[slot % 3];
+	return k70_ev_op[slot % 8];
 }
 
 static volatile char k70_err_buf[160];

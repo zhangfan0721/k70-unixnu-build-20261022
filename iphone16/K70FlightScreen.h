@@ -188,11 +188,11 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
     extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
     if(row==26){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
-      kf_text(&l,"V3 ");n=k70_open_count();if(n>2){k=(k70_open_w_idx()+1)%3;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
+      kf_text(&l,"V3 ");n=k70_open_count();if(n>2){k=(k70_open_w_idx()+8-3)%8;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
      else if(row==27){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
-      kf_text(&l,"V2 ");n=k70_open_count();if(n>1){k=(k70_open_w_idx()+2)%3;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
+      kf_text(&l,"V2 ");n=k70_open_count();if(n>1){k=(k70_open_w_idx()+8-2)%8;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
      else if(row==28){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
-      kf_text(&l,"V1 ");n=k70_open_count();if(n>0){k=k70_open_w_idx()%3;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
+      kf_text(&l,"V1 ");n=k70_open_count();if(n>0){k=k70_open_w_idx()%8;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
      else {extern int k70_open_count(void);extern int k70_open_total_count(void);
       kf_text(&l,"OT ");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_total_count());kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)k70_open_count());}
    }
