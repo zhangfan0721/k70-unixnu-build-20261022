@@ -42,10 +42,10 @@ static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)
     return 0;
   }
   if (served == K70Window::kRefused) {
-    k70_bd_note (0, 22, offset, length);
+    k70_bd_note (2, 22, offset, length);
     return EINVAL;                 // a bad request, not a broken device
   }
-  k70_bd_note (0, 5, offset, length);
+  k70_bd_note (2, 5, offset, length);
   gWindowState = 2;                // poison: never retry a half-served root
   return EIO;
 }
