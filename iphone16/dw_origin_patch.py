@@ -1261,6 +1261,17 @@ def install_diag(root):
         text = text[:_ls] + _ins + text[_ls:]
     kd.write_text(text)
 
+    # v142: identity of the mounted root device.
+    bi = root / 'bsd/kern/bsd_init.c'
+    text = bi.read_text()
+    _a = text.find('rootdev = NODEV;')
+    assert _a > 0
+    _e = text.find(chr(10) + chr(9) + '}' + chr(10), _a)
+    assert _e > _a
+    _ins = (chr(10) + chr(9) + '{ extern void k70_root_note(int); k70_root_note((int)rootdev); }' + chr(10))
+    text = text[:_e + len(chr(10) + chr(9) + '}' + chr(10))] + _ins + text[_e + len(chr(10) + chr(9) + '}' + chr(10)):]
+    bi.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')

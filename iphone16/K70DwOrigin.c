@@ -313,7 +313,7 @@ static volatile int k70_fc_cmd, k70_fc_err;
 void k70_pre_note(int bytes, int nbyte) { k70_pre_bytes = bytes; k70_pre_nbyte = nbyte; }
 int k70_pre_bytes_get(void) { return k70_pre_bytes; }
 int k70_pre_nbyte_get(void) { return k70_pre_nbyte; }
-void k70_fc_note(int cmd, int err) { k70_fc_cmd = cmd; k70_fc_err = err; }
+void k70_fc_note(int cmd, int err) { k70_fc_cmd = cmd; k70_fc_err = err; if (cmd == 97) { k70_a97 = 1; } }
 int k70_fc_cmd_get(void) { return k70_fc_cmd; }
 int k70_fc_err_get(void) { return k70_fc_err; }
 
