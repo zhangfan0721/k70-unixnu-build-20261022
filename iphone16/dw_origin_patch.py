@@ -1281,6 +1281,14 @@ def install_diag(root):
     text = text.replace(_anchor, _anchor + _probe, 1)
     bi.write_text(text)
 
+    # v151: accept a 16 KiB CodeDirectory page shift on a 4 KiB kernel.
+    text = ub.read_text()
+    _old = 'if ((cd->pageSize != PAGE_SHIFT_4K) && (cd->pageSize != PAGE_SHIFT)) {'
+    _new = 'if (cd->pageSize < 12 || cd->pageSize > 16) { /* k70: 4K kernel, 16K cache CD */'
+    assert text.count(_old) == 1, text.count(_old)
+    text = text.replace(_old, _new, 1)
+    ub.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
