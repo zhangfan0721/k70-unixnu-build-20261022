@@ -1195,7 +1195,7 @@ def install_diag(root):
     _done = text.find('done:', _map2)
     assert _done > _map2
     _de = text.find(chr(10), _done) + 1
-    text = text[:_de] + _cp8(91, '(int)kr', '(int)files_count') + text[_de:]
+    text = text[:_de] + _cp8(91, '(int)kr', '(int)files_count') + (chr(9) + '{ extern void k70_bd_note(int, int, unsigned long long, unsigned long long); k70_bd_note(1, (int)kr, (unsigned long long)files_count, 0ULL); }' + chr(10)) + text[_de:]
     vu.write_text(text)
 
     # v129: record the result of fcntl(F_ADDFILESIGS*) which dyld uses as a preflight.
