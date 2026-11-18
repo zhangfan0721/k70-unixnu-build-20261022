@@ -1301,6 +1301,19 @@ def install_diag(root):
     text = text.replace(_panic, _repl, 1)
     ub.write_text(text)
 
+    # v159: allow skipping the root policy check, which can block behind a
+    # service that does not exist in this port.
+    bi = root / 'bsd/kern/bsd_init.c'
+    text = bi.read_text()
+    _call = chr(9) + 'IOSecureBSDRoot(rootdevice);' + chr(10)
+    assert text.count(_call) == 1
+    _guard = (chr(9) + '{ extern int PE_parse_boot_argn(const char *, void *, int);'
+              ' static int k70_nosig = -1;'
+              ' if (k70_nosig < 0) { int v = 0; k70_nosig = PE_parse_boot_argn("k70nosig", &v, sizeof(v)) ? (v != 0) : 0; }'
+              ' if (!k70_nosig) {' + chr(10) + _call + chr(9) + '} }' + chr(10))
+    text = text.replace(_call, _guard, 1)
+    bi.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
