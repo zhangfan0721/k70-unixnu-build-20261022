@@ -20,6 +20,14 @@ static const char *gWindowRefusal = "K70 UFS window: open refused";
 // Serves one strategy request. Returns an errno; the caller completes the buf.
 // Any transport or policy failure poisons the window for good: a half-served
 // root volume is worse than a device that stops answering.
+static inline void k70WindowDelay (unsigned ms)
+{
+  for (unsigned m = 0; m < ms; ++m) {
+    for (volatile unsigned spin = 0; spin < 4000; ++spin) {
+    }
+  }
+}
+
 static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)
 {
   if (devid != 0 || gWindowState != 1 || !gWindowScratch || !dst || !length) {
@@ -36,7 +44,7 @@ static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)
           if (hostRead4k (kWindowLun, lba, blocks, target) == kIOReturnSuccess) {
             return 0;
           }
-          IOSleep (2);
+          k70WindowDelay (2);
         }
         return -1;
       },
@@ -117,7 +125,7 @@ static bool k70WindowOpen (uint64_t lba, uint32_t blocks, int devid)
     return false;
   }
   for (unsigned wait = 0; wait < 2000 && (!gHost.ready || gHost.poisoned); ++wait) {
-    IOSleep (1);
+    k70WindowDelay (1);
   }
   gWindowBounce = IOBufferMemoryDescriptor::withCapacity (
       K70Window::kMaxTransfer * K70Window::kBlockBytes, kIODirectionIn);
