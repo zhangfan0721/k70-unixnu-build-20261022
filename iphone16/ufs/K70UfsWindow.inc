@@ -28,8 +28,16 @@ static inline void k70WindowDelay (unsigned ms)
   }
 }
 
+static volatile unsigned long long gWindowFetchCount;
+
+extern "C" unsigned long long k70WindowFetchCount (void)
+{
+  return gWindowFetchCount;
+}
+
 static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)
 {
+  gWindowFetchCount = gWindowFetchCount + 1;
   if (devid != 0 || gWindowState != 1 || !gWindowScratch || !dst || !length) {
     return EIO;
   }
