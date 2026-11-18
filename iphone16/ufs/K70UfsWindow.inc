@@ -52,7 +52,7 @@ static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)
 // hardware run can then be checked against a hash recorded from the same
 // region before this code existed, so a correct read is a visible result and
 // not an inference.
-static void k70WindowReportHead (void)
+static uint64_t k70WindowReportHead (void)
 {
   const uint64_t chunk = (uint64_t) K70Window::kMaxTransfer * K70Window::kBlockBytes;
   uint64_t total = gWindowExtent.bytes ();
@@ -72,19 +72,24 @@ static void k70WindowReportHead (void)
     const uint64_t lba = gWindowExtent.base + done / K70Window::kBlockBytes;
     if (hostRead4k (kWindowLun, lba, blocks, gWindowScratch) != kIOReturnSuccess) {
       gWindowState = 2;
-      return;
+      return 0;
     }
     SHA256_Update (&context, gWindowScratch, blocks * K70Window::kBlockBytes);
   }
   uint8_t digest[32];
   SHA256_Final (digest, &context);
+  uint64_t first = 0;
   for (unsigned word = 0; word < 4; ++word) {
     uint64_t value = 0;
     for (unsigned i = 0; i < 8; ++i) {
       value = (value << 8) | digest[word * 8 + i];
     }
+    if (word == 0) {
+      first = value;
+    }
     k70_formal_cpu_trace ("UFS window head digest", value);
   }
+  return first;
 }
 
 // Returns the reason the open was refused, for the caller to report.
@@ -119,7 +124,7 @@ static bool k70WindowOpen (uint64_t lba, uint32_t blocks, int devid)
   gWindowExtent.blocks = blocks;
   // Prove the declared window is actually readable, and leave a checkable hash
   // behind, before it becomes a root device.
-  k70WindowReportHead ();
+  const uint64_t head = k70WindowReportHead ();
   if (gWindowState != 0) {
     gWindowRefusal = "K70 UFS window: first read refused";
     return false;
@@ -132,5 +137,9 @@ static bool k70WindowOpen (uint64_t lba, uint32_t blocks, int devid)
     return false;
   }
   gWindowState = 1;
+  k70_bd_note (3, 1,
+      (static_cast<unsigned long long> (blocks) << 32) |
+          static_cast<uint32_t> (gWindowDev),
+      head);
   return true;
 }

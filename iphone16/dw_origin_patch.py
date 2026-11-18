@@ -1261,15 +1261,24 @@ def install_diag(root):
         text = text[:_ls] + _ins + text[_ls:]
     kd.write_text(text)
 
-    # v142: identity of the mounted root device.
+    # v142: record whether the mounted root is the UFS window (BD slot 3).
     bi = root / 'bsd/kern/bsd_init.c'
     text = bi.read_text()
-    _a = text.find('rootdev = NODEV;')
-    assert _a > 0
-    _e = text.find(chr(10) + chr(9) + '}' + chr(10), _a)
-    assert _e > _a
-    _ins = (chr(10) + chr(9) + '{ extern void k70_root_note(int); k70_root_note((int)rootdev); }' + chr(10))
-    text = text[:_e + len(chr(10) + chr(9) + '}' + chr(10))] + _ins + text[_e + len(chr(10) + chr(9) + '}' + chr(10)):]
+    _anchor = chr(9) + 'init_rootvnode = NULLVP;  /* use rootvnode after this point */' + chr(10)
+    assert text.count(_anchor) == 1
+    _probe = (
+        chr(9) + '{' + chr(10) +
+        chr(9) + chr(9) + 'extern void k70_bd_get(int, int *, unsigned long long *, unsigned long long *);' + chr(10) +
+        chr(9) + chr(9) + 'extern void k70_bd_note(int, int, unsigned long long, unsigned long long);' + chr(10) +
+        chr(9) + chr(9) + 'int state;' + chr(10) +
+        chr(9) + chr(9) + 'unsigned long long window, head;' + chr(10) +
+        chr(9) + chr(9) + 'k70_bd_get(3, &state, &window, &head);' + chr(10) +
+        chr(9) + chr(9) + 'if (state == 1 && (uint32_t)window == (uint32_t)rootdev)' + chr(10) +
+        chr(9) + chr(9) + chr(9) + 'k70_bd_note(3, 2, window, head);' + chr(10) +
+        chr(9) + chr(9) + 'else' + chr(10) +
+        chr(9) + chr(9) + chr(9) + 'k70_bd_note(3, 3, (uint32_t)rootdev, 0);' + chr(10) +
+        chr(9) + '}' + chr(10))
+    text = text.replace(_anchor, _anchor + _probe, 1)
     bi.write_text(text)
 
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.

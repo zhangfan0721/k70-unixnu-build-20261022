@@ -190,11 +190,13 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
     if(row==26){extern int k70_sr_rc_get(void);extern int k70_sr_addr_get(void);extern int k70_sr_addr_hi_get(void);extern int k70_pf_op_get(void);extern int k70_pf_a_get(void);extern int k70_pf_b_get(void);extern int k70_pre_bytes_get(void);extern int k70_pre_nbyte_get(void);extern int k70_fc_cmd_get(void);extern int k70_fc_err_get(void);extern int k70_win_blocks_get(void);extern int k70_root_dev_get(void);extern int k70_win_dev_get(void);extern int k70_a97_get(void);
       kf_text(&l,"CK ");kf_hex8(&l,(uint64_t)(uint32_t)k70_sr_rc_get());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_sr_addr_get());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_sr_addr_hi_get());kf_text(&l," PR ");kf_hex8(&l,(uint64_t)(uint32_t)k70_pre_bytes_get());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_pre_nbyte_get());}
 
-     else if(row==27){extern int k70_fc_cmd_get(void);extern int k70_fc_err_get(void);extern int k70_win_blocks_get(void);extern int k70_root_dev_get(void);extern int k70_win_dev_get(void);extern int k70_a97_get(void);
-      kf_text(&l,"FC ");kf_hex8(&l,(uint64_t)(uint32_t)k70_fc_cmd_get());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_fc_err_get());kf_text(&l," RD ");kf_hex8(&l,(uint64_t)(uint32_t)k70_root_dev_get());kf_text(&l," WD ");kf_hex8(&l,(uint64_t)(uint32_t)k70_win_dev_get());kf_text(&l," A97 ");kf_hex8(&l,(uint64_t)(uint32_t)k70_a97_get());}
+     else if(row==27){extern int k70_fc_cmd_get(void);extern int k70_fc_err_get(void);
+      kf_text(&l,"FC ");kf_hex8(&l,(uint64_t)(uint32_t)k70_fc_cmd_get());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_fc_err_get());}
 
-     else if(row==28){extern int k70_open_count(void);extern int k70_open_w_idx(void);extern int k70_ev_val_at(int);extern int k70_ev_arg_at(int);extern int k70_ev_op_at(int);int k,n;
-      kf_text(&l,"V1 ");n=k70_open_count();if(n>0){k=k70_open_w_idx()%8;kf_ch(&l,(char)k70_ev_op_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_val_at(k));kf_text(&l," ");kf_hex(&l,(uint64_t)(uint32_t)k70_ev_arg_at(k));}}
+     else if(row==28){int state;unsigned long long window,head;
+      k70_bd_get(3,&state,&window,&head);
+      kf_text(&l,"RT ");kf_ch(&l,(char)((char)48+state));kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)window);
+      kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)(window>>32));kf_text(&l," ");kf_hex(&l,head);}
      else {extern int k70_op_count(int);
       kf_text(&l,"OC ");kf_text(&l,"o");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6f));kf_text(&l," s");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x73));
       kf_text(&l," m");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6d));kf_text(&l," c");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x63));kf_text(&l," R");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x52));}

@@ -222,6 +222,7 @@ extern "C" {
 // definition.
 extern "C" dev_t mdevadd_fetch (int devid, unsigned int size,
     int (*fetch) (int, uint64_t, void *, size_t));
+extern "C" void k70_bd_note(int, int, unsigned long long, unsigned long long);
 namespace {
 #include "RootDiagnostics.h"
 #include "TransferPoll.h"
