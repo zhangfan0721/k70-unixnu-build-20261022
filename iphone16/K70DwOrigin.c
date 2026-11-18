@@ -314,14 +314,12 @@ void k70_pre_note(int bytes, int nbyte) { k70_pre_bytes = bytes; k70_pre_nbyte =
 int k70_pre_bytes_get(void) { return k70_pre_bytes; }
 int k70_pre_nbyte_get(void) { return k70_pre_nbyte; }
 static volatile int k70_a97;
-static volatile int k70_root_dev, k70_win_dev, k70_win_blocks;
+static volatile int k70_root_dev, k70_win_dev;
 
 void k70_root_note(int dev) { k70_root_dev = dev; }
 int k70_root_dev_get(void) { return k70_root_dev; }
 void k70_windev_note(int dev) { k70_win_dev = dev; }
 int k70_win_dev_get(void) { return k70_win_dev; }
-void k70_win_note(int blocks) { k70_win_blocks = blocks; }
-int k70_win_blocks_get(void) { return k70_win_blocks; }
 void k70_a97_note(void) { k70_a97 = 1; }
 int k70_a97_get(void) { return k70_a97; }
 
