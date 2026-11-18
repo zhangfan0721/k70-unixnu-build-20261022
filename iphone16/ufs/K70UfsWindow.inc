@@ -32,8 +32,13 @@ static int k70WindowFetch (int devid, uint64_t offset, void *dst, size_t length)
   const int served = K70Window::serve (gWindowExtent, offset, length, dst,
       gWindowScratch,
       [] (unsigned long long lba, unsigned blocks, void *target) -> int {
-        return hostRead4k (kWindowLun, lba, blocks, target) == kIOReturnSuccess
-            ? 0 : -1;
+        for (unsigned attempt = 0; attempt < 5; ++attempt) {
+          if (hostRead4k (kWindowLun, lba, blocks, target) == kIOReturnSuccess) {
+            return 0;
+          }
+          IOSleep (2);
+        }
+        return -1;
       },
       [] (unsigned long long lba, unsigned blocks) -> bool {
         return K70Window::declared ().inside (lba, blocks);
@@ -110,6 +115,9 @@ static bool k70WindowOpen (uint64_t lba, uint32_t blocks, int devid)
   if (!K70Window::declared ().declare (lba, blocks)) {
     gWindowRefusal = "K70 UFS window: declare refused";
     return false;
+  }
+  for (unsigned wait = 0; wait < 2000 && (!gHost.ready || gHost.poisoned); ++wait) {
+    IOSleep (1);
   }
   gWindowBounce = IOBufferMemoryDescriptor::withCapacity (
       K70Window::kMaxTransfer * K70Window::kBlockBytes, kIODirectionIn);
