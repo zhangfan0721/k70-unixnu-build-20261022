@@ -1230,7 +1230,7 @@ def install_diag(root):
 
     kd = root / 'bsd/kern/kern_descrip.c'
     text = kd.read_text()
-    _ins = chr(9) + chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int); k70_cp_note(100, (int)cmd, (int)error); k70_pf_note(1, (int)cmd, (int)error); }' + chr(10)
+    _ins = chr(9) + chr(9) + '{ extern void k70_cp_note(int, int, int); extern void k70_pf_note(int, int, int); k70_cp_note(100, (int)cmd, (int)error); k70_pf_note(1, (int)cmd, (int)error); { extern void k70_fc_note(int,int); k70_fc_note((int)cmd, (int)error); } }' + chr(10)
     _old = chr(9) + chr(9) + '{ extern void k70_cp_note(int, int, int); k70_cp_note(100, (int)cmd, (int)error); }' + chr(10)
     assert _old in text
     text = text.replace(_old, _ins, 1)
