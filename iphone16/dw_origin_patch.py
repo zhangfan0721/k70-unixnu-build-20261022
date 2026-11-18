@@ -1289,6 +1289,18 @@ def install_diag(root):
     text = text.replace(_old, _new, 1)
     ub.write_text(text)
 
+    # v152: when the 4 KiB kernel maps a 16 KiB-signed cache, skip the
+    # per-page hash alignment panic behind an explicit dev boot argument.
+    text = ub.read_text()
+    _panic = 'panic("offset not aligned to cshash boundary");'
+    assert text.count(_panic) == 1
+    _repl = ('{ extern int PE_parse_boot_argn(const char *, void *, int);'
+             ' static int k70_nosig = -1;'
+             ' if (k70_nosig < 0) { int v = 0; k70_nosig = PE_parse_boot_argn("k70nosig", &v, sizeof(v)) ? (v != 0) : 0; }'
+             ' if (k70_nosig) { return TRUE; } }' + chr(10) + chr(9) + chr(9) + chr(9) + _panic)
+    text = text.replace(_panic, _repl, 1)
+    ub.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
