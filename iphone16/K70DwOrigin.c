@@ -484,13 +484,13 @@ k70_gmv_get(int *site, int *err)
 	*err = k70_gmv_err;
 }
 
-static volatile int k70_bd_ret[4];
-static volatile unsigned long long k70_bd_x[4], k70_bd_y[4];
+static volatile int k70_bd_ret[7];
+static volatile unsigned long long k70_bd_x[7], k70_bd_y[7];
 
 void
 k70_bd_note(int id, int ret, unsigned long long x, unsigned long long y)
 {
-	if (id > 0 && id < 4) {
+	if (id > 0 && id < 7) {
 		k70_bd_ret[id] = ret;
 		k70_bd_x[id] = x;
 		k70_bd_y[id] = y;
@@ -500,7 +500,7 @@ k70_bd_note(int id, int ret, unsigned long long x, unsigned long long y)
 void
 k70_bd_get(int id, int *ret, unsigned long long *x, unsigned long long *y)
 {
-	int i = (id > 0 && id < 4) ? id : 0;
+	int i = (id > 0 && id < 7) ? id : 0;
 	*ret = k70_bd_ret[i];
 	*x = k70_bd_x[i];
 	*y = k70_bd_y[i];

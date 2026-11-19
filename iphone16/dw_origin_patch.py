@@ -1314,6 +1314,50 @@ def install_diag(root):
     text = text.replace(_call, _guard, 1)
     bi.write_text(text)
 
+    # v160: RS/RF phase probes around IOFindBSDRoot and vfs_mountroot.
+    bi = root / 'bsd/kern/bsd_init.c'
+    text = bi.read_text()
+
+    _decl = 'extern kern_return_t IOFindBSDRoot(char *, unsigned int, dev_t *, u_int32_t *);\n'
+    assert text.count(_decl) == 1
+    text = text.replace(_decl, _decl +
+        'extern void k70_bd_note(int, int, unsigned long long, unsigned long long);\n'
+        'static uint32_t k70_rs_attempt;\n', 1)
+
+    _setconf = chr(9) + chr(9) + 'setconf();' + chr(10)
+    assert text.count(_setconf) == 1, text.count(_setconf)
+    text = text.replace(_setconf,
+        chr(9) + chr(9) + '++k70_rs_attempt;' + chr(10) +
+        chr(9) + chr(9) + 'k70_bd_note(4, 1, k70_rs_attempt, (uint32_t)NODEV);' + chr(10) +
+        _setconf, 1)
+
+    _find = chr(9) + 'err = IOFindBSDRoot(rootdevice, sizeof(rootdevice), &rootdev, &flags);' + chr(10)
+    assert text.count(_find) == 1
+    text = text.replace(_find, _find +
+        chr(9) + 'k70_bd_note(5, (int)err, k70_rs_attempt, err == 0 ? (uint32_t)rootdev : (uint32_t)NODEV);' + chr(10), 1)
+
+    _mnt = chr(9) + chr(9) + 'if (0 == (err = vfs_mountroot())) {' + chr(10)
+    assert text.count(_mnt) == 1
+    text = text.replace(_mnt,
+        chr(9) + chr(9) + 'k70_bd_note(4, 2, k70_rs_attempt, (uint32_t)rootdev);' + chr(10) +
+        chr(9) + chr(9) + 'err = vfs_mountroot();' + chr(10) +
+        chr(9) + chr(9) + 'k70_bd_note(6, err, k70_rs_attempt, (uint32_t)rootdev);' + chr(10) +
+        chr(9) + chr(9) + 'if (0 == err) {' + chr(10), 1)
+
+    _ios = chr(9) + 'IOSecureBSDRoot(rootdevice);' + chr(10)
+    assert text.count(_ios) >= 1
+    text = text.replace(_ios, chr(9) + 'k70_bd_note(4, 4, k70_rs_attempt, (uint32_t)rootdev);' + chr(10) + _ios, 1)
+
+    _vfs = chr(9) + 'if (VFS_ROOT(mountlist.tqh_first, &init_rootvnode, vfs_context_kernel())) {' + chr(10)
+    assert text.count(_vfs) == 1
+    text = text.replace(_vfs, chr(9) + 'k70_bd_note(4, 5, k70_rs_attempt, (uint32_t)rootdev);' + chr(10) + _vfs, 1)
+
+    _ref = chr(9) + '(void)vnode_ref(init_rootvnode);' + chr(10)
+    assert text.count(_ref) == 1
+    text = text.replace(_ref, chr(9) + 'k70_bd_note(4, 6, k70_rs_attempt, (uint32_t)rootdev);' + chr(10) + _ref, 1)
+
+    bi.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
