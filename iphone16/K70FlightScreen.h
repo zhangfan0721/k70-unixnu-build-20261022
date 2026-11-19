@@ -190,8 +190,8 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
      if(row==26){int s;unsigned long long a,d;k70_bd_get(4,&s,&a,&d);
       kf_text(&l,"RS ");kf_ch(&l,(char)(48+s));kf_text(&l," A");kf_hex8(&l,a);kf_text(&l," D");kf_hex8(&l,d);}
 
-     else if(row==27){int k;unsigned long long a,d;k70_bd_get(5,&k,&a,&d);
-      kf_text(&l,"RF A");kf_hex8(&l,a);kf_text(&l," K");kf_hex8(&l,(uint64_t)(uint32_t)k);kf_text(&l," D");kf_hex8(&l,d);}
+     else if(row==27){int k,w;unsigned long long a,d,wa,wd;k70_bd_get(5,&k,&a,&d);k70_bd_get(6,&w,&wa,&wd);
+      kf_text(&l,"RF K");kf_hex8(&l,(uint64_t)(uint32_t)k);kf_text(&l," W");kf_hex8(&l,(uint64_t)(uint32_t)w);kf_text(&l," D");kf_hex8(&l,d);}
 
      else if(row==28){int state;unsigned long long window,head;
       k70_bd_get(3,&state,&window,&head);

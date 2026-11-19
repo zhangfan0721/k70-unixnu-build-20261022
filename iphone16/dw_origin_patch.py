@@ -1358,22 +1358,20 @@ def install_diag(root):
 
     bi.write_text(text)
 
-    # v162: skip the IOBSD service wait by looking the window device up directly.
-    bi = root / 'bsd/kern/bsd_init.c'
-    text = bi.read_text()
-    _find = chr(9) + 'err = IOFindBSDRoot(rootdevice, sizeof(rootdevice), &rootdev, &flags);' + chr(10)
-    assert text.count(_find) == 1
-    _guard = (chr(9) + '{ extern int PE_parse_boot_argn(const char *, void *, int);'
-              ' static int k70_direct = -1;'
-              ' if (k70_direct < 0) { int v = 0; k70_direct = PE_parse_boot_argn("k70nosig", &v, sizeof(v)) ? (v != 0) : 0; }'
-              ' if (k70_direct) {' + chr(10) +
-              chr(9) + chr(9) + 'extern dev_t mdevlookup(int);' + chr(10) +
-              chr(9) + chr(9) + 'rootdev = mdevlookup(0);' + chr(10) +
-              chr(9) + chr(9) + 'err = (rootdev == NODEV) ? ENXIO : 0;' + chr(10) +
-              chr(9) + '} else {' + chr(10) +
-              _find + chr(9) + '} }' + chr(10))
-    text = text.replace(_find, _guard, 1)
-    bi.write_text(text)
+
+    # v163: observe the IOBSD wait inside IOFindBSDRoot (no timeout changes).
+    f = root / 'iokit/bsddev/IOKitBSDInit.cpp'
+    text = f.read_text()
+    _fn = chr(10) + 'IOFindBSDRoot( char * rootName, unsigned int rootNameSize,'
+    assert text.count(_fn) == 1
+    text = text.replace(_fn, chr(10) + 'extern "C" void k70_bd_note(int, int, unsigned long long, unsigned long long);' + _fn, 1)
+    _wait = chr(9) + chr(9) + 'service = IOService::waitForService( matching, &t );' + chr(10)
+    assert text.count(_wait) == 1, text.count(_wait)
+    text = text.replace(_wait,
+        chr(9) + chr(9) + 'k70_bd_note(6, 1, 0, 0);' + chr(10) +
+        _wait +
+        chr(9) + chr(9) + 'k70_bd_note(6, service ? 2 : 3, 0, 0);' + chr(10), 1)
+    f.write_text(text)
 
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
