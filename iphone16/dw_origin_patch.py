@@ -1362,9 +1362,9 @@ def install_diag(root):
     # v163: observe the IOBSD wait inside IOFindBSDRoot (no timeout changes).
     f = root / 'iokit/bsddev/IOKitBSDInit.cpp'
     text = f.read_text()
-    _fn = chr(10) + 'IOFindBSDRoot( char * rootName, unsigned int rootNameSize,'
-    assert text.count(_fn) == 1
-    text = text.replace(_fn, chr(10) + 'extern "C" void k70_bd_note(int, int, unsigned long long, unsigned long long);' + _fn, 1)
+    _inc = '#include <IOKit/IOBSD.h>' + chr(10)
+    assert text.count(_inc) == 1
+    text = text.replace(_inc, _inc + 'extern "C" void k70_bd_note(int, int, unsigned long long, unsigned long long);' + chr(10), 1)
     _wait = chr(9) + chr(9) + 'service = IOService::waitForService( matching, &t );' + chr(10)
     assert text.count(_wait) == 1, text.count(_wait)
     text = text.replace(_wait,
