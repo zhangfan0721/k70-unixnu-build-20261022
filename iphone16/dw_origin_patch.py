@@ -1358,6 +1358,23 @@ def install_diag(root):
 
     bi.write_text(text)
 
+    # v162: skip the IOBSD service wait by looking the window device up directly.
+    bi = root / 'bsd/kern/bsd_init.c'
+    text = bi.read_text()
+    _find = chr(9) + 'err = IOFindBSDRoot(rootdevice, sizeof(rootdevice), &rootdev, &flags);' + chr(10)
+    assert text.count(_find) == 1
+    _guard = (chr(9) + '{ extern int PE_parse_boot_argn(const char *, void *, int);'
+              ' static int k70_direct = -1;'
+              ' if (k70_direct < 0) { int v = 0; k70_direct = PE_parse_boot_argn("k70nosig", &v, sizeof(v)) ? (v != 0) : 0; }'
+              ' if (k70_direct) {' + chr(10) +
+              chr(9) + chr(9) + 'extern dev_t mdevlookup(int);' + chr(10) +
+              chr(9) + chr(9) + 'rootdev = mdevlookup(0);' + chr(10) +
+              chr(9) + chr(9) + 'err = (rootdev == NODEV) ? ENXIO : 0;' + chr(10) +
+              chr(9) + '} else {' + chr(10) +
+              _find + chr(9) + '} }' + chr(10))
+    text = text.replace(_find, _guard, 1)
+    bi.write_text(text)
+
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
     #   open/openat -> (fd or errno, flags, 'o')
     #   stat/stat64 -> (errno, 0, 's')
