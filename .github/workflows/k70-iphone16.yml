@@ -76,11 +76,19 @@ jobs:
           path: legacy-iig
           key: k70-iig-15F31d-de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331
       - name: Restore the fixed legacy IIG tool only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IIG_ARCHIVE_SHA256: 9233305fd34b6ee7a6da2b3c35dac9e125ef0c7b2d32da54f63b4218d9f166d6
+          IIG_RELEASE_TAG: legacy-iig-driverkit-286
         run: |
           set -euo pipefail
           if [[ ! -f legacy-iig/bin/iig || ! -f legacy-iig/lib/libclang.dylib ]]; then
-            curl --fail --location --connect-timeout 30 --max-time 180 'https://artificial-blacks-chairs-gourmet.trycloudflare.com/cedb5d17bad247f89030d97a4babf50b.tgz' -o legacy-iig.tgz
-            echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+            if gh release download "$IIG_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern legacy-iig.tgz --output legacy-iig.tgz --clobber; then
+              echo "$IIG_ARCHIVE_SHA256  legacy-iig.tgz" | shasum -a 256 -c -
+            else
+              curl --fail --location --connect-timeout 30 --max-time 180 'https://artificial-blacks-chairs-gourmet.trycloudflare.com/cedb5d17bad247f89030d97a4babf50b.tgz' -o legacy-iig.tgz
+              echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+            fi
             mkdir -p legacy-iig
             tar -xzf legacy-iig.tgz -C legacy-iig
           fi
