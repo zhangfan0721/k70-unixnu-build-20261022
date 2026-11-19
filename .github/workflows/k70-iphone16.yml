@@ -23,24 +23,6 @@ env:
   HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
 jobs:
-  preserve-iig:
-    runs-on: macos-14
-    steps:
-      - uses: actions/cache@v4
-        with:
-          path: legacy-iig
-          key: k70-iig-15F31d-de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331
-      - name: tar
-        run: |
-          ls -la legacy-iig
-          tar -czf legacy-iig.tgz legacy-iig
-          ls -la legacy-iig.tgz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: legacy-iig-tarball
-          path: legacy-iig.tgz
-          if-no-files-found: error
-
   kernel:
     runs-on: macos-15-intel
     timeout-minutes: 150
@@ -107,6 +89,15 @@ jobs:
           chmod +x legacy-iig/bin/iig
           test "$(legacy-iig/bin/iig --version)" = DriverKit-286
           echo "IIG=$PWD/legacy-iig/bin/iig" >> "$GITHUB_ENV"
+      - name: Preserve the legacy IIG tool as an artifact
+        run: |
+          tar -czf legacy-iig.tgz legacy-iig
+          ls -la legacy-iig.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legacy-iig-tarball
+          path: legacy-iig.tgz
+          if-no-files-found: error
       - name: Check the bounded target and record identities
         run: |
           set -euo pipefail
