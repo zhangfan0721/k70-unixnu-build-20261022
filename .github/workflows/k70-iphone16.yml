@@ -62,10 +62,15 @@ jobs:
           persist-credentials: false
       - name: Point ShengUfs at the unixnu root partition
         run: |
-          f=ufs-source/RootLayout.h
-          grep -q 'static const char wanted\[\] = "userdata";' "$f"
-          sed -i 's/static const char wanted\[\] = "userdata";/static const char wanted[] = "unixnu";/' "$f"
-          grep -n 'static const char wanted' "$f"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ufs-source/RootLayout.h')
+          t = p.read_text()
+          old = 'static const char wanted[] = "userdata";'
+          assert old in t, 'wanted line not found'
+          p.write_text(t.replace(old, 'static const char wanted[] = "unixnu";', 1))
+          print('patched wanted -> unixnu')
+          PY
       - uses: actions/cache@v4
         with:
           path: legacy-iig
