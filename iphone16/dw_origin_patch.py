@@ -1365,12 +1365,13 @@ def install_diag(root):
     _inc = '#include <IOKit/IOBSD.h>' + chr(10)
     assert text.count(_inc) == 1
     text = text.replace(_inc, _inc + 'extern "C" void k70_bd_note(int, int, unsigned long long, unsigned long long);' + chr(10), 1)
-    _wait = chr(9) + chr(9) + 'service = IOService::waitForService( matching, &t );' + chr(10)
-    assert text.count(_wait) == 1, text.count(_wait)
-    text = text.replace(_wait,
-        chr(9) + chr(9) + 'k70_bd_note(6, 1, 0, 0);' + chr(10) +
-        _wait +
-        chr(9) + chr(9) + 'k70_bd_note(6, service ? 2 : 3, 0, 0);' + chr(10), 1)
+    _early = 'if ((service = IOService::waitForMatchingService(matching, 30ULL * kSecondScale))) {' + chr(10)
+    assert text.count(_early) == 1, text.count(_early)
+    _early_new = ('k70_bd_note(7, 1, 0, 0);' + chr(10) +
+                  chr(9) + 'service = IOService::waitForMatchingService(matching, 30ULL * kSecondScale);' + chr(10) +
+                  chr(9) + 'k70_bd_note(7, service ? 2 : 3, 0, 0);' + chr(10) +
+                  chr(9) + 'if (service) {' + chr(10))
+    text = text.replace(_early, _early_new, 1)
     f.write_text(text)
 
     # v79: integer-only event ring. No user memory is touched, so no copyin faults.
