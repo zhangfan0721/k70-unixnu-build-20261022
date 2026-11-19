@@ -1,5 +1,6 @@
 name: dump legacy iig
 on:
+  push:
   workflow_dispatch:
 jobs:
   dump:
