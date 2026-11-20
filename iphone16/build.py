@@ -64,10 +64,17 @@ def verify_kernel(path):
                  '_k70_flight_panic', '_k70_flight_wait', '_k70_flight_begin',
                  '_k70_flight_enter', '_k70_flight_leave', '_k70_flight_bind',
                  '_k70_formal_bootstrap', '_k70_formal_early_exception', '_vfs_getvfs_with_vfsops',
-                 '_k70_ufs_readonly_qualify',
                  '_kalloc_sparse_prelink_index_version'):
-        if name.encode() + b'\0' not in data:
-            raise ValueError('Missing real integration symbol: ' + name)
+    if name.encode() + b'\0' not in data:
+        raise ValueError('Missing real integration symbol: ' + name)
+    native = 'CONFIG_XNU_NATIVE_UFS=y' in (HERE / 'device/configs/vermeer16_defconfig').read_text()
+    if native:
+        required_native = ('__ZN9NativeUfs5startEP9IOService', '_native_ufs_probe_calls')
+        for name in required_native:
+            if name.encode() + b'\0' not in data:
+                raise ValueError('Missing native UFS symbol: ' + name)
+    elif b'_k70_ufs_readonly_qualify\0' not in data:
+        raise ValueError('Missing real integration symbol: _k70_ufs_readonly_qualify')
     return {'sha256': digest(path), 'bytes': len(data), 'platform': build[0],
             'minimum': hex(build[1]), 'sdk': hex(build[2]), 'segments': segments,
             'original_component_abi_verified': False, 'hardware_boot_tested': False,
