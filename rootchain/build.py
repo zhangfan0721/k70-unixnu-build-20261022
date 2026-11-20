@@ -218,11 +218,16 @@ default = "xnu16"
 autoload = false
 [[entry]]
 id = "xnu16"
-title = "K70 iPhone16 HFS root-chain diagnostic"
+title = "iOS 16.7.16 (20H392)"
 type = "xnu"
 path = "Payloads/kernel.macho"
 initrd = "Payloads/root.hfs"
 args = "-v serial=3 debug=0x14e kt_fixed_zones=120 armcpu-diagnostics=1 startup_debug=1 kextlog=0x10503e rd=md0 launchdsuffix=release"
+[[entry]]
+id = "android"
+title = "重启到 Android"
+type = "action"
+action = "reset"
 '''
         (stage / 'EFI/UniXNU/unixnu.toml').write_text(configuration)
         volume = out / 'payload-template.img'

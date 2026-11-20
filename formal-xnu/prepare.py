@@ -117,7 +117,7 @@ def observer_source():
     for name, (params, args) in signatures.items():
         text = replace_once(text, '\nboot_progress_'+name+'(', '\nbp_impl_'+name+'(')
         wrappers += f'''void boot_progress_{name}({params}) {{
-    if (__atomic_test_and_set(&k70_observer_busy, __ATOMIC_ACQUIRE)) {{ return; }}
+    if (__atomic_test_and_set(&k70_observer_busy, __ATOMIC_ACQUIRE)) {{ extern void k70_log_drop(void); k70_log_drop(); return; }}
     bp_impl_{name}({args});
     __atomic_clear(&k70_observer_busy, __ATOMIC_RELEASE);
 }}

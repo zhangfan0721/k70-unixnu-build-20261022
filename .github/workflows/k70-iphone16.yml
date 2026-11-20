@@ -2,6 +2,9 @@ name: K70 Darwin22 integration gate
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [codex/k70-formal-xnu]
+    paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
   push:
     branches: [codex/k70-formal-xnu]
     paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
@@ -57,16 +60,51 @@ jobs:
           ref: af785c1777161a62931425c2faaa536ce0bebd5b
           path: ufs-source
           persist-credentials: false
+      - name: Point ShengUfs at the unixnu root partition
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ufs-source/RootLayout.h')
+          t = p.read_text()
+          old = 'static const char wanted[] = "userdata";'
+          assert old in t, 'wanted line not found'
+          p.write_text(t.replace(old, 'static const char wanted[] = "unixnu";', 1))
+          print('patched wanted -> unixnu')
+          PY
+      - name: Cold-check the pinned legacy IIG release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IIG_ARCHIVE_SHA256: 9233305fd34b6ee7a6da2b3c35dac9e125ef0c7b2d32da54f63b4218d9f166d6
+          IIG_RELEASE_TAG: legacy-iig-driverkit-286
+        run: |
+          set -euo pipefail
+          gh release download "$IIG_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern legacy-iig.tgz --output cold-iig.tgz --clobber
+          echo "$IIG_ARCHIVE_SHA256  cold-iig.tgz" | shasum -a 256 -c -
+          mkdir -p cold-iig
+          tar -xzf cold-iig.tgz -C cold-iig
+          echo '3cff6bb296003f758b658fe15b9462a06f3d483a7a6f24fdd3c66c8e6a30295c  cold-iig/legacy-iig/bin/iig' | shasum -a 256 -c -
+          echo '2b8c5a9b4721651d4461d66bda2bd62672e7ee14d92217786a76a0db86403015  cold-iig/legacy-iig/lib/libclang.dylib' | shasum -a 256 -c -
+          chmod +x cold-iig/legacy-iig/bin/iig
+          test "$(cold-iig/legacy-iig/bin/iig --version)" = DriverKit-286
+          rm -rf cold-iig cold-iig.tgz
       - uses: actions/cache@v4
         with:
           path: legacy-iig
           key: k70-iig-15F31d-de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331
       - name: Restore the fixed legacy IIG tool only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IIG_ARCHIVE_SHA256: 9233305fd34b6ee7a6da2b3c35dac9e125ef0c7b2d32da54f63b4218d9f166d6
+          IIG_RELEASE_TAG: legacy-iig-driverkit-286
         run: |
           set -euo pipefail
           if [[ ! -f legacy-iig/bin/iig || ! -f legacy-iig/lib/libclang.dylib ]]; then
-            curl --fail --location --connect-timeout 30 --max-time 180 'https://artificial-blacks-chairs-gourmet.trycloudflare.com/cedb5d17bad247f89030d97a4babf50b.tgz' -o legacy-iig.tgz
-            echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+            if gh release download "$IIG_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern legacy-iig.tgz --output legacy-iig.tgz --clobber; then
+              echo "$IIG_ARCHIVE_SHA256  legacy-iig.tgz" | shasum -a 256 -c -
+            else
+              curl --fail --location --connect-timeout 30 --max-time 180 'https://artificial-blacks-chairs-gourmet.trycloudflare.com/cedb5d17bad247f89030d97a4babf50b.tgz' -o legacy-iig.tgz
+              echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+            fi
             mkdir -p legacy-iig
             tar -xzf legacy-iig.tgz -C legacy-iig
           fi
@@ -75,6 +113,15 @@ jobs:
           chmod +x legacy-iig/bin/iig
           test "$(legacy-iig/bin/iig --version)" = DriverKit-286
           echo "IIG=$PWD/legacy-iig/bin/iig" >> "$GITHUB_ENV"
+      - name: Preserve the legacy IIG tool as an artifact
+        run: |
+          tar -czf legacy-iig.tgz legacy-iig
+          ls -la legacy-iig.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legacy-iig-tarball
+          path: legacy-iig.tgz
+          if-no-files-found: error
       - name: Check the bounded target and record identities
         run: |
           set -euo pipefail

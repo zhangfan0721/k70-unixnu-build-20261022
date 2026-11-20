@@ -1,0 +1,22 @@
+name: dump legacy iig
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  dump:
+    runs-on: macos-14
+    steps:
+      - uses: actions/cache@v4
+        with:
+          path: legacy-iig
+          key: k70-iig-15F31d-de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331
+      - name: report
+        run: |
+          ls -la legacy-iig 2>/dev/null || echo NO_CACHE
+          du -sh legacy-iig 2>/dev/null || true
+          if [ -f legacy-iig/bin/iig ]; then tar -czf legacy-iig.tgz legacy-iig; ls -la legacy-iig.tgz; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legacy-iig-tarball
+          path: legacy-iig.tgz
+          if-no-files-found: error

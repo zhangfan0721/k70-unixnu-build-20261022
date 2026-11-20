@@ -1,5 +1,6 @@
 """Expose the real bootstrap/exec boundaries using the existing display path."""
 from pathlib import Path
+from copyout_diagnostics import FIRST_COPY, install as install_copyout_diagnostics
 HERE=Path(__file__).resolve().parent
 
 def install(root):
@@ -22,9 +23,30 @@ def install(root):
         '\tboot_progress_stage("PID1 clear return wait enter");\n'
         '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
         '\tboot_progress_stage("PID1 bootstrap returned");')
-    edit(name,'bsdinit_task(void)\n{','bsdinit_task(void)\n{\n\tboot_progress_stage("PID1 bsdinit_task enter");')
-    for call,label in [('ux_handler_setup();','exception setup'),('vm_init_before_launchd();','VM before launchd')]:
-        edit(name,'\t'+call,'\tboot_progress_stage("PID1 '+label+' enter");\n\t'+call+'\n\tboot_progress_stage("PID1 '+label+' returned");')
+    mark = "{ extern volatile uint32_t k70_stage; k70_stage = %d; }"
+    edit(name, 'bsdinit_task(void)\n{',
+         'bsdinit_task(void)\n{\n\t' + (mark % 1) + '\n'
+         '\tboot_progress_stage("PID1 bsdinit_task enter");')
+    edit(name, '\tprocess_name("init", p);', '\t' + (mark % 2) + '\n\tprocess_name("init", p);')
+    edit(name, '\tux_handler_setup();',
+         '\t' + (mark % 3) + '\n\tboot_progress_stage("PID1 exception setup enter");\n\tux_handler_setup();\n'
+         '\t' + (mark % 4) + '\n\tboot_progress_stage("PID1 exception setup returned");')
+    edit(name, '\tvm_init_before_launchd();',
+         '\tboot_progress_stage("PID1 VM before launchd enter");\n\tvm_init_before_launchd();\n'
+         '\t' + (mark % 5) + '\n\tboot_progress_stage("PID1 VM before launchd returned");')
+    edit(name, '\tload_init_program(p);',
+         '\t' + (mark % 6) + '\n\tload_init_program(p);')
+    # bsd_utaskbootstrap leaves the init thread runnable and expects the
+    # scheduler to pick it up. On this port it never runs, so the boundary is
+    # named here and the boot thread yields once right after it: if the next
+    # line becomes bsdinit_task, the thread was only waiting for a chance.
+    edit(name,'\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
+        '\tboot_progress_stage("PID1 bootstrap returned");',
+        '\ttask_clear_return_wait(get_threadtask(thread), TCRW_CLEAR_ALL_WAIT);\n'
+        '\tboot_progress_stage("PID1 bootstrap returned");\n'
+        '\tboot_progress_stage("PID1 yielding to init thread");\n'
+        '\tthread_yield_internal(1);\n'
+        '\tboot_progress_stage("PID1 yield returned");')
     name='bsd/kern/kern_fork.c'
     p=root/name;p.write_text('#include <kern/boot_progress.h>\nextern void k70_formal_cpu_trace(const char *, uint64_t);\n'+p.read_text())
     edit(name,'\tresult = task_create_internal(parent_task,','\tif (parent_task == TASK_NULL) boot_progress_stage("PID1 task_create_internal enter");\n\tresult = task_create_internal(parent_task,')
@@ -45,13 +67,23 @@ def install(root):
         '\t\t\tk70_formal_cpu_trace("PID1 dyld header", load_result.dynlinker_mach_header);\n'
         '\t\t\tk70_formal_cpu_trace("PID1 dyld end", load_result.dynlinker_max_vm_addr);\n\t\t}\n\t}')
     edit(name,'\treturn execve(p, &init_exec_args, retval);',
+        '\t{ extern volatile uint32_t k70_stage; k70_stage = 14; }\n'
         '\tboot_progress_stage("PID1 execve enter");\n\tboot_progress_stage(path);\n'
         '\terror = execve(p, &init_exec_args, retval);\n'
-        '\tk70_formal_cpu_trace("PID1 exec errno", (uint32_t)error);\n\treturn error;')
+        '\t{ extern volatile uint32_t k70_stage, k70_exec_errno; k70_stage = 15; k70_exec_errno = (uint32_t)error; }\n'
+        '\tk70_formal_cpu_trace("PID1 exec errno", (uint32_t)error);\n'
+        '\tif (error) { boot_progress_stage("PID1 exec failed; halted"); for(;;) { __asm__ volatile("wfi"); } }\n'
+        '\tboot_progress_stage("PID1 exec returned 0; entering userland");\n\treturn error;')
     p=root/name;s=p.read_text();start=s.index('\nload_init_program_at_path(');end=s.index('\nstatic const char * init_programs',start)
     body=s[start:end]
     if body.count('\t\treturn error;')!=4:raise ValueError('Initial exec copyout paths changed')
-    body=body.replace('\t\treturn error;','\t\tk70_formal_cpu_trace("PID1 copyout errno", (uint32_t)error);\n\t\treturn error;')
+    body=body.replace('\t\treturn error;',
+        '\t\tk70_formal_cpu_trace("PID1 copyout errno", (uint32_t)error);\n\t\treturn error;')
+    # Keep the first copyout's result separate from errors in later copyouts.
+    first_copyout = '\terror = copyout(path, argv0, path_length);'
+    if body.count(first_copyout) != 1:
+        raise ValueError('First init copyout anchor changed')
+    body=body.replace(first_copyout, FIRST_COPY)
     p.write_text(s[:start]+body+s[end:])
     declaration='extern void k70_user_trap(unsigned,int,uint64_t,uint64_t,uint64_t);\n'
     name='bsd/dev/arm/systemcalls.c';p=root/name;p.write_text('#include <stdint.h>\n'+declaration+p.read_text())
@@ -63,3 +95,4 @@ def install(root):
         '\tk70_user_trap(1, proc_pid(current_proc()), get_saved_state_pc(state), get_saved_state_cpsr(state), get_saved_state_svc_number(state));\n\tint call_number = get_saved_state_svc_number(state);')
     name='pexpert/arm/k70_formal_diag.c';p=root/name
     p.write_text(p.read_text()+'\n'+(HERE/'UserBootstrap.c').read_text())
+    install_copyout_diagnostics(root)

@@ -29,6 +29,8 @@ def install(root):
     path.write_text(text)
     path=root/'iokit/Kernel/IOCPU.cpp'
     text='#include <kern/K70Flight.h>\n'+path.read_text()
+
+
     anchor='IOCPUInterruptController::initCPUInterruptController(int sources, int cpus)'
     start=text.index(anchor);end=text.index('\nvoid\nIOCPUInterruptController::registerCPUInterruptController',start)
     body=text[start:end]
@@ -50,6 +52,79 @@ def install(root):
     anchor='    uint64_t panic_options_mask, void *panic_data_ptr, unsigned long panic_caller)\n{'
     text=replace(text,anchor,anchor+'\n\tk70_flight_panic(panic_format_str, (uintptr_t)panic_caller, (uintptr_t)__builtin_frame_address(0));')
     path.write_text(text)
+    path=root/'osfmk/arm/pmap/pmap.c'
+    text='#include <kern/K70Flight.h>\n'+path.read_text()
+    K70_SUPPRESS_HELPER = (
+        '/* v6: a boot-argument switch that turns this assertion into a logged skip,\n'
+        ' * so one diagnostic boot can show what comes next. Without the argument the\n'
+        ' * evidence path behaves exactly as before. */\n'
+        'static volatile unsigned k70_suppressed_count;\n'
+        'static int k70_suppress_state = -1;\n'
+        'static int\n'
+        'k70_assert_suppress(void)\n'
+        '{\n'
+        '\tif (k70_suppress_state < 0) {\n'
+        '\t\tint v = 0;\n'
+        '\t\tif (PE_parse_boot_argn("k70skipassert", &v, sizeof(v))) {\n'
+        '\t\t\tk70_suppress_state = (v != 0);\n'
+        '\t\t} else {\n'
+        '\t\t\tk70_suppress_state = 0;\n'
+        '\t\t}\n'
+        '\t}\n'
+        '\treturn k70_suppress_state;\n'
+        '}\n'
+    )
+    signature='void\npmap_assert_free(ppnum_t ppnum)\n{'
+    text=replace(text,signature,
+        K70_SUPPRESS_HELPER +
+        'static __attribute__((noinline)) void\npmap_assert_free_recorded(ppnum_t ppnum, '
+        'uintptr_t caller, uintptr_t free_caller)\n{')
+    start=text.index('pmap_assert_free_recorded(')
+    end=text.index('\n#endif',start)
+    body=text[start:end]
+    body=replace(body,'\t\tpmap_t pmap = ptep_get_pmap(first_ptep);',
+        '\t\tconst pt_desc_t *ptd = ptep_get_ptd(first_ptep);\n'
+        '\t\tpmap_t pmap = ptd->pmap;')
+    anchor='\t\tpanic("%s: Found at least one mapping to %#llx. First PTEP (%p) is a "'
+    body=replace(body,anchor,'''\t\t/* Reuse the descriptor already resolved for the original panic.
+\t\t * Pass a field address only. The recorder can decline to read it. */
+\t\tuintptr_t va_base_field = 0;
+\t\tif (pmap != NULL && pmap == kernel_pmap && PAGE_SHIFT == 12 &&
+\t\t    pt_attr_leaf_shift(pmap_get_pt_attr(kernel_pmap)) == 12) {
+\t\t\tva_base_field = (uintptr_t)&ptd->va[0];
+\t\t}
+\t\tif (k70_assert_suppress()) {\n\t\t\tk70_suppressed_count = k70_suppressed_count + 1u;\n\t\t\tkprintf("K70 PMAP ASSERT SUPPRESSED ppnum=%#x count=%u\\n",\n\t\t\t    (unsigned)ppnum, (unsigned)k70_suppressed_count);\n\t\t\treturn;\n\t\t}\n\t\tk70_flight_pmap_assert(caller, ppnum, (uintptr_t)*pvh,
+\t\t    (uintptr_t)first_ptep, (uintptr_t)pmap,
+\t\t    pmap == kernel_pmap ? K70_PMAP_KERNEL : pmap ? K70_PMAP_USER : K70_PMAP_UNKNOWN,
+\t\t    free_caller, va_base_field);
+\t\tpanic(K70_PMAP_ASSERT_PREFIX "%#llx. First PTEP (%p) is a "''')
+    wrappers='''
+
+void
+pmap_assert_free(ppnum_t ppnum)
+{
+\tpmap_assert_free_recorded(ppnum, (uintptr_t)__builtin_return_address(0), 0);
+}
+
+void
+k70_pmap_assert_free_from_list(uint32_t ppnum, uintptr_t free_caller)
+{
+\tpmap_assert_free_recorded(ppnum, (uintptr_t)__builtin_return_address(0), free_caller);
+}
+'''
+    text=text[:start]+body+wrappers+text[end:]
+    path.write_text(text)
+    path=root/'osfmk/vm/vm_resident.c'
+    text='#include <kern/K70Flight.h>\n'+path.read_text()
+    start=text.index('\nvoid\nvm_page_free_list(')
+    end=text.index('\n}',start)
+    body=replace(text[start:end],'\t\t\t\tASSERT_PMAP_FREE(mem);',
+        '#if MACH_ASSERT\n'
+        '\t\t\t\tk70_pmap_assert_free_from_list(VM_PAGE_GET_PHYS_PAGE(mem),\n'
+        '\t\t\t\t    (uintptr_t)__builtin_return_address(0));\n'
+        '#endif')
+    text=text[:start]+body+text[end:]
+    path.write_text(text)
     path=root/'osfmk/kern/sched_prim.c'
     text='#include <kern/K70Flight.h>\n'+path.read_text()
     start=text.index('\nthread_block_reason(\n');end=text.index('\nwait_result_t\nthread_block_parameter',start)
@@ -59,3 +134,5 @@ def install(root):
         '\tif (self->state & TH_WAIT) k70_flight_wait((uintptr_t)self, (uintptr_t)self->wait_event, self->state,\n'
         '\t    (uintptr_t)__builtin_return_address(0), (uintptr_t)__builtin_frame_address(0));')
     path.write_text(text[:start]+body+text[end:])
+    from dw_origin_patch import install as install_dw_origin
+    install_dw_origin(root)
