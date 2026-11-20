@@ -120,9 +120,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     files = ('osfmk/arm/arm_init.c', 'osfmk/kern/startup.c',
              'osfmk/console/video_console.c', 'osfmk/console/serial_console.c',
              'pexpert/arm/pe_kprintf.c', 'bsd/kern/bsd_init.c',
-             'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c', 'bsd/kern/kern_descrip.c',
-             'bsd/kern/mach_loader.c', 'bsd/kern/mach_loader.h', 'bsd/kern/kern_sig.c',
-             'bsd/kern/kern_cs.c')
+             'osfmk/arm64/sleh.c', 'bsd/kern/kern_exec.c')
     for name in files:
         p = root / name
         p.write_text('#include <kern/boot_progress.h>\n' + p.read_text())
@@ -519,13 +517,28 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     ufs_spec = importlib.util.spec_from_file_location('k70_ufs_install', HERE / 'ufs/install.py')
     ufs_install = importlib.util.module_from_spec(ufs_spec)
     ufs_spec.loader.exec_module(ufs_install)
-    ufs_install.install(root)
+    native_profile = 'CONFIG_XNU_NATIVE_UFS=y' in (HERE / 'device/configs/vermeer16_defconfig').read_text()
+    if native_profile:
+        table = root / 'iokit/KernelConfigTables.cpp'
+        text = table.read_text()
+        tail = '    ")' + chr(59) + chr(10)
+        assert text.count(tail) == 1
+        entry = (
+            '#if defined(XNU_NATIVE_UFS) && XNU_NATIVE_UFS' + chr(10) +
+            '    ",{"' + chr(10) +
+            '    "     \'IOClass\'         = NativeUfs;"' + chr(10) +
+            '    "     \'IOMatchCategory\' = NativeUfsRoot;"' + chr(10) +
+            '    "     \'IOProviderClass\' = IOPlatformExpertDevice;"' + chr(10) +
+            '    "     \'IOProbeScore\'    = 500:32;"' + chr(10) +
+            '    "   }"' + chr(10) +
+            '#endif' + chr(10))
+        table.write_text(text.replace(tail, entry + tail, 1))
+    else:
+        ufs_install.install(root)
     from kext_logging import install as install_kext_logging
     install_kext_logging(root)
     from userspace_bootstrap import install as install_userspace
     install_userspace(root)
-    from dw_origin_patch import install_diag as install_dw_diag
-    install_dw_diag(root)
 
 
 def integration_patch(core, source, font, staging):
@@ -550,14 +563,7 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/vm/vm_resident.c', 'osfmk/vm/vm_pageout.c', 'osfmk/arm/pmap/pmap.c',
-                  'bsd/kern/ubc_subr.c',
-                  'osfmk/arm/machine_routines_common.c',
-                  'bsd/kern/mach_loader.c', 'bsd/kern/mach_loader.h', 'bsd/kern/mach_fat.c',
-                  'osfmk/kern/lock_rw.c',
-                  'osfmk/vm/vm_object.c',
-                  'osfmk/vm/vm_map.c',
-                  'bsd/kern/kern_sig.c', 'bsd/kern/kern_cs.c', 'bsd/kern/sys_generic.c', 'bsd/kern/kern_mman.c', 'bsd/kern/kern_descrip.c', 'bsd/vm/vm_unix.c', 'bsd/vfs/vfs_syscalls.c',
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_fault.c', 'osfmk/vm/vm_resident.c', 'osfmk/arm/pmap/pmap.c',
                   'osfmk/arm/pmap/pmap_data.c'))
     originals = {}
     for name in sorted(names):
