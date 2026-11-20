@@ -26,6 +26,7 @@ BASE_PATCHES = (
     'architectural-timer-entry', 'native-arm-pan', 'native-dt-panic-region',
     'native-quiet-managed-page-report', 'source-corecrypto14-bootstrap',
     'source-pthread-bootstrap', 'non-apple-iommu-bootstrap',
+    'native-4k-signature-hash-cache',
 )
 
 
@@ -87,7 +88,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     diag = root / 'pexpert/arm/k70_formal_diag.c'
     diag.write_text(replace_once(diag.read_text(),
         'PE_init_platform(FALSE) returned; native XNU C',
-        'iOS16 ROOTCHAIN: original HFS / md0; hardware PMU unsupported').replace(
+        'K70 Darwin22 NativeUfs probe; hardware PMU unsupported').replace(
         ' K70 FORMAL XNU  diagnostic-3 ', ' K70 iOS16 ROOTCHAIN  HFS/md0 '))
     text = diag.read_text()
     text = replace_once(text, 'extern volatile uint32_t armcpu_gic_ready;',
