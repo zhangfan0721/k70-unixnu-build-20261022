@@ -1815,12 +1815,13 @@ bool NativeUfs::start (IOService *provider)
       }
     }
     {
-      uint64_t mmfr0 = 0;
+      uint64_t mmfr0 = 0, mpidr = 0;
       __asm__ volatile ("isb; mrs %0, id_aa64mmfr0_el1" : "=r" (mmfr0));
-      k70_bd_note (8, (int) layout->manifestStatus, layout->userdataFirst, layout->userdataLast);
-      k70_bd_note (11, (int) layout->windows, (uint64_t) seen[0], (uint64_t) seen[1]);
-      k70_bd_note (10, (int) (mmfr0 & 0xffffffffu), layout->window[0].size, layout->window[1].size);
-      k70_bd_note (9, (int) ((mmfr0 >> 20) & 0xf), layout->window[0].offset, layout->window[1].offset);
+      __asm__ volatile ("isb; mrs %0, mpidr_el1" : "=r" (mpidr));
+      k70_bd_note (8, (int) layout->manifestStatus, (((uint64_t) layout->windows) << 8) | (((uint64_t) seen[0]) << 1) | ((uint64_t) seen[1]), mpidr);
+      k70_bd_note (9, (int) ((mmfr0 >> 20) & 0xf), mmfr0, layout->imageBytes);
+      k70_bd_note (10, (int) (layout->userdataFirst >> 32), layout->userdataFirst, layout->userdataLast);
+      k70_bd_note (11, 0, layout->window[0].offset, layout->window[1].offset);
     }
     panic ("NATIVE_UFS probe 11 done");
   }
