@@ -71,6 +71,22 @@ jobs:
           p.write_text(t.replace(old, 'static const char wanted[] = "unixnu";', 1))
           print('patched wanted -> unixnu')
           PY
+      - name: Cold-check the pinned legacy IIG release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IIG_ARCHIVE_SHA256: 9233305fd34b6ee7a6da2b3c35dac9e125ef0c7b2d32da54f63b4218d9f166d6
+          IIG_RELEASE_TAG: legacy-iig-driverkit-286
+        run: |
+          set -euo pipefail
+          gh release download "$IIG_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern legacy-iig.tgz --output cold-iig.tgz --clobber
+          echo "$IIG_ARCHIVE_SHA256  cold-iig.tgz" | shasum -a 256 -c -
+          mkdir -p cold-iig
+          tar -xzf cold-iig.tgz -C cold-iig
+          echo '3cff6bb296003f758b658fe15b9462a06f3d483a7a6f24fdd3c66c8e6a30295c  cold-iig/legacy-iig/bin/iig' | shasum -a 256 -c -
+          echo '2b8c5a9b4721651d4461d66bda2bd62672e7ee14d92217786a76a0db86403015  cold-iig/legacy-iig/lib/libclang.dylib' | shasum -a 256 -c -
+          chmod +x cold-iig/legacy-iig/bin/iig
+          test "$(cold-iig/legacy-iig/bin/iig --version)" = DriverKit-286
+          rm -rf cold-iig cold-iig.tgz
       - uses: actions/cache@v4
         with:
           path: legacy-iig
