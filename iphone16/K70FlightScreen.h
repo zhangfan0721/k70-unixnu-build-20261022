@@ -187,11 +187,15 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
    {
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
     extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
-     if(row==26){int s;unsigned long long a,d;k70_bd_get(4,&s,&a,&d);
-      kf_text(&l,"RS ");kf_ch(&l,(char)(48+s));kf_text(&l," A");kf_hex8(&l,a);kf_text(&l," D");kf_hex8(&l,d);}
+     if(row==26){int v,m;unsigned long long f,l2;k70_bd_get(8,&v,&f,&l2);
+      k70_bd_get(9,&m,&f,&l2);
+      kf_text(&l,"NU V");kf_hex8(&l,(uint64_t)(uint32_t)v);kf_text(&l," M");kf_hex8(&l,(uint64_t)(uint32_t)m);
+      kf_text(&l," " );kf_hex8(&l,f);kf_text(&l," " );kf_hex8(&l,l2);}
 
-     else if(row==27){int k,w;unsigned long long a,d,wa,wd;k70_bd_get(5,&k,&a,&d);k70_bd_get(7,&w,&wa,&wd);
-      kf_text(&l,"RF K");kf_hex8(&l,(uint64_t)(uint32_t)k);kf_text(&l," W");kf_hex8(&l,(uint64_t)(uint32_t)w);kf_text(&l," D");kf_hex8(&l,d);}
+     else if(row==27){int r0,r1;unsigned long long o0,o1;k70_bd_get(10,&r0,&o0,&o1);
+      k70_bd_get(11,&r1,&o0,&o1);
+      kf_text(&l,"NU r");kf_hex8(&l,(uint64_t)(uint32_t)r0);kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)r1);
+      kf_text(&l," " );kf_hex(&l,o0);kf_text(&l," " );kf_hex(&l,o1);}
 
      else if(row==28){int state;unsigned long long window,head;
       k70_bd_get(3,&state,&window,&head);

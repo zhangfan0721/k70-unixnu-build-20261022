@@ -1742,14 +1742,7 @@ static void mediaReportThread (void *, wait_result_t)
 
 #endif  // K70 probe-only: block-device methods
 
-// Weak so a probe-only archive still links when the diagnostic adapter is absent.
-extern "C" void k70_formal_cpu_trace (const char *, unsigned long long) __attribute__ ((weak));
-static void nativeUfsTrace (const char *label, unsigned long long value)
-{
-  if (k70_formal_cpu_trace) {
-    k70_formal_cpu_trace (label, value);
-  }
-}
+extern "C" void k70_bd_note (int, int, unsigned long long, unsigned long long);
 
 bool NativeUfs::start (IOService *provider)
 {
@@ -1822,17 +1815,12 @@ bool NativeUfs::start (IOService *provider)
       }
     }
     {
-      nativeUfsTrace ("NU first", layout->userdataFirst);
-      nativeUfsTrace ("NU last", layout->userdataLast);
-      nativeUfsTrace ("NU manifest/win", ((uint64_t) layout->manifestStatus << 32) | layout->windows);
-      nativeUfsTrace (layout->window[0].name, layout->window[0].offset);
-      nativeUfsTrace ("NU w0 size", layout->window[0].size);
-      nativeUfsTrace ("NU w0 read", seen[0]);
-      nativeUfsTrace (layout->window[1].name, layout->window[1].offset);
-      nativeUfsTrace ("NU w1 size", layout->window[1].size);
-      nativeUfsTrace ("NU w1 read", seen[1]);
-      nativeUfsTrace ("NU w0 sha0", be32w (layout->window[0].sha256));
-      nativeUfsTrace ("NU w1 sha0", be32w (layout->window[1].sha256));
+      uint64_t mmfr0 = 0;
+      __asm__ volatile ("isb; mrs %0, id_aa64mmfr0_el1" : "=r" (mmfr0));
+      k70_bd_note (8, (int) layout->manifestStatus, layout->userdataFirst, layout->userdataLast);
+      k70_bd_note (11, (int) layout->windows, (uint64_t) seen[0], (uint64_t) seen[1]);
+      k70_bd_note (10, (int) (mmfr0 & 0xffffffffu), layout->window[0].size, layout->window[1].size);
+      k70_bd_note (9, (int) ((mmfr0 >> 20) & 0xf), layout->window[0].offset, layout->window[1].offset);
     }
     panic ("NATIVE_UFS probe 11 done");
   }
