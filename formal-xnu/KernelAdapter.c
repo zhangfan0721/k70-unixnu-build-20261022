@@ -367,8 +367,19 @@ void k70_formal_early(void *opaque)
     boot_progress_stage("PE_init_platform(FALSE) returned; native XNU C");
 }
 
+extern void k70_bd_note(int, int, unsigned long long, unsigned long long);
+volatile uint64_t k70_mmfr0_boot, k70_mpidr_boot, k70_curel_boot, k70_mmfr0_boot_valid;
 void k70_formal_after_vm(void)
 {
+    { /* Boot-CPU sample before any framebuffer work: independent of the IOKit probe. */
+      uint64_t m0 = 0, mp = 0, el = 0;
+      __asm__ volatile ("isb; mrs %0, id_aa64mmfr0_el1" : "=r" (m0));
+      __asm__ volatile ("isb; mrs %0, mpidr_el1" : "=r" (mp));
+      __asm__ volatile ("isb; mrs %0, CurrentEL" : "=r" (el));
+      k70_mmfr0_boot = m0; k70_mpidr_boot = mp; k70_curel_boot = el;
+      k70_mmfr0_boot_valid = 1;
+      k70_bd_note (12, (int) ((m0 >> 20) & 0xf), m0, mp);
+    }
     k70_formal_milestones |= 2; /* arm_vm_init returned, even if binding fails. */
     if (k70_fb_pa != UINT64_C(0xb8000000) || k70_fb_width != 1440 ||
         k70_fb_height != 3200 || k70_fb_stride != 5760 || k70_fb_depth != 32) {
