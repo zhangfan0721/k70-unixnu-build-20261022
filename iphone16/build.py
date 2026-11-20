@@ -65,8 +65,8 @@ def verify_kernel(path):
                  '_k70_flight_enter', '_k70_flight_leave', '_k70_flight_bind',
                  '_k70_formal_bootstrap', '_k70_formal_early_exception', '_vfs_getvfs_with_vfsops',
                  '_kalloc_sparse_prelink_index_version'):
-    if name.encode() + b'\0' not in data:
-        raise ValueError('Missing real integration symbol: ' + name)
+        if name.encode() + b'\0' not in data:
+            raise ValueError('Missing real integration symbol: ' + name)
     native = 'CONFIG_XNU_NATIVE_UFS=y' in (HERE / 'device/configs/vermeer16_defconfig').read_text()
     if native:
         required_native = ('__ZN9NativeUfs5startEP9IOService', '_native_ufs_probe_calls')
