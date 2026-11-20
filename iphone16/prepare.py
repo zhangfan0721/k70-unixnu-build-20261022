@@ -565,6 +565,9 @@ def integration_patch(core, source, font, staging):
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
                   'osfmk/kern/task.c', 'osfmk/vm/vm_pageout.c', 'osfmk/vm/vm_fault.c', 'osfmk/vm/vm_resident.c', 'osfmk/arm/pmap/pmap.c',
                   'osfmk/arm/pmap/pmap_data.c'))
+    for tree_dir in ('osfmk', 'bsd', 'iokit', 'pexpert', 'libkern', 'config', 'makedefs', 'security'):
+        if (source / tree_dir).is_dir():
+            shutil.copytree(source / tree_dir, staging / tree_dir, dirs_exist_ok=True)
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
