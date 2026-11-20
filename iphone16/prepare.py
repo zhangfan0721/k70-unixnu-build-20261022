@@ -521,7 +521,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     if native_profile:
         table = root / 'iokit/KernelConfigTables.cpp'
         text = table.read_text()
-        tail = '    ")' + chr(59) + chr(10)
+        tail = '    ' + chr(34) + ')' + chr(34) + ';'
         assert text.count(tail) == 1
         entry = (
             '#if defined(XNU_NATIVE_UFS) && XNU_NATIVE_UFS' + chr(10) +
@@ -563,11 +563,9 @@ def integration_patch(core, source, font, staging):
                   'bsd/dev/arm/systemcalls.c', 'osfmk/arm64/bsd_arm64.c',
                   'iokit/Kernel/IOCPU.cpp', 'osfmk/kern/debug.c', 'bsd/vfs/vfs_subr.c', 'bsd/vfs/kpi_vfs.c',
                   'osfmk/arm64/pcb.c', 'osfmk/kern/sched_prim.c', 'osfmk/kern/processor.c',
-                  'osfmk/kern/task.c', 'osfmk/vm/vm_pageout.c', 'osfmk/vm/vm_fault.c', 'osfmk/vm/vm_resident.c', 'osfmk/arm/pmap/pmap.c',
+                  'osfmk/kern/task.c', 'osfmk/vm/vm_pageout.c', 'osfmk/vm/vm_fault.c',
+                  'bsd/kern/ubc_subr.c', 'osfmk/arm/machine_routines_common.c', 'osfmk/vm/vm_resident.c', 'osfmk/arm/pmap/pmap.c',
                   'osfmk/arm/pmap/pmap_data.c'))
-    for tree_dir in ('osfmk', 'bsd', 'iokit', 'pexpert', 'libkern', 'config', 'makedefs', 'security'):
-        if (source / tree_dir).is_dir():
-            shutil.copytree(source / tree_dir, staging / tree_dir, dirs_exist_ok=True)
     originals = {}
     for name in sorted(names):
         data = (source / name).read_text()
