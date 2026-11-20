@@ -1,0 +1,36 @@
+name: os-raw
+on:
+  workflow_dispatch:
+jobs:
+  convert:
+    runs-on: macos-15
+    steps:
+      - name: disk before
+        run: df -h /
+      - name: fetch IPSW and extract the OS dmg
+        run: |
+          set -euo pipefail
+          curl -L --retry 3 -o ipsw.zip 'https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw'
+          unzip -o ipsw.zip '087-86698-044.dmg' '087-86593-047.dmg' 'BuildManifest.plist'
+          rm -f ipsw.zip
+          ls -la *.dmg
+          df -h /
+      - name: convert to raw
+        run: |
+          set -euo pipefail
+          dev=$(hdiutil attach -nomount -readonly -noverify -noautofsck 087-86698-044.dmg | awk '/^\/dev\/disk[0-9]+ /{print $1; exit}')
+          test -n "$dev"
+          raw=${dev/\/dev\/disk//dev/rdisk}
+          size=$(hdiutil imageinfo -plist 087-86698-044.dmg > i.plist; python3 -c 'import plistlib;print(plistlib.load(open("i.plist","rb"))["Size Information"]["Total Bytes"])')
+          echo raw=$raw size=$size
+          dd if="$raw" of=os.raw bs=1m count=$((size/1048576)) 2>&1 | tail -2
+          hdiutil detach "$dev" || true
+          ls -la os.raw
+          shasum -a 256 os.raw
+          df -h /
+      - uses: actions/upload-artifact@v4
+        with:
+          name: os-raw
+          path: os.raw
+          compression-level: 0
+          if-no-files-found: error
