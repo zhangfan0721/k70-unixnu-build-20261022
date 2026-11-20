@@ -256,6 +256,7 @@ static IOReturn hostRead4k (uint8_t lun, uint64_t lba, uint32_t blocks, void *ds
   return status;
 }
 
+#if !K70_NATIVE_UFS_PROBE_ONLY
 // ---- Persistent store and log windows ------------------------------------------------------------------------------
 // The only place this driver writes. At most two windows of 4096-byte LBAs on LUN 0 (the Data store and the diagnostic log),
 // each opened once by its integration after it has proved that the window lies inside the userdata partition and clear of the
@@ -318,3 +319,5 @@ static IOReturn hostSyncCache (void)
   return status;
 }
 
+
+#endif  // K70 probe-only: store/log commands

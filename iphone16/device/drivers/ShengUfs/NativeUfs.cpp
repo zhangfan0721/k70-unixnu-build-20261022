@@ -3,7 +3,12 @@
 // native-ufs-probe=1 is present. This is a register probe, not a storage driver.
 #include <IOKit/IOService.h>
 #include <IOKit/IOPlatformExpert.h>
+#ifndef K70_NATIVE_UFS_PROBE_ONLY
+#define K70_NATIVE_UFS_PROBE_ONLY 0
+#endif
+#if !K70_NATIVE_UFS_PROBE_ONLY
 #include <IOKit/storage/IOBlockStorageDevice.h>
+#endif  // K70 probe-only include
 #include <libkern/crypto/sha2.h>
 #include <vm/vm_kern.h>
 #include <vm/vm_map.h>
@@ -1249,6 +1254,8 @@ public:
   IOReturn doAsyncReadWrite (IOMemoryDescriptor *, UInt64, UInt64, IOStorageAttributes *, IOStorageCompletion *) override;
 };
 OSDefineMetaClassAndStructors (NativeUfsBlock, IOBlockStorageDevice)
+#endif  // K70 probe-only: class declaration
+
 
 extern "C" {
 volatile uint32_t native_ufs_blocks_published = 0;
@@ -1284,6 +1291,7 @@ static void rootDiagnosticFailure (const char *reason)
   panic ("%s", gRootDiagnosticText);
 }
 
+#if 0  // K70 probe-only: block-device methods and publication
 bool NativeUfsBlock::configure (const char *name, uint64_t absoluteOffset, uint64_t size)
 {
   if (!name || !ufsWindowGeometry (absoluteOffset, size)) {
@@ -1729,6 +1737,8 @@ static void mediaReportThread (void *, wait_result_t)
   panic ("%s", gMediaReport);
 }
 
+#endif  // K70 probe-only: block-device methods
+
 bool NativeUfs::start (IOService *provider)
 {
   unsigned probe = 0, rootMode = 0;
@@ -1737,6 +1747,9 @@ bool NativeUfs::start (IOService *provider)
   native_ufs_probe_requested = probe != 0;
   // Default: match for observability only, never touch the controller. Hardware work runs once,
   // from the root-device personality; the ufshc nub match stays observation-only.
+#if K70_NATIVE_UFS_PROBE_ONLY
+  if (probe != 11 || rootMode != 0) return false;
+#endif
   if ((!probe && !rootMode) || !OSDynamicCast (IOPlatformExpertDevice, provider)) {
     return false;
   }
@@ -1808,6 +1821,7 @@ bool NativeUfs::start (IOService *provider)
            be32w (layout->window[0].sha256), be32w (layout->window[0].sha256 + 4), be32w (layout->window[0].sha256 + 8), be32w (layout->window[0].sha256 + 12),
            be32w (layout->window[1].sha256), be32w (layout->window[1].sha256 + 4), be32w (layout->window[1].sha256 + 8), be32w (layout->window[1].sha256 + 12));
   }
+#if 0  // K70 probe-only: probe 14 needs the publication VM counters
   if (probe == 14) {
     // Immediate memory snapshot at root-device start, before the userspace that triggers jetsam.
     panic ("NATIVE_UFS early memory snapshot\n"
@@ -1817,6 +1831,8 @@ bool NativeUfs::start (IOService *provider)
            vm_page_wire_count, vm_page_speculative_count, vm_page_purgeable_count,
            memorystatus_available_pages, max_mem, nprocs);
   }
+#endif
+
   #if 0  // probe-only build
 if (probe == 13) {
     unsigned delay = 12;
@@ -1859,6 +1875,7 @@ if (probe == 12) {
 }
 
 // Boot the root image's windows as block devices. Soft-fails (logs, publishes nothing).
+#if 0  // K70 probe-only: root publication
 bool NativeUfs::startRoot (IOService *provider)
 {
   const char *why = "";
@@ -1968,7 +1985,8 @@ bool NativeUfs::startRoot (IOService *provider)
   }
   return true;
 }
-#endif  // probe-only: NativeUfsBlock + startRoot
+#endif  // K70 probe-only: startRoot
+
 
 
 void NativeUfs::stop (IOService *provider)
@@ -1977,3 +1995,4 @@ void NativeUfs::stop (IOService *provider)
   fMap.reset ();
   IOService::stop (provider);
 }
+

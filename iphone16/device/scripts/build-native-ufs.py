@@ -66,7 +66,8 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
     args[args.index(rec["file"])] = str(src)
     args[out_idx] = str(obj)
     cmd = [clangxx, "-I", str(inc), *args[1:],
-           "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only"]
+           "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only",
+           "-DK70_NATIVE_UFS_PROBE_ONLY=1"]
     (out / "compile-command.json").write_text(json.dumps(cmd, indent=2) + "\n")
     with (out / "compile.log").open("w") as log:
         result = sp.run(cmd, cwd=cwd, stdout=log, stderr=sp.STDOUT)
