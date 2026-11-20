@@ -1203,6 +1203,7 @@ extern "C" unsigned native_ufs_store_gpt_check (void)
 // One read-only window of the root image as a block device: 512-byte sectors on top of 4096-byte
 // UFS blocks, so the unchanged dmg disk images (GPT with 512-byte sectors) parse as they do on
 // the virtio path.
+#if 0  // probe-only build: block-device publication needs IOStorageFamily
 class NativeUfsBlock : public IOBlockStorageDevice {
   OSDeclareDefaultStructors (NativeUfsBlock)
   uint64_t absolute = 0;      // byte offset of the window on LUN 0
@@ -1816,7 +1817,8 @@ bool NativeUfs::start (IOService *provider)
            vm_page_wire_count, vm_page_speculative_count, vm_page_purgeable_count,
            memorystatus_available_pages, max_mem, nprocs);
   }
-  if (probe == 13) {
+  #if 0  // probe-only build
+if (probe == 13) {
     unsigned delay = 12;
     PE_parse_boot_argn ("native-ufs-stats-delay", &delay, sizeof (delay));
     if (!startRoot (provider)) {
@@ -1829,7 +1831,10 @@ bool NativeUfs::start (IOService *provider)
     thread_deallocate (thread);
     return true;
   }
-  if (probe == 12) {
+#endif
+
+  #if 0  // probe-only build
+if (probe == 12) {
     bool published = startRoot (provider);
     if (!published) {
       panic ("NATIVE_UFS media report: root start failed (blocks=%u)", native_ufs_blocks_published);
@@ -1841,8 +1846,14 @@ bool NativeUfs::start (IOService *provider)
     thread_deallocate (thread);
     return true;
   }
+#endif
+
   if (rootMode && !probe) {
+#if 0  // probe-only build
     return startRoot (provider);
+#else
+    panic ("NATIVE_UFS probe-only build: root publish disabled");
+#endif
   }
   return false;
 }
@@ -1957,6 +1968,8 @@ bool NativeUfs::startRoot (IOService *provider)
   }
   return true;
 }
+#endif  // probe-only: NativeUfsBlock + startRoot
+
 
 void NativeUfs::stop (IOService *provider)
 {
