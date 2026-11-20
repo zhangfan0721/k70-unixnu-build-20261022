@@ -11,6 +11,7 @@ archives = [
   "build-corecrypto-14.py --namespace",
   "build-arm-driver.py ArmDTPlatform",
   "build-arm-driver.py ArmCpu",
+  "build-native-ufs.py drivers/ShengUfs/NativeUfs.cpp build/storage-abi/include",
 ]
 
 # No storage, userdata, firmware, prelink or automatic phone operations.
