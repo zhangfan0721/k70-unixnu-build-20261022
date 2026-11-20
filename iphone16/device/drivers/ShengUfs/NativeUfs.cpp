@@ -1812,17 +1812,21 @@ bool NativeUfs::start (IOService *provider)
         sig[index][1] = le32 (gScratch + 516);
       }
     }
-    panic ("NATIVE_UFS root windows\n"
-           "userdata first=%llx last=%llx manifest status=%u windows=%u\n"
-           "w0 %s off=%llx size=%llx gpt=%08x %08x read=%u\n"
-           "w1 %s off=%llx size=%llx gpt=%08x %08x read=%u\n"
-           "w0 sha %08x %08x %08x %08x\n"
-           "w1 sha %08x %08x %08x %08x",
-           layout->userdataFirst, layout->userdataLast, layout->manifestStatus, layout->windows,
-           layout->window[0].name, layout->window[0].offset, layout->window[0].size, sig[0][0], sig[0][1], seen[0],
-           layout->window[1].name, layout->window[1].offset, layout->window[1].size, sig[1][0], sig[1][1], seen[1],
-           be32w (layout->window[0].sha256), be32w (layout->window[0].sha256 + 4), be32w (layout->window[0].sha256 + 8), be32w (layout->window[0].sha256 + 12),
-           be32w (layout->window[1].sha256), be32w (layout->window[1].sha256 + 4), be32w (layout->window[1].sha256 + 8), be32w (layout->window[1].sha256 + 12));
+    {
+      extern void k70_formal_cpu_trace(const char *, unsigned long long);
+      k70_formal_cpu_trace ("NU first", layout->userdataFirst);
+      k70_formal_cpu_trace ("NU last", layout->userdataLast);
+      k70_formal_cpu_trace ("NU manifest/win", ((uint64_t) layout->manifestStatus << 32) | layout->windows);
+      k70_formal_cpu_trace (layout->window[0].name, layout->window[0].offset);
+      k70_formal_cpu_trace ("NU w0 size", layout->window[0].size);
+      k70_formal_cpu_trace ("NU w0 read", seen[0]);
+      k70_formal_cpu_trace (layout->window[1].name, layout->window[1].offset);
+      k70_formal_cpu_trace ("NU w1 size", layout->window[1].size);
+      k70_formal_cpu_trace ("NU w1 read", seen[1]);
+      k70_formal_cpu_trace ("NU w0 sha0", be32w (layout->window[0].sha256));
+      k70_formal_cpu_trace ("NU w1 sha0", be32w (layout->window[1].sha256));
+    }
+    panic ("NATIVE_UFS probe 11 done");
   }
 #if 0  // K70 probe-only: probe 14 needs the publication VM counters
   if (probe == 14) {
