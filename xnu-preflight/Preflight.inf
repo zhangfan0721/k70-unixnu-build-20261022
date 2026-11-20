@@ -1,0 +1,27 @@
+[Defines]
+  INF_VERSION = 0x00010005
+  BASE_NAME = VermeerProbe
+  FILE_GUID = 4E746B99-462F-4C10-8A77-C3F83E5D4F72
+  MODULE_TYPE = UEFI_APPLICATION
+  VERSION_STRING = 1.0
+  ENTRY_POINT = K70PreflightEntry
+[Sources]
+  Preflight.c
+  MachoCore.c
+  MachoCore.h
+  ExpectedPayload.h
+[Packages]
+  MdePkg/MdePkg.dec
+  CryptoPkg/CryptoPkg.dec
+  SiliciumPkg/SiliciumPkg.dec
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  BaseCryptLib
+  DebugLib
+  FdtLib
+  HobLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+[Guids]
+  gSiliciumEntryArgHobGuid

@@ -1,0 +1,203 @@
+name: K70 Darwin22 integration gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [codex/k70-formal-xnu]
+    paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
+  push:
+    branches: [codex/k70-formal-xnu]
+    paths: [iphone16/**, .github/workflows/k70-iphone16.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k70-iphone16-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+
+jobs:
+  kernel:
+    runs-on: macos-15-intel
+    timeout-minutes: 150
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: integration, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with:
+          repository: mansar1337/UniXNU-vermeer
+          ref: d4dbb3683023a17bb468b9774f52c87f3060e739
+          path: device
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+          path: upstream
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          persist-credentials: false
+          sparse-checkout: Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/ShengUfs
+          ref: af785c1777161a62931425c2faaa536ce0bebd5b
+          path: ufs-source
+          persist-credentials: false
+      - name: Point ShengUfs at the unixnu root partition
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ufs-source/RootLayout.h')
+          t = p.read_text()
+          old = 'static const char wanted[] = "userdata";'
+          assert old in t, 'wanted line not found'
+          p.write_text(t.replace(old, 'static const char wanted[] = "unixnu";', 1))
+          print('patched wanted -> unixnu')
+          PY
+      - name: Cold-check the pinned legacy IIG release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IIG_ARCHIVE_SHA256: 9233305fd34b6ee7a6da2b3c35dac9e125ef0c7b2d32da54f63b4218d9f166d6
+          IIG_RELEASE_TAG: legacy-iig-driverkit-286
+        run: |
+          set -euo pipefail
+          gh release download "$IIG_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern legacy-iig.tgz --output cold-iig.tgz --clobber
+          echo "$IIG_ARCHIVE_SHA256  cold-iig.tgz" | shasum -a 256 -c -
+          mkdir -p cold-iig
+          tar -xzf cold-iig.tgz -C cold-iig
+          echo '3cff6bb296003f758b658fe15b9462a06f3d483a7a6f24fdd3c66c8e6a30295c  cold-iig/legacy-iig/bin/iig' | shasum -a 256 -c -
+          echo '2b8c5a9b4721651d4461d66bda2bd62672e7ee14d92217786a76a0db86403015  cold-iig/legacy-iig/lib/libclang.dylib' | shasum -a 256 -c -
+          chmod +x cold-iig/legacy-iig/bin/iig
+          test "$(cold-iig/legacy-iig/bin/iig --version)" = DriverKit-286
+          rm -rf cold-iig cold-iig.tgz
+      - uses: actions/cache@v4
+        with:
+          path: legacy-iig
+          key: k70-iig-15F31d-de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331
+      - name: Restore the fixed legacy IIG tool only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IIG_ARCHIVE_SHA256: 9233305fd34b6ee7a6da2b3c35dac9e125ef0c7b2d32da54f63b4218d9f166d6
+          IIG_RELEASE_TAG: legacy-iig-driverkit-286
+        run: |
+          set -euo pipefail
+          if [[ ! -f legacy-iig/bin/iig || ! -f legacy-iig/lib/libclang.dylib ]]; then
+            if gh release download "$IIG_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern legacy-iig.tgz --output legacy-iig.tgz --clobber; then
+              echo "$IIG_ARCHIVE_SHA256  legacy-iig.tgz" | shasum -a 256 -c -
+            else
+              curl --fail --location --connect-timeout 30 --max-time 180 'https://artificial-blacks-chairs-gourmet.trycloudflare.com/cedb5d17bad247f89030d97a4babf50b.tgz' -o legacy-iig.tgz
+              echo 'de0df923ccfb22252a5698771fb015cdba936731d0b64e9dfff3d0182f2a1331  legacy-iig.tgz' | shasum -a 256 -c -
+            fi
+            mkdir -p legacy-iig
+            tar -xzf legacy-iig.tgz -C legacy-iig
+          fi
+          echo '3cff6bb296003f758b658fe15b9462a06f3d483a7a6f24fdd3c66c8e6a30295c  legacy-iig/bin/iig' | shasum -a 256 -c -
+          echo '2b8c5a9b4721651d4461d66bda2bd62672e7ee14d92217786a76a0db86403015  legacy-iig/lib/libclang.dylib' | shasum -a 256 -c -
+          chmod +x legacy-iig/bin/iig
+          test "$(legacy-iig/bin/iig --version)" = DriverKit-286
+          echo "IIG=$PWD/legacy-iig/bin/iig" >> "$GITHUB_ENV"
+      - name: Preserve the legacy IIG tool as an artifact
+        run: |
+          tar -czf legacy-iig.tgz legacy-iig
+          ls -la legacy-iig.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: legacy-iig-tarball
+          path: legacy-iig.tgz
+          if-no-files-found: error
+      - name: Check the bounded target and record identities
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          python integration/iphone16/build.py --core upstream --source-device device --font uefi/Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h --check
+          git -C upstream submodule status --recursive > evidence/submodules.txt
+          if grep -E '^[+U-]' evidence/submodules.txt; then exit 1; fi
+          git -C integration rev-parse HEAD > evidence/integration-commit.txt
+      - name: Install source build tools
+        run: |
+          set -euo pipefail
+          brew install cmake ninja unifdef llvm
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
+          { sw_vers; xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version; "$IIG" --version; clang --version; python --version; } > evidence/toolchain.txt
+      - name: Fetch pinned Apple header listings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cache=out16/vermeer16/tree/.cache/sources
+          mkdir -p "$cache"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-8796.141.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit/crypto?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-crypto-8796.141.3.json"
+          gh api 'repos/apple-oss-distributions/xnu/contents/EXTERNAL_HEADERS/TrustCache?ref=xnu-8796.141.3' > "$cache/xnu-trustcache-8796.141.3.json"
+      - name: Qualify the legacy generator and original IORPC ABI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/zhangfan0721/k70-unixnu-build-20261022/actions/artifacts/13156239778/zip > reference.zip
+          echo '249022aae159f6267895cd35936b4d116d529cc46caef1506420c1986aad6250  reference.zip' | shasum -a 256 -c -
+          mkdir -p out-probe/vermeer16/tree/.cache/sources
+          cp out16/vermeer16/tree/.cache/sources/*.json out-probe/vermeer16/tree/.cache/sources/
+          python -u integration/compat-probe/iig.py
+      - name: Exercise the bounded UFS command and route policy
+        run: |
+          set -euo pipefail
+          python -B integration/iphone16/ufs/preflight.py --upstream ufs-source --out evidence/ufs-preflight-path --cxx "$(command -v clang++)"
+          python -B integration/iphone16/ufs/preflight.py --upstream ufs-source --out evidence/ufs-preflight-apple --cxx "$(xcrun --sdk macosx --find clang++)"
+      - name: Build matching Darwin22 with K70 CPU GIC and diagnostics
+        run: |
+          set -euo pipefail
+          python -u integration/iphone16/build.py --core upstream --source-device device --font uefi/Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h --out out16 --jobs 4 2>&1 | tee evidence/kernel-console.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k70-iphone16-kernel-${{ github.run_id }}
+          path: out16/vermeer16/kernel/
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k70-iphone16-evidence-${{ github.run_id }}
+          path: |
+            evidence/
+            iig-evidence/
+            out16/vermeer16/logs/
+            out16/vermeer16/.config
+            out16/vermeer16/actual-target-flags.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/startup.o.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/osfmk/DEVELOPMENT/prng_random.o.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOPlatformExpert.cpo.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOKitBSDInit.cpo.json
+            out16/vermeer16/tree/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/iokit/DEVELOPMENT/IOService*.json
+            out16/vermeer16/tree/.cache/iphone16-patch-report.json
+            out16/vermeer16/tree/.cache/iphone16-source-presence.json
+            out16/vermeer16/tree/.cache/iphone16-patches/
+            out16/vermeer16/tree/.cache/k70-armcpu/
+            out16/vermeer16/tree/build/armcpu/*.json
+            out16/vermeer16/tree/build/armcpu/*.log
+            out16/vermeer16/tree/build/armdt-platform/*.json
+            out16/vermeer16/tree/build/armdt-platform/*.log
+            out16/vermeer16/tree/build/libpthread-kernel/*.json
+            out16/vermeer16/tree/build/libpthread-kernel/*.log
+            out16/vermeer16/tree/build/corecrypto-2023/*.json
+            out16/vermeer16/tree/build/corecrypto-2023/*.log
+          include-hidden-files: true
+          retention-days: 30

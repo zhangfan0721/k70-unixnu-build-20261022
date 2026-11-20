@@ -1,0 +1,26 @@
+--- a/libkern/c++/OSKext.cpp
++++ b/libkern/c++/OSKext.cpp
+@@ -33,6 +33,7 @@
+ #include <kern/clock.h>
+ #include <kern/host.h>
+ #include <kern/kext_alloc.h>
++#include <kern/boot_progress.h>
+ #include <firehose/tracepoint_private.h>
+ #include <firehose/chunk_private.h>
+ #include <os/firehose_buffer_private.h>
+@@ -8281,9 +8282,14 @@
+ 
+ 	// Drop a log message so logd can grab the needed information to decode this kext
+ 	OSKextLogKextInfo(this, kmod_info->address, kmod_info->size, firehose_tracepoint_code_load);
++	boot_progress_stage("OSKext constructors enter");
++	boot_progress_stage(getIdentifierCString());
+ 	result = OSRuntimeInitializeCPP(this);
++	boot_progress_stage(result == KERN_SUCCESS ? "OSKext constructors OK" : "OSKext constructors FAILED");
+ 	if (result == KERN_SUCCESS) {
++		boot_progress_stage("OSKext start enter");
+ 		result = startfunc(kmod_info, kmodStartData);
++		boot_progress_stage(result == KERN_SUCCESS ? "OSKext start OK" : "OSKext start FAILED");
+ 	}
+ 
+ 	flags.starting = 0;
+

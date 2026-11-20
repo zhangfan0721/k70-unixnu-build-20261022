@@ -1,0 +1,115 @@
+name: K70 read-only SMMU handoff evidence firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/k70-formal-xnu]
+    paths: [iphone16/uefi/**, .github/workflows/k70-smmu-evidence.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k70-smmu-firmware-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  CORE_REF: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+  DEVICE_REF: d4dbb3683023a17bb468b9774f52c87f3060e739
+  UEFI_REF: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+  BOARD_REF: 4d1572a93d15f5596309c0687fdc85d20ebf2e24
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CLANGPDB_AARCH64_PREFIX: aarch64-linux-gnu-
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: integration, persist-credentials: false}
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/uefi-vermeer
+          ref: da38b23cc7b3b3716cf7c72c42866bd73c978dd3
+          path: uefi
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: b6ae99c17194e6a18fd819d3148e69fe405e91fc
+          path: upstream
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yyx2025/UniXNU-vermeer
+          ref: 4d1572a93d15f5596309c0687fdc85d20ebf2e24
+          path: board
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install firmware tools
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang llvm lld nasm uuid-dev mono-devel gcc-aarch64-linux-gnu device-tree-compiler mtools
+          python -m pip install -r uefi/pip-requirements.txt
+          python -m pip freeze > evidence/python-packages.txt
+      - name: Run related checks and assemble the formal firmware package
+        env:
+          K70_UEFI_SOURCE: ${{ github.workspace }}/uefi
+          K70_CORE_SOURCE: ${{ github.workspace }}/upstream
+          K70_DTB: ${{ github.workspace }}/board/scripts/data/vermeer.dtb
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          test "$(git -C uefi rev-parse HEAD)" = "$UEFI_REF"
+          test "$(git -C upstream rev-parse HEAD)" = "$CORE_REF"
+          test "$(git -C board rev-parse HEAD)" = "$BOARD_REF"
+          python -m unittest discover -s integration/iphone16/uefi -v 2>&1 | tee evidence/uefi-evidence-tests.log
+          python integration/formal-xnu/prepare.py --uefi uefi --dtb "$K70_DTB" --core upstream > evidence/formal-package.json
+          python integration/iphone16/uefi/uefi_smmu_evidence.py --root uefi --build-tag k70-map-evidence-v1 > evidence/uefi-smmu-evidence.json
+          git -C integration rev-parse HEAD > evidence/integration-commit.txt
+      - name: Apply the known display handoff and build the formal firmware
+        env:
+          UNIXNU_ROOT: ${{ github.workspace }}/upstream
+        run: |
+          set -euo pipefail
+          tree=uefi/Resources/DTBs/vermeerFormal.dtb
+          fdtput -c "$tree" /reserved-memory/splash_region
+          fdtput -t s "$tree" /reserved-memory/splash_region label cont_splash_region
+          fdtput -t x "$tree" /reserved-memory/splash_region reg 0 b8000000 0 2b00000
+          git -C uefi/Mu_Basecore apply --check "$GITHUB_WORKSPACE/uefi/Resources/MuPatches/Gic-Spurious.patch"
+          git -C uefi/Mu_Basecore apply "$GITHUB_WORKSPACE/uefi/Resources/MuPatches/Gic-Spurious.patch"
+          cd uefi
+          python build_uefi.py -d vermeerFormal -r DEBUG -m 0 2>&1 | tee ../evidence/firmware-build.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: k70-formal-firmware-${{ github.run_id }}
+          path: |
+            uefi/Build/vermeerFormalPkg/**/*.efi
+            uefi/Build/vermeerFormalPkg/**/*.map
+            uefi/Build/vermeerFormalPkg/**/FVMAIN.Fv
+            uefi/Build/vermeerFormalPkg/**/SILICIUM_UEFI.fd
+            uefi/Resources/DTBs/vermeerFormal.dtb
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k70-formal-firmware-evidence-${{ github.run_id }}
+          path: |
+            evidence/
+            uefi/Platforms/Xiaomi/vermeerFormalPkg/
+            uefi/Build/BUILDLOG*
+          retention-days: 30
+

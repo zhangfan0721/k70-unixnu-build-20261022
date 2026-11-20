@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: BSD-2-Clause-Patent
+// Compile the SAME command implementation as the kernel. Test-only callbacks
+// replace physical I/O and synchronization, not descriptor or response logic.
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <cassert>
+#include "RootDiagnostics.h"
+#include "K70Fsr.h"
+#include "TransferPoll.h"
+using IOReturn = uint32_t;
+constexpr IOReturn kIOReturnSuccess=0, kIOReturnError=0xe00002bc,
+  kIOReturnBadArgument=0xe00002c2, kIOReturnIOError=0xe00002ca,
+  kIOReturnBusy=0xe00002d5, kIOReturnTimeout=0xe00002d6, kIOReturnNotReady=0xe00002d8, kIOReturnNotPermitted=0xe00002e2;
+#include "RootTransportLayout.h"
+#include "K70Dma.h"
+constexpr unsigned kMicrosecondScale=1;
+constexpr unsigned kMillisecondScale=1000;
+static UfsRootDiagnostics gRootDiagnostic;
+struct Host { uint8_t *virt; uint64_t phys; bool ready, poisoned; uintptr_t hc; void *lock; };
+static Host gHost;
+static bool controlHealthy=true,transportOwned=true;
+static bool hostControlHealthy(){return controlHealthy;}
+static bool hostTransportOwned(){return transportOwned;}
+static bool hostContextHealthy(){return !k70FsrFaults(gRootDiagnostic.fsr);}
+alignas(4096) static uint8_t memory[kDmaBytes];
+using Callback = uint64_t (*)(unsigned operation, uint64_t address, uint64_t value, void *bytes);
+static Callback callback;
+// 0: MMIO read; 1: ordered MMIO write; 2: release DMA; 3: acquire DMA;
+// 4: monotonic microseconds; 5: delay microseconds. Callbacks must not throw.
+static uint32_t read32(uintptr_t, unsigned offset) { return uint32_t(callback(0,offset,0,nullptr)); }
+static void hostWrite(unsigned offset, uint32_t value) { callback(1,offset,value,nullptr); }
+static bool hostStateValue(unsigned,uint32_t expected,uint32_t actual,uint32_t mask=0xffffffffU) {
+  return (actual&mask)==expected;
+}
+static bool hostState(unsigned offset,uint32_t expected,uint32_t mask=0xffffffffU) {
+  return hostStateValue(offset,expected,read32(gHost.hc,offset),mask);
+}
+
+static void cacheCivac(const void *start, size_t length) {
+  callback(2,gHost.phys+uint64_t(static_cast<const uint8_t *>(start)-memory),length,const_cast<void *>(start));
+}
+static void cacheInvalidate(const void *start, size_t length) {
+  callback(3,gHost.phys+uint64_t(static_cast<const uint8_t *>(start)-memory),length,const_cast<void *>(start));
+}
+static void clock_interval_to_deadline(uint32_t interval, unsigned scale, uint64_t *deadline) {
+  *deadline=callback(4,0,0,nullptr)+uint64_t(interval)*scale;
+}
+static uint64_t mach_absolute_time() { return callback(4,0,0,nullptr); }
+static void boot_progress_stage(const char *) {}
+static void k70_formal_cpu_trace(const char *,uint64_t) {}
+#include "K70Wait.h"
+static void IOLockLock(void *) {}
+static void IOLockUnlock(void *) {}
+static IOReturn recordTransport(IOReturn result,uint32_t ocs) {
+  gRootDiagnostic.result=result; gRootDiagnostic.ocs=ocs; return result;
+}
+#include "ReadOnlyPolicy.h"
+static K70UfsPolicy::Wake gWake;
+#include "ReadOnlyCommands.inc"
+#include "RootQueue.h"
+enum class K70HostPhase { Inspect,Stopping,Configuring,Starting,Transport,Ending,Ended };
+static K70HostPhase gPhase;
+static bool gOwnStarted=false,gCleanupAttempted=false;
+static bool hcIdentity(bool) {
+  return controlHealthy && hostState(0x34,1,1) &&
+      hostState(0x50,uint32_t(gHost.phys)) && hostState(0x54,uint32_t(gHost.phys>>32));
+}
+#include "K70End.inc"
+extern "C" {
+void ufs_test_reset(Callback cb, uint64_t physical) {
+  callback=cb; memset(memory,0,sizeof(memory));
+  controlHealthy=transportOwned=true;gWake=K70UfsPolicy::Wake{};
+  gOwnStarted=gCleanupAttempted=false;gPhase=K70HostPhase::Inspect;
+  gHost={memory,physical,true,false,0,nullptr}; gRootDiagnostic=UfsRootDiagnostics{};
+}
+uint8_t *ufs_test_memory() { return memory; }
+bool ufs_test_poisoned() { return gHost.poisoned; }
+bool ufs_test_stop_queue() { const char *why=nullptr; return hostStopQueue(&why); }
+bool ufs_test_start_queue() { const char *why=nullptr; return hostStartQueue(&why); }
+bool ufs_test_end_queue() { const char *why=nullptr; return hostEnd(&why); }
+uint32_t ufs_test_query(uint8_t op,uint8_t idn,uint32_t *value) { return hostQueryRead(op,idn,value); }
+uint32_t ufs_test_scsi(uint8_t lun,const uint8_t *cdb,unsigned length,bool read,uint32_t bytes,uint32_t *scsi) {
+  return hostScsi(lun,cdb,length,read,bytes,200000,scsi);
+}
+uint32_t ufs_test_read(uint8_t lun,uint64_t lba,uint32_t blocks,void *out) { return hostRead4k(lun,lba,blocks,out); }
+uint32_t ufs_test_nop() {
+  return hostNop();
+}
+int ufs_test_report(char *out,size_t size) { return formatUfsRootDiagnostics(out,size,gRootDiagnostic,"host harness"); }
+}

@@ -1,0 +1,46 @@
+--- a/bsd/vfs/vfs_subr.c
++++ b/bsd/vfs/vfs_subr.c
+@@ -1951,6 +1951,17 @@
+ 	return mount_list_lookupby_fsid(fsid, 1, 0);
+ }
+ 
++struct mount *
++vfs_getvfs_with_vfsops(fsid_t *fsid, const struct vfsops * const ops)
++{
++	mount_t mp = mount_list_lookupby_fsid(fsid, 0, 0);
++
++	if (mp != NULL && mp->mnt_op != ops) {
++		mp = NULL;
++	}
++	return mp;
++}
++
+ struct mount *
+ vfs_getvfs_by_mntonname(char *path)
+ {
+--- a/bsd/sys/mount.h
++++ b/bsd/sys/mount.h
+@@ -1279,5 +1279,13 @@
+  *  @return Mountpoint if found, else NULL.  Note unmounting mountpoints can be returned.
+  */
+ mount_t vfs_getvfs(fsid_t *fsid);
+ 
++/*!
++ *  @function vfs_getvfs_with_vfsops
++ *  @abstract Given a filesystem ID, look up a mount structure, verify the vfsops
++ *  @param fsid Filesystem ID to look up.
++ *  @return Mountpoint if found and the vfsops matches the expected value, else NULL.  Note unmounting mountpoints can be returned.
++ */
++mount_t vfs_getvfs_with_vfsops(fsid_t *fsid, const struct vfsops *ops);
++
+ /*!
+--- a/config/BSDKernel.exports
++++ b/config/BSDKernel.exports
+@@ -673,6 +673,7 @@
+ _vfs_get_notify_attributes
+ _vfs_getnewfsid
+ _vfs_getvfs
++_vfs_getvfs_with_vfsops
+ _vfs_init_io_attributes
+ _vfs_ioattr
+ _vfs_isforce

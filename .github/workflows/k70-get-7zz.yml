@@ -1,0 +1,22 @@
+name: k70 fetch 7zz
+on:
+  push:
+    paths:
+      - '.github/workflows/k70-get-7zz.yml'
+  workflow_dispatch:
+jobs:
+  fetch:
+    runs-on: macos-15-intel
+    steps:
+      - name: download linux 7zz
+        run: |
+          set -euo pipefail
+          curl -sL -o 7zz.tar.xz https://github.com/ip7z/7zip/releases/download/26.06/7z2606-linux-x64.tar.xz
+          ls -la 7zz.tar.xz
+          mkdir out
+          cp 7zz.tar.xz out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sevenzz
+          path: out/
+          if-no-files-found: error

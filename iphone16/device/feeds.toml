@@ -1,0 +1,38 @@
+[[source]]
+name = "xnu"
+kind = "refer"
+git = "https://github.com/apple-oss-distributions/xnu.git"
+ref = "xnu-8796.141.3"
+commit = "1b191cb58250d0705d8a51287127505aa4bc0789"
+darwin = "22.6.0"
+version = "8796.141.3"
+driverkit_tag = "xnu-8796.141.3"
+trustcache_tag = "xnu-8796.141.3"
+
+[[source]]
+name = "libpthread"
+kind = "refer"
+git = "https://github.com/apple-oss-distributions/libpthread.git"
+ref = "libpthread-514.100.2"
+commit = "a6c70ca0e544347a0377babf748f831577ec24f9"
+
+[[source]]
+name = "libplatform"
+kind = "refer"
+git = "https://github.com/apple-oss-distributions/libplatform.git"
+ref = "libplatform-292.120.1.0.1"
+commit = "c7b97b198e8329813fd9ca7fe122a82c2cffc109"
+
+[[source]]
+name = "libdispatch"
+kind = "refer"
+git = "https://github.com/apple-oss-distributions/libdispatch.git"
+ref = "libdispatch-1415.140.2"
+commit = "cdb61e93e803d0093635f356753a9a30c09836db"
+
+[[source]]
+name = "AvailabilityVersions"
+kind = "refer"
+git = "https://github.com/apple-oss-distributions/AvailabilityVersions.git"
+ref = "AvailabilityVersions-121"
+commit = "f3b52ca75ee842a8ac593bd7b03f9f4768c15755"
