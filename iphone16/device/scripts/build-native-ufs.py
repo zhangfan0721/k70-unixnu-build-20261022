@@ -18,7 +18,7 @@ inc = (root / sys.argv[2]).resolve()
 
 # Stage the public IOStorageFamily headers when the tree has not produced them yet.
 if not (inc / "IOKit/storage/IOBlockStorageDevice.h").is_file():
-    refer = root / "refer/IOStorageFamily"
+    refer = Path(__file__).resolve().parent.parent / "drivers/IOStorageFamily"
     if not refer.is_dir():
         raise SystemExit(f"missing IOStorageFamily source under {refer}")
     (inc / "IOKit/storage").mkdir(parents=True, exist_ok=True)
