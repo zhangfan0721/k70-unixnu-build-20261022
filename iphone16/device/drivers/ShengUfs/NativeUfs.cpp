@@ -1742,6 +1742,15 @@ static void mediaReportThread (void *, wait_result_t)
 
 #endif  // K70 probe-only: block-device methods
 
+// Weak so a probe-only archive still links when the diagnostic adapter is absent.
+extern "C" void k70_formal_cpu_trace (const char *, unsigned long long) __attribute__ ((weak));
+static void nativeUfsTrace (const char *label, unsigned long long value)
+{
+  if (k70_formal_cpu_trace) {
+    k70_formal_cpu_trace (label, value);
+  }
+}
+
 bool NativeUfs::start (IOService *provider)
 {
   unsigned probe = 0, rootMode = 0;
@@ -1813,18 +1822,17 @@ bool NativeUfs::start (IOService *provider)
       }
     }
     {
-      extern void k70_formal_cpu_trace(const char *, unsigned long long);
-      k70_formal_cpu_trace ("NU first", layout->userdataFirst);
-      k70_formal_cpu_trace ("NU last", layout->userdataLast);
-      k70_formal_cpu_trace ("NU manifest/win", ((uint64_t) layout->manifestStatus << 32) | layout->windows);
-      k70_formal_cpu_trace (layout->window[0].name, layout->window[0].offset);
-      k70_formal_cpu_trace ("NU w0 size", layout->window[0].size);
-      k70_formal_cpu_trace ("NU w0 read", seen[0]);
-      k70_formal_cpu_trace (layout->window[1].name, layout->window[1].offset);
-      k70_formal_cpu_trace ("NU w1 size", layout->window[1].size);
-      k70_formal_cpu_trace ("NU w1 read", seen[1]);
-      k70_formal_cpu_trace ("NU w0 sha0", be32w (layout->window[0].sha256));
-      k70_formal_cpu_trace ("NU w1 sha0", be32w (layout->window[1].sha256));
+      nativeUfsTrace ("NU first", layout->userdataFirst);
+      nativeUfsTrace ("NU last", layout->userdataLast);
+      nativeUfsTrace ("NU manifest/win", ((uint64_t) layout->manifestStatus << 32) | layout->windows);
+      nativeUfsTrace (layout->window[0].name, layout->window[0].offset);
+      nativeUfsTrace ("NU w0 size", layout->window[0].size);
+      nativeUfsTrace ("NU w0 read", seen[0]);
+      nativeUfsTrace (layout->window[1].name, layout->window[1].offset);
+      nativeUfsTrace ("NU w1 size", layout->window[1].size);
+      nativeUfsTrace ("NU w1 read", seen[1]);
+      nativeUfsTrace ("NU w0 sha0", be32w (layout->window[0].sha256));
+      nativeUfsTrace ("NU w1 sha0", be32w (layout->window[1].sha256));
     }
     panic ("NATIVE_UFS probe 11 done");
   }
