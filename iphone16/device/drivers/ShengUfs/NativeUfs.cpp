@@ -999,6 +999,7 @@ static uint32_t be32w (const uint8_t *at)
 
 }
 
+#if !K70_NATIVE_UFS_PROBE_ONLY
 // ---- Persistent Data store window (sheng-data-persist) ----------------------------------------------------------
 // The only part of this driver that ever writes. The consumer (NativeRamBlock's overlay) asks for a window of the given
 // size at the END of the userdata partition. Mode 1 (boot argument sheng-data-persist=1) only reads: it proves the window and
@@ -1204,6 +1205,8 @@ extern "C" unsigned native_ufs_store_gpt_check (void)
   if (blocks > 4 || hostRead4k (0, gStoreGeometry.entriesLba, blocks, entries) != kIOReturnSuccess) return 4;
   return rootCrc32 (entries, gStoreGeometry.entryCount * 128) == gStoreGeometry.entriesCrc ? 0 : 5;
 }
+
+#endif  // K70 probe-only: persistent store and log windows
 
 // One read-only window of the root image as a block device: 512-byte sectors on top of 4096-byte
 // UFS blocks, so the unchanged dmg disk images (GPT with 512-byte sectors) parse as they do on
