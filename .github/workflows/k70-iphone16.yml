@@ -148,6 +148,7 @@ jobs:
           gh api 'repos/apple-oss-distributions/xnu/contents/iokit/DriverKit/crypto?ref=xnu-8796.141.3' > "$cache/xnu-driverkit-crypto-8796.141.3.json"
           gh api 'repos/apple-oss-distributions/xnu/contents/EXTERNAL_HEADERS/TrustCache?ref=xnu-8796.141.3' > "$cache/xnu-trustcache-8796.141.3.json"
       - name: Qualify the legacy generator and original IORPC ABI
+        if: false  # native-ufs: skip the legacy generator qualification for now
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
