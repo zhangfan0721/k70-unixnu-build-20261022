@@ -1,0 +1,24 @@
+--- a/osfmk/prng/prng_random.c
++++ b/osfmk/prng/prng_random.c
+@@ -2,6 +2,7 @@
+ /* Internal source-provider verification; no replacement callbacks or skipped POST. */
+ #if defined(XNU_SOURCE_CORECRYPTO14)
+ #include <kern/startup.h>
++#include <kern/boot_progress.h>
+ #include <mach/kmod.h>
+ #include <mach-o/loader.h>
+ 
+@@ -23,10 +24,12 @@
+ 		panic("source corecrypto verification requires complete default POST");
+ 	}
+ 	info.address = (vm_address_t)&_mh_execute_header;
++	boot_progress_stage("source corecrypto POST enter before IOKit");
+ 	source_corecrypto14_status = corecrypto_kext_start(&info, NULL);
+ 	if (source_corecrypto14_status != KERN_SUCCESS) {
+ 		panic("source corecrypto initialization failed: %d", source_corecrypto14_status);
+ 	}
++	boot_progress_stage("source corecrypto POST and registration completed");
+ }
+-STARTUP(EARLY_BOOT, STARTUP_RANK_FIRST, source_corecrypto14_bootstrap);
++STARTUP(SYSCTL, STARTUP_RANK_LAST, source_corecrypto14_bootstrap);
+ #endif
