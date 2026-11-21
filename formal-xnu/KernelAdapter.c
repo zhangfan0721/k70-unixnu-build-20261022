@@ -377,6 +377,10 @@ volatile uint64_t k70_startup_func, k70_startup_arg, k70_startup_sub, k70_startu
 
 volatile uint64_t k70_asm_esr, k70_asm_far, k70_asm_elr, k70_asm_spsr, k70_asm_mpidr, k70_asm_valid;
 
+/* Event counter shared by every latch; declared first so the image4 setter
+ * can read it regardless of include order. */
+volatile uint64_t k70_event_seq;
+
 /* image4 mix-n-match policy return code, latched at panic time. */
 volatile uint64_t k70_i4_rc, k70_i4_caller, k70_i4_seq, k70_i4_valid;
 void k70_latch_image4_panic(int rc, uintptr_t caller)
@@ -416,7 +420,6 @@ void k70_rt_probe(void)
 volatile uint32_t k70_sp0_esr, k70_sp0_cpsr, k70_sp0_valid;
 volatile uint64_t k70_sp0_pc, k70_sp0_lr, k70_sp0_sp, k70_sp0_far;
 volatile uint64_t k70_sp0_x0, k70_sp0_x1, k70_sp0_x2, k70_sp0_x3;
-volatile uint64_t k70_event_seq;
 void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t cpsr, uint64_t far,
                   uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
