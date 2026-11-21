@@ -381,6 +381,22 @@ volatile uint64_t k70_asm_esr, k70_asm_far, k70_asm_elr, k70_asm_spsr, k70_asm_m
  * can read it regardless of include order. */
 volatile uint64_t k70_event_seq;
 
+/* Kext summary buffer: header, size, whether reused, and the protect/alloc rc. */
+volatile uint64_t k70_sum_hdr, k70_sum_size, k70_sum_reused, k70_sum_rc, k70_sum_seq, k70_sum_valid;
+void k70_summary_note(uintptr_t hdr, uint64_t size, int reused, int rc)
+{
+  if (k70_sum_valid) return;
+  k70_sum_hdr = (uint64_t) hdr;
+  k70_sum_size = size;
+  k70_sum_reused = (uint64_t) (uint32_t) reused;
+  k70_sum_rc = (uint64_t) (uint32_t) rc;
+  k70_sum_seq = k70_event_seq;
+  k70_sum_valid = 1;
+}
+
+/* Sequence observed when the first SP0 exception was latched. */
+volatile uint64_t k70_sp0_seq;
+
 /* image4 mix-n-match policy return code, latched at panic time. */
 volatile uint64_t k70_i4_rc, k70_i4_caller, k70_i4_seq, k70_i4_valid;
 void k70_latch_image4_panic(int rc, uintptr_t caller)
@@ -428,6 +444,7 @@ void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t 
   k70_sp0_esr = esr; k70_sp0_pc = pc; k70_sp0_lr = lr;
   k70_sp0_sp = sp; k70_sp0_cpsr = cpsr; k70_sp0_far = far;
   k70_sp0_x0 = x0; k70_sp0_x1 = x1; k70_sp0_x2 = x2; k70_sp0_x3 = x3;
+  k70_sp0_seq = k70_event_seq;
   k70_sp0_valid = 1;
 }
 
