@@ -1837,7 +1837,7 @@ bool NativeUfs::start (IOService *provider)
   }
 #endif
 
-  #if 0  // probe-only build
+  #if K70_NATIVE_UFS_FULL_BLOCK  // full build: probe 13 memory snapshot
 if (probe == 13) {
     unsigned delay = 12;
     PE_parse_boot_argn ("native-ufs-stats-delay", &delay, sizeof (delay));
@@ -1853,7 +1853,7 @@ if (probe == 13) {
   }
 #endif
 
-  #if 0  // probe-only build
+  #if K70_NATIVE_UFS_FULL_BLOCK  // full build: probe 12 media report
 if (probe == 12) {
     bool published = startRoot (provider);
     if (!published) {
@@ -1869,7 +1869,7 @@ if (probe == 12) {
 #endif
 
   if (rootMode && !probe) {
-#if 0  // probe-only build
+#if K70_NATIVE_UFS_FULL_BLOCK
     return startRoot (provider);
 #else
     panic ("NATIVE_UFS probe-only build: root publish disabled");
