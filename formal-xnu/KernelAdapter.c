@@ -394,6 +394,41 @@ void k70_summary_note(uintptr_t hdr, uint64_t size, int reused, int rc)
   k70_sum_valid = 1;
 }
 
+/* Set once bzero(summaryHeader, summarySize) returns. */
+int k70_sum_zero_done;
+
+/* Stage-1 translation probe: read then write permission for one VA. */
+volatile uint64_t k70_at_read_par, k70_at_write_par, k70_at_valid;
+void k70_at_probe(uint64_t va)
+{
+  uint64_t rpar = 0, wpar = 0;
+  __asm__ volatile (
+    "dsb sy
+	"
+    "isb
+	"
+    "at s1e1r, %2
+	"
+    "isb
+	"
+    "mrs %0, par_el1
+	"
+    "dsb sy
+	"
+    "isb
+	"
+    "at s1e1w, %2
+	"
+    "isb
+	"
+    "mrs %1, par_el1
+	"
+    : "=&r"(rpar), "=&r"(wpar) : "r"(va) : "memory");
+  k70_at_read_par = rpar;
+  k70_at_write_par = wpar;
+  k70_at_valid = 1;
+}
+
 /* Sequence observed when the first SP0 exception was latched. */
 volatile uint64_t k70_sp0_seq;
 
