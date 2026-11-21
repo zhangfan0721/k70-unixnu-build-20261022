@@ -1294,7 +1294,7 @@ static void rootDiagnosticFailure (const char *reason)
   panic ("%s", gRootDiagnosticText);
 }
 
-#if 0  // K70 probe-only: block-device methods and publication
+#if K70_NATIVE_UFS_FULL_BLOCK  // full build: block-device methods
 bool NativeUfsBlock::configure (const char *name, uint64_t absoluteOffset, uint64_t size)
 {
   if (!name || !ufsWindowGeometry (absoluteOffset, size)) {
@@ -1825,7 +1825,7 @@ bool NativeUfs::start (IOService *provider)
     }
     panic ("NATIVE_UFS probe 11 done");
   }
-#if 0  // K70 probe-only: probe 14 needs the publication VM counters
+#if K70_NATIVE_UFS_FULL_BLOCK  // full build: probe 14 publication counters
   if (probe == 14) {
     // Immediate memory snapshot at root-device start, before the userspace that triggers jetsam.
     panic ("NATIVE_UFS early memory snapshot\n"
@@ -1879,7 +1879,7 @@ if (probe == 12) {
 }
 
 // Boot the root image's windows as block devices. Soft-fails (logs, publishes nothing).
-#if 0  // K70 probe-only: root publication
+#if K70_NATIVE_UFS_FULL_BLOCK  // full build: root publication
 bool NativeUfs::startRoot (IOService *provider)
 {
   const char *why = "";
