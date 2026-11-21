@@ -62,6 +62,7 @@ out = root / "build/native-ufs"
 out.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory(dir=out) as tmp:
     obj = Path(tmp) / "NativeUfs.o"
+    bridge_obj = Path(tmp) / "StorageBridge.o"
     archive = Path(tmp) / "libNativeUfs.a"
     args[args.index(rec["file"])] = str(src)
     args[out_idx] = str(obj)
@@ -94,7 +95,19 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
         off += size
     if deployment != (2, 0x100000):
         raise SystemExit(f"expected iOS 16.0 deployment, got {deployment}")
-    sp.run(["xcrun", "ar", "rcs", str(archive), str(obj)], check=True)
+    # Bridge translation unit: same recipe, different source/output.
+    bridge_src = src.parent / "StorageBridge.cpp"
+    if bridge_src.is_file():
+        bridge_cmd = list(cmd)
+        bridge_cmd[bridge_cmd.index(str(src))] = str(bridge_src)
+        bridge_cmd[bridge_cmd.index(str(obj))] = str(bridge_obj)
+        with (out / "compile-bridge.log").open("w") as log:
+            r2 = sp.run(bridge_cmd, cwd=cwd, stdout=log, stderr=sp.STDOUT)
+        if r2.returncode:
+            print((out / "compile-bridge.log").read_text(errors="replace"), end="")
+            raise SystemExit(r2.returncode)
+    objs = [str(obj)] + ([str(bridge_obj)] if bridge_obj.is_file() else [])
+    sp.run(["xcrun", "ar", "rcs", str(archive), *objs], check=True)
     nm = sp.check_output(["xcrun", "nm", "-gU", str(archive)], text=True)
     symbols = {line.split()[-1] for line in nm.splitlines() if line.split()}
     expected = {"__ZN9NativeUfs5startEP9IOService", "_native_ufs_probe_calls"}
