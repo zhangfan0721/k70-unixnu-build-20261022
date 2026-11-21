@@ -369,6 +369,7 @@ void k70_formal_early(void *opaque)
 
 extern void k70_bd_note(int, int, unsigned long long, unsigned long long);
 volatile uint64_t k70_mmfr0_boot, k70_mpidr_boot, k70_curel_boot, k70_mmfr0_boot_valid;
+volatile uint64_t k70_vm_physmap_base, k70_vm_physmap_end, k70_vm_static_end, k70_vm_virt_base, k70_vm_valid;
 void k70_formal_after_vm(void)
 {
     { /* Boot-CPU sample before any framebuffer work: independent of the IOKit probe. */
@@ -379,6 +380,18 @@ void k70_formal_after_vm(void)
       k70_mmfr0_boot = m0; k70_mpidr_boot = mp; k70_curel_boot = el;
       k70_mmfr0_boot_valid = 1;
       k70_bd_note (12, (int) ((m0 >> 20) & 0xf), m0, mp);
+    }
+    { /* Record the physmap/VM layout so an unstable boot can still be read from the panel. */
+      extern vm_map_address_t physmap_base, physmap_end;
+      extern vm_offset_t static_memory_end;
+      extern uint64_t gVirtBase;
+      k70_vm_physmap_base = (uint64_t) physmap_base;
+      k70_vm_physmap_end = (uint64_t) physmap_end;
+      k70_vm_static_end = (uint64_t) static_memory_end;
+      k70_vm_virt_base = gVirtBase;
+      k70_vm_valid = 1;
+      k70_bd_note (13, (int) ((physmap_base >> 30) & 0xf), k70_vm_physmap_base, k70_vm_static_end);
+      k70_bd_note (14, (int) (gVirtBase >> 30), k70_vm_physmap_end, gVirtBase);
     }
     k70_formal_milestones |= 2; /* arm_vm_init returned, even if binding fails. */
     if (k70_fb_pa != UINT64_C(0xb8000000) || k70_fb_width != 1440 ||

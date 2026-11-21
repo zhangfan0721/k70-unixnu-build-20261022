@@ -183,7 +183,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       else if(row==25){extern int k70_cp_last_id(void);extern int k70_cp_last_v1(void);extern int k70_cp_last_v2(void);kf_text(&l,"C ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_id());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v1());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v2());}
       }
   }
-  else if(row>=26&&row<=29){
+  else if(row>=26&&row<=30){
    {
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
     extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
@@ -204,6 +204,10 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       if(!k70_mmfr0_boot_valid)kf_text(&l,"MMFR0 NA");
       else{kf_text(&l,"MMFR0 ");kf_hex(&l,k70_mmfr0_boot);kf_text(&l," TG");kf_hex8(&l,(k70_mmfr0_boot>>20)&0xf);
       kf_text(&l," MP");kf_hex8(&l,k70_mpidr_boot);kf_text(&l," EL");kf_hex8(&l,(k70_curel_boot>>2)&3);}}
+     else if(row==30){extern volatile uint64_t k70_vm_physmap_base,k70_vm_physmap_end,k70_vm_static_end,k70_vm_virt_base,k70_vm_valid;
+      if(!k70_vm_valid)kf_text(&l,"VM NA");
+      else{kf_text(&l,"VM pmap ");kf_hex8(&l,k70_vm_physmap_base>>12);kf_text(&l," end ");kf_hex8(&l,k70_vm_physmap_end>>12);
+      kf_text(&l," st ");kf_hex8(&l,k70_vm_static_end>>20);kf_text(&l," vb ");kf_hex8(&l,k70_vm_virt_base>>12);}}
      else {extern int k70_op_count(int);
       kf_text(&l,"OC ");kf_text(&l,"o");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6f));kf_text(&l," s");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x73));
       kf_text(&l," m");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6d));kf_text(&l," c");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x63));kf_text(&l," R");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x52));}
