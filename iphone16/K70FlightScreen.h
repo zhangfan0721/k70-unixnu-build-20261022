@@ -6,7 +6,7 @@
 #include "FramebufferGuard.h"
 #include "Font.h"
 extern char k70_panic_text[41];
-#define KF_ROWS 36
+#define KF_ROWS 37
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
 struct kf_screen {uintptr_t va;uint64_t pa;unsigned width,height,stride,scale,top,cols,bound;};
@@ -183,7 +183,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       else if(row==25){extern int k70_cp_last_id(void);extern int k70_cp_last_v1(void);extern int k70_cp_last_v2(void);kf_text(&l,"C ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_id());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v1());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v2());}
       }
   }
-  else if(row>=26&&row<=34){
+  else if(row>=26&&row<=35){
    {
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
     extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
@@ -221,7 +221,9 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       else{kf_text(&l,"ASM E");kf_hex8(&l,k70_asm_esr);kf_text(&l," EL");kf_hex8(&l,(uint64_t)(uint32_t)k70_asm_elr);}}
      else if(row==34){extern volatile uint64_t k70_rt_slide,k70_rt_lr4_val,k70_rt_good_val,k70_rt_lr4_ok,k70_rt_good_ok;
       kf_text(&l,"RT S");kf_hex8(&l,(uint64_t)(uint32_t)k70_rt_slide);
-      kf_text(&l," L4 ");kf_hex8(&l,k70_rt_lr4_val);kf_text(&l," G ");kf_hex8(&l,k70_rt_good_val);}
+      kf_text(&l," r");kf_hex8(&l,k70_rt_lr4_ok);kf_text(&l," v");kf_hex8(&l,k70_rt_lr4_val);}
+     else if(row==35){extern volatile uint64_t k70_rt_good_val,k70_rt_good_ok;
+      kf_text(&l,"RT G r");kf_hex8(&l,k70_rt_good_ok);kf_text(&l," v");kf_hex8(&l,k70_rt_good_val);}
      else {extern int k70_op_count(int);
       kf_text(&l,"OC ");kf_text(&l,"o");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6f));kf_text(&l," s");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x73));
       kf_text(&l," m");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6d));kf_text(&l," c");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x63));kf_text(&l," R");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x52));}

@@ -392,18 +392,18 @@ volatile uint64_t k70_sp0_pc, k70_sp0_lr, k70_sp0_sp, k70_sp0_far;
 void k70_rt_probe(void)
 {
   extern vm_offset_t vm_kernel_slide;
-  extern kern_return_t ml_nofault_copy(vm_offset_t, vm_offset_t, vm_size_t);
+  extern vm_size_t ml_nofault_copy(vm_offset_t, vm_offset_t, vm_size_t);
   uint64_t slide = (uint64_t) vm_kernel_slide;
   k70_rt_slide = slide;
-  /* 0x8000000 was the prelink slide; rebase the file VAs by the difference. */
-  uint64_t delta = slide - 0x8000000ULL;
-  uint64_t lr4 = 0xfffffff00d5b9090ULL + delta;
-  uint64_t good = 0xfffffff00d5d7000ULL + delta; /* IOStorageFamily __TEXT_EXEC */
+  /* Link-time VAs already include the prelink placement; only the runtime
+   * KASLR slide moves them.  Probe a padded gap and a known code start. */
+  uint64_t lr4 = 0xfffffff00d5b9090ULL + slide;
+  uint64_t good = 0xfffffff00d5d7000ULL + slide;
   uint32_t a = 0, b = 0;
-  kern_return_t ra = ml_nofault_copy(lr4, (vm_offset_t) &a, sizeof(a));
-  kern_return_t rb = ml_nofault_copy(good, (vm_offset_t) &b, sizeof(b));
-  k70_rt_lr4_addr = lr4; k70_rt_lr4_val = a; k70_rt_lr4_ok = (ra == 0) ? 1 : 0;
-  k70_rt_good_addr = good; k70_rt_good_val = b; k70_rt_good_ok = (rb == 0) ? 1 : 0;
+  vm_size_t ra = ml_nofault_copy(lr4, (vm_offset_t) &a, sizeof(a));
+  vm_size_t rb = ml_nofault_copy(good, (vm_offset_t) &b, sizeof(b));
+  k70_rt_lr4_addr = lr4; k70_rt_lr4_val = a; k70_rt_lr4_ok = (uint64_t) ra;
+  k70_rt_good_addr = good; k70_rt_good_val = b; k70_rt_good_ok = (uint64_t) rb;
 }
 
 void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t cpsr, uint64_t far)
@@ -417,7 +417,6 @@ void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t 
   k70_sp0_sp = sp; k70_sp0_cpsr = cpsr; k70_sp0_far = far;
 
   k70_sp0_valid = 1;
-  k70_rt_probe();
 
 }
 
@@ -477,6 +476,7 @@ void k70_formal_after_vm(void)
       k70_vm_valid = 1;
       k70_bd_note (13, (int) ((physmap_base >> 30) & 0xf), k70_vm_physmap_base, k70_vm_static_end);
       k70_bd_note (14, (int) (gVirtBase >> 30), k70_vm_physmap_end, gVirtBase);
+      k70_rt_probe();
     }
     k70_formal_milestones |= 2; /* arm_vm_init returned, even if binding fails. */
     if (k70_fb_pa != UINT64_C(0xb8000000) || k70_fb_width != 1440 ||
