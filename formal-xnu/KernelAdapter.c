@@ -377,6 +377,17 @@ volatile uint64_t k70_startup_func, k70_startup_arg, k70_startup_sub, k70_startu
 
 volatile uint64_t k70_asm_esr, k70_asm_far, k70_asm_elr, k70_asm_spsr, k70_asm_mpidr, k70_asm_valid;
 
+/* image4 mix-n-match policy return code, latched at panic time. */
+volatile uint64_t k70_i4_rc, k70_i4_caller, k70_i4_seq, k70_i4_valid;
+void k70_latch_image4_panic(int rc, uintptr_t caller)
+{
+  if (k70_i4_valid) return;
+  k70_i4_rc = (uint64_t) (uint32_t) rc;
+  k70_i4_caller = (uint64_t) caller;
+  k70_i4_seq = k70_event_seq;
+  k70_i4_valid = 1;
+}
+
 /* Runtime layout evidence. */
 
 volatile uint64_t k70_rt_slide, k70_rt_lr4_addr, k70_rt_lr4_val, k70_rt_lr4_ok;

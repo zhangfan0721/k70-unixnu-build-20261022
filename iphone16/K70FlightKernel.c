@@ -2,6 +2,7 @@
  * Single boot CPU only. Fixed storage, bounded reads and writes, no scheduler
  * or allocation calls. A fault in a probe must never turn into recursive logging.
  */
+#include <stdarg.h>
 #include <kern/thread.h>
 #include <machine/machine_routines.h>
 #include <kern/K70Flight.h>
@@ -161,8 +162,25 @@ static void k70_panic_text_show(const char *format) {
  k70_panic_text[i] = 0;
 }
 
-void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp) {
+void k70_flight_panic(const char *format,uintptr_t caller,uintptr_t fp,void *args) {
  uint64_t mask=kf_mask();
+ /* Latch the mix-n-match policy return code before anything formats or draws. */
+ if (format != 0 && args != 0) {
+  static const char want[] = "failed to get mix-n-match policy: %d";
+  unsigned wi = 0; int same = 1;
+  for (; wi < sizeof(want) - 1u; wi++) {
+   if (format[wi] != want[wi]) { same = 0; break; }
+  }
+  if (same && format[wi] == 0) {
+   va_list *ap = (va_list *)args;
+   va_list copy;
+   va_copy(copy, *ap);
+   int rc = va_arg(copy, int);
+   va_end(copy);
+   { extern void k70_latch_image4_panic(int, uintptr_t);
+     k70_latch_image4_panic(rc, caller); }
+  }
+ }
  k70_panic_text_show(format);
  struct kf_pmap_assert *record = &k70_flight_state.pmap_assert;
  if (k70_flight_state.kind != KF_PANIC && record->pending &&

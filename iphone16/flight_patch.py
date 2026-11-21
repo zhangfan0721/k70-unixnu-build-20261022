@@ -50,7 +50,7 @@ def install(root):
     path=root/'osfmk/kern/debug.c'
     text='#include <kern/K70Flight.h>\n'+path.read_text()
     anchor='    uint64_t panic_options_mask, void *panic_data_ptr, unsigned long panic_caller)\n{'
-    text=replace(text,anchor,anchor+'\n\tk70_flight_panic(panic_format_str, (uintptr_t)panic_caller, (uintptr_t)__builtin_frame_address(0));')
+    text=replace(text,anchor,anchor+'\n\tk70_flight_panic(panic_format_str, (uintptr_t)panic_caller, (uintptr_t)__builtin_frame_address(0), (void *)panic_args);')
     path.write_text(text)
     path=root/'osfmk/arm/pmap/pmap.c'
     text='#include <kern/K70Flight.h>\n'+path.read_text()

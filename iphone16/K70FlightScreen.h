@@ -209,6 +209,9 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       if(!k70_sp0_valid)kf_text(&l,"SP0 NA");
       else{kf_text(&l,"SP0 E");kf_hex8(&l,k70_sp0_esr);kf_text(&l," x0 ");kf_hex8(&l,k70_sp0_x0);
       kf_text(&l," n");kf_hex8(&l,k70_event_seq);}}
+     else if(row==35){extern volatile uint64_t k70_i4_rc,k70_i4_seq,k70_i4_valid;
+      if(!k70_i4_valid)kf_text(&l,"I4 rc NA");
+      else{kf_text(&l,"I4 rc ");kf_hex8(&l,k70_i4_rc);kf_text(&l," n");kf_hex8(&l,k70_i4_seq);}}
      else if(row==31){extern volatile uint32_t k70_sp0_valid;
       extern volatile uint64_t k70_sp0_pc,k70_sp0_lr,k70_sp0_far;
       if(!k70_sp0_valid)kf_text(&l,"SP0 PC NA");

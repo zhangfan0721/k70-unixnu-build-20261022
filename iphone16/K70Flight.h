@@ -13,7 +13,7 @@ void k70_flight_end(void);
 void k70_flight_allocation(uintptr_t);
 void k70_flight_enter(unsigned,uint64_t);
 void k70_flight_leave(unsigned,uint64_t);
-void k70_flight_panic(const char *,uintptr_t,uintptr_t);
+void k70_flight_panic(const char *,uintptr_t,uintptr_t,void *);
 void k70_pmap_assert_free_from_list(uint32_t ppnum, uintptr_t free_caller);
 void k70_pmap_assert_free_from_list_diag(uint32_t ppnum, uintptr_t free_caller,
     const struct k70_dw_snapshot *snap);
