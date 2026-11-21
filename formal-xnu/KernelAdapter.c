@@ -397,8 +397,15 @@ void k70_summary_note(uintptr_t hdr, uint64_t size, int reused, int rc)
 /* Set once bzero(summaryHeader, summarySize) returns. */
 int k70_sum_zero_done;
 
+void k70_img4_entry(void)
+{
+  k70_img4_reg_count++;
+}
+
 /* img4 interface provider: pointer registered via img4_interface_register(). */
 volatile uint64_t k70_img4_if_ptr, k70_img4_if_seq, k70_img4_if_valid;
+volatile uint64_t k70_img4_reg_count;
+volatile uint64_t k70_i4_if_at_panic;
 void k70_img4_if_note(uintptr_t ptr)
 {
   if (k70_img4_if_valid) return;
@@ -440,6 +447,7 @@ void k70_latch_image4_panic(int rc, uintptr_t caller)
   k70_i4_rc = (uint64_t) (uint32_t) rc;
   k70_i4_caller = (uint64_t) caller;
   k70_i4_seq = k70_event_seq;
+  { extern const void * img4if; k70_i4_if_at_panic = (uint64_t) img4if; }
   k70_i4_valid = 1;
 }
 

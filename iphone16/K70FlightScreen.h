@@ -220,9 +220,8 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
      else if(row==37){extern volatile uint64_t k70_at_read_par,k70_at_write_par,k70_at_valid;
       if(!k70_at_valid)kf_text(&l,"AT NA");
       else{kf_text(&l,"AT R");kf_hex8(&l,(uint64_t)(uint32_t)k70_at_read_par);kf_text(&l," W");kf_hex8(&l,(uint64_t)(uint32_t)k70_at_write_par);}}
-     else if(row==38){extern volatile uint64_t k70_img4_if_ptr,k70_img4_if_seq,k70_img4_if_valid;
-      if(!k70_img4_if_valid)kf_text(&l,"I4IF NA");
-      else{kf_text(&l,"I4IF ");kf_hex8(&l,(uint64_t)(uint32_t)k70_img4_if_ptr);kf_text(&l," n");kf_hex8(&l,k70_img4_if_seq);}}
+     else if(row==38){extern volatile uint64_t k70_img4_reg_count,k70_i4_if_at_panic;
+      kf_text(&l,"I4 reg");kf_hex8(&l,k70_img4_reg_count);kf_text(&l," if");kf_hex8(&l,(uint64_t)(uint32_t)k70_i4_if_at_panic);}
      else if(row==31){extern volatile uint32_t k70_sp0_valid;
       extern volatile uint64_t k70_sp0_pc,k70_sp0_lr,k70_sp0_far;
       if(!k70_sp0_valid)kf_text(&l,"SP0 PC NA");
