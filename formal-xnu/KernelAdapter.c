@@ -403,26 +403,16 @@ void k70_at_probe(uint64_t va)
 {
   uint64_t rpar = 0, wpar = 0;
   __asm__ volatile (
-    "dsb sy
-	"
-    "isb
-	"
-    "at s1e1r, %2
-	"
-    "isb
-	"
-    "mrs %0, par_el1
-	"
-    "dsb sy
-	"
-    "isb
-	"
-    "at s1e1w, %2
-	"
-    "isb
-	"
-    "mrs %1, par_el1
-	"
+    "dsb sy\n\t"
+    "isb\n\t"
+    "at s1e1r, %2\n\t"
+    "isb\n\t"
+    "mrs %0, par_el1\n\t"
+    "dsb sy\n\t"
+    "isb\n\t"
+    "at s1e1w, %2\n\t"
+    "isb\n\t"
+    "mrs %1, par_el1\n\t"
     : "=&r"(rpar), "=&r"(wpar) : "r"(va) : "memory");
   k70_at_read_par = rpar;
   k70_at_write_par = wpar;
