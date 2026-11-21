@@ -6,7 +6,7 @@
 #include "FramebufferGuard.h"
 #include "Font.h"
 extern char k70_panic_text[41];
-#define KF_ROWS 32
+#define KF_ROWS 34
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
 struct kf_screen {uintptr_t va;uint64_t pa;unsigned width,height,stride,scale,top,cols,bound;};
@@ -183,7 +183,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       else if(row==25){extern int k70_cp_last_id(void);extern int k70_cp_last_v1(void);extern int k70_cp_last_v2(void);kf_text(&l,"C ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_id());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v1());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v2());}
       }
   }
-  else if(row>=26&&row<=31){
+  else if(row>=26&&row<=32){
    {
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
     extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
@@ -204,20 +204,18 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       if(!k70_mmfr0_boot_valid)kf_text(&l,"MMFR0 NA");
       else{kf_text(&l,"MMFR0 ");kf_hex(&l,k70_mmfr0_boot);kf_text(&l," TG");kf_hex8(&l,(k70_mmfr0_boot>>20)&0xf);
       kf_text(&l," MP");kf_hex8(&l,k70_mpidr_boot);kf_text(&l," EL");kf_hex8(&l,(k70_curel_boot>>2)&3);}}
-     else if(row==30){extern volatile uint32_t k70_sp1_esr,k70_sp1_cpsr,k70_sp1_valid;
-      extern volatile uint64_t k70_sp1_pc,k70_sp1_lr,k70_sp1_far;
-      if(!k70_sp1_valid)kf_text(&l,"SP1 NA");
-      else{kf_text(&l,"SP1 E");kf_hex8(&l,k70_sp1_esr);kf_text(&l," PC");kf_hex8(&l,(uint64_t)(uint32_t)k70_sp1_pc);
-      kf_text(&l," FAR");kf_hex8(&l,(uint64_t)(uint32_t)k70_sp1_far);}}
-     else if(row==31){extern volatile uint32_t k70_sp1_esr,k70_sp1_cpsr,k70_sp1_valid;
-
-      extern volatile uint64_t k70_sp1_pc,k70_sp1_lr,k70_sp1_far;
-
-      if(!k70_sp1_valid)kf_text(&l,"SP1 NA");
-
-      else{kf_text(&l,"SP1 E");kf_hex8(&l,k70_sp1_esr);kf_text(&l," PC");kf_hex8(&l,(uint64_t)(uint32_t)k70_sp1_pc);
-
-      kf_text(&l," FAR");kf_hex8(&l,(uint64_t)(uint32_t)k70_sp1_far);}}
+     else if(row==30){extern volatile uint32_t k70_sp0_esr,k70_sp0_cpsr,k70_sp0_valid;
+      extern volatile uint64_t k70_sp0_pc,k70_sp0_lr,k70_sp0_far;
+      if(!k70_sp0_valid)kf_text(&l,"SP0 NA");
+      else{kf_text(&l,"SP0 E");kf_hex8(&l,k70_sp0_esr);kf_text(&l," CS");kf_hex8(&l,k70_sp0_cpsr);}}
+     else if(row==31){extern volatile uint32_t k70_sp0_valid;
+      extern volatile uint64_t k70_sp0_pc,k70_sp0_lr,k70_sp0_far;
+      if(!k70_sp0_valid)kf_text(&l,"SP0 PC NA");
+      else{kf_text(&l,"P");kf_hex(&l,k70_sp0_pc);}}
+     else if(row==32){extern volatile uint32_t k70_sp0_valid;
+      extern volatile uint64_t k70_sp0_lr,k70_sp0_far;
+      if(!k70_sp0_valid)kf_text(&l,"SP0 LR NA");
+      else{kf_text(&l,"L");kf_hex(&l,k70_sp0_lr);kf_text(&l," F");kf_hex(&l,k70_sp0_far);}}
      else {extern int k70_op_count(int);
       kf_text(&l,"OC ");kf_text(&l,"o");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6f));kf_text(&l," s");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x73));
       kf_text(&l," m");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6d));kf_text(&l," c");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x63));kf_text(&l," R");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x52));}
