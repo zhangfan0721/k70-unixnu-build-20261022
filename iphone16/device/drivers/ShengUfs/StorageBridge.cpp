@@ -63,4 +63,29 @@ IOReturn IOBlockStorageDevice::doGetProvisionStatus(UInt64,
 	return kIOReturnUnsupported;
 }
 
+IOReturn IOBlockStorageDevice::doSynchronize(UInt64,
+					     UInt64,
+					     IOStorageSynchronizeOptions)
+{
+	return kIOReturnUnsupported;
+}
+
+IOReturn IOBlockStorageDevice::doSynchronizeCache(void)
+{
+	return kIOReturnUnsupported;
+}
+
+IOReturn IOBlockStorageDevice::getWriteCacheState(bool *enabled)
+{
+	if (enabled) {
+		*enabled = false;
+	}
+	return kIOReturnSuccess;
+}
+
+IOReturn IOBlockStorageDevice::setWriteCacheState(bool)
+{
+	return kIOReturnUnsupported;
+}
+
 #endif  // K70_NATIVE_UFS_FULL_BLOCK
