@@ -71,7 +71,9 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
     _full = True  # one diagnostic round: full block class, list unresolved symbols
     cmd = [clangxx, "-I", str(inc), *args[1:],
            "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only"]
-    if not _full:
+    if _full:
+        cmd.append("-DK70_NATIVE_UFS_FULL_BLOCK=1")
+    else:
         cmd.append("-DK70_NATIVE_UFS_PROBE_ONLY=1")
     (out / "compile-command.json").write_text(json.dumps(cmd, indent=2) + "\n")
     with (out / "compile.log").open("w") as log:
