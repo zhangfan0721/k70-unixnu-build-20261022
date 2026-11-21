@@ -6,7 +6,7 @@
 #include "FramebufferGuard.h"
 #include "Font.h"
 extern char k70_panic_text[41];
-#define KF_ROWS 39
+#define KF_ROWS 40
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
 struct kf_screen {uintptr_t va;uint64_t pa;unsigned width,height,stride,scale,top,cols,bound;};
@@ -183,7 +183,7 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       else if(row==25){extern int k70_cp_last_id(void);extern int k70_cp_last_v1(void);extern int k70_cp_last_v2(void);kf_text(&l,"C ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_id());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v1());kf_text(&l," ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_last_v2());}
       }
   }
-  else if(row>=26&&row<=37){
+  else if(row>=26&&row<=38){
    {
     extern void k70_psignal_get(int*,int*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*,unsigned long long*);
     extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
@@ -220,6 +220,9 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
      else if(row==37){extern volatile uint64_t k70_at_read_par,k70_at_write_par,k70_at_valid;
       if(!k70_at_valid)kf_text(&l,"AT NA");
       else{kf_text(&l,"AT R");kf_hex8(&l,(uint64_t)(uint32_t)k70_at_read_par);kf_text(&l," W");kf_hex8(&l,(uint64_t)(uint32_t)k70_at_write_par);}}
+     else if(row==38){extern volatile uint64_t k70_img4_if_ptr,k70_img4_if_seq,k70_img4_if_valid;
+      if(!k70_img4_if_valid)kf_text(&l,"I4IF NA");
+      else{kf_text(&l,"I4IF ");kf_hex8(&l,(uint64_t)(uint32_t)k70_img4_if_ptr);kf_text(&l," n");kf_hex8(&l,k70_img4_if_seq);}}
      else if(row==31){extern volatile uint32_t k70_sp0_valid;
       extern volatile uint64_t k70_sp0_pc,k70_sp0_lr,k70_sp0_far;
       if(!k70_sp0_valid)kf_text(&l,"SP0 PC NA");

@@ -397,6 +397,16 @@ void k70_summary_note(uintptr_t hdr, uint64_t size, int reused, int rc)
 /* Set once bzero(summaryHeader, summarySize) returns. */
 int k70_sum_zero_done;
 
+/* img4 interface provider: pointer registered via img4_interface_register(). */
+volatile uint64_t k70_img4_if_ptr, k70_img4_if_seq, k70_img4_if_valid;
+void k70_img4_if_note(uintptr_t ptr)
+{
+  if (k70_img4_if_valid) return;
+  k70_img4_if_ptr = (uint64_t) ptr;
+  k70_img4_if_seq = k70_event_seq;
+  k70_img4_if_valid = 1;
+}
+
 /* Stage-1 translation probe: read then write permission for one VA. */
 volatile uint64_t k70_at_read_par, k70_at_write_par, k70_at_valid;
 void k70_at_probe(uint64_t va)
