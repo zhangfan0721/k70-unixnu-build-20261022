@@ -508,7 +508,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
     edit(root, 'osfmk/arm64/sleh.c', '\tesr_exception_class_t  class   = ESR_EC(esr);',
          '\t{ extern void k70_sp0_note(uint32_t,uint64_t,uint64_t,uint64_t,uint32_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t); k70_sp0_note(esr, get_saved_state_pc(&context->ss), get_saved_state_lr(&context->ss), get_saved_state_sp(&context->ss), get_saved_state_cpsr(&context->ss), far, get_saved_state_reg(&context->ss, 0), get_saved_state_reg(&context->ss, 1), get_saved_state_reg(&context->ss, 2), get_saved_state_reg(&context->ss, 3)); }\n\tesr_exception_class_t  class   = ESR_EC(esr);')
     edit(root, 'libkern/c++/OSKext.cpp', '\tbzero(summaryHeader, summarySize);',
-         '\t{ extern void k70_summary_note(uintptr_t,uint64_t,int,int); k70_summary_note((uintptr_t)summaryHeader,(uint64_t)summarySize,(gLoadedKextSummaries == summaryHeader) ? 1 : 0,(int)result); }\n\tbzero(summaryHeader, summarySize);')
+         '\t{ extern "C" void k70_summary_note(uintptr_t,uint64_t,int,int); k70_summary_note((uintptr_t)summaryHeader,(uint64_t)summarySize,(gLoadedKextSummaries == summaryHeader) ? 1 : 0,(int)result); }\n\tbzero(summaryHeader, summarySize);')
     # The accepted entry patch applies after the guarded Apple tunables and
     # bounded 4K bootstrap pool patches, except its first include context.
     patch = (FORMAL / 'EntryDiagnostics.patch').read_text()
