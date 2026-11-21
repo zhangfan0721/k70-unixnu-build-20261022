@@ -386,38 +386,18 @@ volatile uint64_t k70_rt_good_addr, k70_rt_good_val, k70_rt_good_ok;
 /* First SP0 synchronous exception, same treatment. */
 
 volatile uint32_t k70_sp0_esr, k70_sp0_cpsr, k70_sp0_valid;
-
 volatile uint64_t k70_sp0_pc, k70_sp0_lr, k70_sp0_sp, k70_sp0_far;
-
-void k70_rt_probe(void)
+volatile uint64_t k70_sp0_x0, k70_sp0_x1, k70_sp0_x2, k70_sp0_x3;
+volatile uint64_t k70_event_seq;
+void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t cpsr, uint64_t far,
+                  uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3)
 {
-  extern vm_offset_t vm_kernel_slide;
-  extern vm_size_t ml_nofault_copy(vm_offset_t, vm_offset_t, vm_size_t);
-  uint64_t slide = (uint64_t) vm_kernel_slide;
-  k70_rt_slide = slide;
-  /* Link-time VAs already include the prelink placement; only the runtime
-   * KASLR slide moves them.  Probe a padded gap and a known code start. */
-  uint64_t lr4 = 0xfffffff00d5b9090ULL + slide;
-  uint64_t good = 0xfffffff00d5d7000ULL + slide;
-  uint32_t a = 0, b = 0;
-  vm_size_t ra = ml_nofault_copy(lr4, (vm_offset_t) &a, sizeof(a));
-  vm_size_t rb = ml_nofault_copy(good, (vm_offset_t) &b, sizeof(b));
-  k70_rt_lr4_addr = lr4; k70_rt_lr4_val = a; k70_rt_lr4_ok = (uint64_t) ra;
-  k70_rt_good_addr = good; k70_rt_good_val = b; k70_rt_good_ok = (uint64_t) rb;
-}
-
-void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t cpsr, uint64_t far)
-
-{
-
+  k70_event_seq++;
   if (k70_sp0_valid) return;
-
   k70_sp0_esr = esr; k70_sp0_pc = pc; k70_sp0_lr = lr;
-
   k70_sp0_sp = sp; k70_sp0_cpsr = cpsr; k70_sp0_far = far;
-
+  k70_sp0_x0 = x0; k70_sp0_x1 = x1; k70_sp0_x2 = x2; k70_sp0_x3 = x3;
   k70_sp0_valid = 1;
-
 }
 
 /* First SP1 synchronous exception: latch before any secondary panic can overwrite it. */

@@ -204,10 +204,11 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       if(!k70_mmfr0_boot_valid)kf_text(&l,"MMFR0 NA");
       else{kf_text(&l,"MMFR0 ");kf_hex(&l,k70_mmfr0_boot);kf_text(&l," TG");kf_hex8(&l,(k70_mmfr0_boot>>20)&0xf);
       kf_text(&l," MP");kf_hex8(&l,k70_mpidr_boot);kf_text(&l," EL");kf_hex8(&l,(k70_curel_boot>>2)&3);}}
-     else if(row==30){extern volatile uint32_t k70_sp0_esr,k70_sp0_cpsr,k70_sp0_valid;
-      extern volatile uint64_t k70_sp0_pc,k70_sp0_lr,k70_sp0_far;
+     else if(row==30){extern volatile uint32_t k70_sp0_esr,k70_sp0_valid;
+      extern volatile uint64_t k70_sp0_x0,k70_event_seq;
       if(!k70_sp0_valid)kf_text(&l,"SP0 NA");
-      else{kf_text(&l,"SP0 E");kf_hex8(&l,k70_sp0_esr);kf_text(&l," CS");kf_hex8(&l,k70_sp0_cpsr);}}
+      else{kf_text(&l,"SP0 E");kf_hex8(&l,k70_sp0_esr);kf_text(&l," x0 ");kf_hex8(&l,k70_sp0_x0);
+      kf_text(&l," n");kf_hex8(&l,k70_event_seq);}}
      else if(row==31){extern volatile uint32_t k70_sp0_valid;
       extern volatile uint64_t k70_sp0_pc,k70_sp0_lr,k70_sp0_far;
       if(!k70_sp0_valid)kf_text(&l,"SP0 PC NA");
