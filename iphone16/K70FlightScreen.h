@@ -208,9 +208,10 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       if(!k70_vm_valid)kf_text(&l,"VM NA");
       else{kf_text(&l,"VM pmap ");kf_hex8(&l,k70_vm_physmap_base>>12);kf_text(&l," end ");kf_hex8(&l,k70_vm_physmap_end>>12);
       kf_text(&l," V");kf_hex8(&l,(k70_vm_physmap_base>>12)&0xfffff);}}
-     else if(row==31){extern volatile uint64_t k70_vm_static_end,k70_vm_virt_base,k70_vm_valid;
-      if(!k70_vm_valid)kf_text(&l,"VM2 NA");
-      else{kf_text(&l,"VM2 ST ");kf_hex8(&l,(k70_vm_static_end>>20)&0xfffff);kf_text(&l," VB ");kf_hex8(&l,(k70_vm_virt_base>>12)&0xfffff);}}
+     else if(row==31){extern void k70_bd_get(int,int*,unsigned long long*,unsigned long long*);
+      int sub;unsigned long long fn,arg;k70_bd_get(15,&sub,&fn,&arg);
+      kf_text(&l,"ST sub ");kf_hex8(&l,(uint64_t)(uint32_t)sub);kf_text(&l," fn ");kf_hex8(&l,(uint64_t)(uint32_t)fn);
+      kf_text(&l," a ");kf_hex8(&l,(uint64_t)(uint32_t)arg);}
      else {extern int k70_op_count(int);
       kf_text(&l,"OC ");kf_text(&l,"o");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6f));kf_text(&l," s");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x73));
       kf_text(&l," m");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x6d));kf_text(&l," c");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x63));kf_text(&l," R");kf_hex8(&l,(uint64_t)(uint32_t)k70_op_count(0x52));}

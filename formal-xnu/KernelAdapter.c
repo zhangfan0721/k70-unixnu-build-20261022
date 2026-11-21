@@ -368,6 +368,23 @@ void k70_formal_early(void *opaque)
 }
 
 extern void k70_bd_note(int, int, unsigned long long, unsigned long long);
+
+/* Latch the startup callback that is executing, updated before every call. */
+
+volatile uint64_t k70_startup_func, k70_startup_arg, k70_startup_sub, k70_startup_rank;
+
+void k70_startup_note(uint64_t sub, uint64_t rank, uint64_t fn, uint64_t arg)
+
+{
+
+  k70_startup_sub = sub; k70_startup_rank = rank;
+
+  k70_startup_func = fn; k70_startup_arg = arg;
+
+  k70_bd_note(15, (int) sub, fn, arg);
+
+}
+
 volatile uint64_t k70_mmfr0_boot, k70_mpidr_boot, k70_curel_boot, k70_mmfr0_boot_valid;
 volatile uint64_t k70_vm_physmap_base, k70_vm_physmap_end, k70_vm_static_end, k70_vm_virt_base, k70_vm_valid;
 void k70_formal_after_vm(void)

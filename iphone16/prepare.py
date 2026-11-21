@@ -137,6 +137,7 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
         edit(root, name, f + '(const char *message)\n{',
              f + '(const char *message)\n{\n\tboot_progress_stage(message);')
     edit(root, name, '\tclock_service_create();', '\tclock_service_create();\n\tboot_progress_start();')
+    edit(root, name, '\tcur->func(cur->arg);', '\t{ extern void k70_startup_note(uint64_t,uint64_t,uint64_t,uint64_t); k70_startup_note(cur->subsystem,cur->rank,(uint64_t)(uintptr_t)cur->func,(uint64_t)(uintptr_t)cur->arg); }\n\tcur->func(cur->arg);\n\t{ extern void k70_startup_note(uint64_t,uint64_t,uint64_t,uint64_t); k70_startup_note(0xff,0,0,0); }')
     edit(root, name, '\tinitialize_screen(NULL, kPEAcquireScreen);',
          '\tinitialize_screen(NULL, kPEAcquireScreen);\n\textern void k70_formal_thread_start(void);\n\tk70_formal_thread_start();')
     for name, anchor in (
