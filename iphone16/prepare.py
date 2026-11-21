@@ -503,6 +503,9 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\tboot_progress_stage("IOBSD wait returned; RAMDisk lookup next");\n\tif (mountAttempts++) {')
     edit(root, 'osfmk/arm64/sleh.c', '\tsleh_interrupt_handler_prologue(state, DBG_INTR_TYPE_OTHER);',
          '\tsleh_interrupt_handler_prologue(state, DBG_INTR_TYPE_OTHER);\n\tboot_progress_irq(get_saved_state_pc(state), get_saved_state_cpsr(state), get_saved_state_sp(state));')
+    edit(root, 'osfmk/arm64/sleh.c', '	esr_exception_class_t  class = ESR_EC(esr);',
+         '	{ extern void k70_sp1_note(uint32_t,uint64_t,uint64_t,uint64_t,uint32_t,uint64_t); k70_sp1_note(esr, get_saved_state_pc(&context->ss), get_saved_state_lr(&context->ss), get_saved_state_sp(&context->ss), get_saved_state_cpsr(&context->ss), far); }
+	esr_exception_class_t  class = ESR_EC(esr);')
     # The accepted entry patch applies after the guarded Apple tunables and
     # bounded 4K bootstrap pool patches, except its first include context.
     patch = (FORMAL / 'EntryDiagnostics.patch').read_text()

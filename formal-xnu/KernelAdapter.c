@@ -373,6 +373,26 @@ extern void k70_bd_note(int, int, unsigned long long, unsigned long long);
 
 volatile uint64_t k70_startup_func, k70_startup_arg, k70_startup_sub, k70_startup_rank;
 
+/* First SP1 synchronous exception: latch before any secondary panic can overwrite it. */
+
+volatile uint32_t k70_sp1_esr, k70_sp1_cpsr, k70_sp1_valid;
+
+volatile uint64_t k70_sp1_pc, k70_sp1_lr, k70_sp1_sp, k70_sp1_far;
+
+void k70_sp1_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t cpsr, uint64_t far)
+
+{
+
+  if (k70_sp1_valid) return;
+
+  k70_sp1_esr = esr; k70_sp1_pc = pc; k70_sp1_lr = lr;
+
+  k70_sp1_sp = sp; k70_sp1_cpsr = cpsr; k70_sp1_far = far;
+
+  k70_sp1_valid = 1;
+
+}
+
 void k70_startup_note(uint64_t sub, uint64_t rank, uint64_t fn, uint64_t arg)
 
 {
