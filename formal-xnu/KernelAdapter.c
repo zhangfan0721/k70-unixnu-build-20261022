@@ -373,11 +373,38 @@ extern void k70_bd_note(int, int, unsigned long long, unsigned long long);
 
 volatile uint64_t k70_startup_func, k70_startup_arg, k70_startup_sub, k70_startup_rank;
 
+/* Assembly-entry snapshot: filled by fleh_synchronous before the C handler. */
+
+volatile uint64_t k70_asm_esr, k70_asm_far, k70_asm_elr, k70_asm_spsr, k70_asm_mpidr, k70_asm_valid;
+
+/* Runtime layout evidence. */
+
+volatile uint64_t k70_rt_slide, k70_rt_lr4_addr, k70_rt_lr4_val, k70_rt_lr4_ok;
+
+volatile uint64_t k70_rt_good_addr, k70_rt_good_val, k70_rt_good_ok;
+
 /* First SP0 synchronous exception, same treatment. */
 
 volatile uint32_t k70_sp0_esr, k70_sp0_cpsr, k70_sp0_valid;
 
 volatile uint64_t k70_sp0_pc, k70_sp0_lr, k70_sp0_sp, k70_sp0_far;
+
+void k70_rt_probe(void)
+{
+  extern vm_offset_t vm_kernel_slide;
+  extern kern_return_t ml_nofault_copy(vm_offset_t, vm_offset_t, vm_size_t);
+  uint64_t slide = (uint64_t) vm_kernel_slide;
+  k70_rt_slide = slide;
+  /* 0x8000000 was the prelink slide; rebase the file VAs by the difference. */
+  uint64_t delta = slide - 0x8000000ULL;
+  uint64_t lr4 = 0xfffffff00d5b9090ULL + delta;
+  uint64_t good = 0xfffffff00d5d7000ULL + delta; /* IOStorageFamily __TEXT_EXEC */
+  uint32_t a = 0, b = 0;
+  kern_return_t ra = ml_nofault_copy(lr4, (vm_offset_t) &a, sizeof(a));
+  kern_return_t rb = ml_nofault_copy(good, (vm_offset_t) &b, sizeof(b));
+  k70_rt_lr4_addr = lr4; k70_rt_lr4_val = a; k70_rt_lr4_ok = (ra == 0) ? 1 : 0;
+  k70_rt_good_addr = good; k70_rt_good_val = b; k70_rt_good_ok = (rb == 0) ? 1 : 0;
+}
 
 void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t cpsr, uint64_t far)
 
@@ -390,6 +417,7 @@ void k70_sp0_note(uint32_t esr, uint64_t pc, uint64_t lr, uint64_t sp, uint32_t 
   k70_sp0_sp = sp; k70_sp0_cpsr = cpsr; k70_sp0_far = far;
 
   k70_sp0_valid = 1;
+  k70_rt_probe();
 
 }
 

@@ -507,6 +507,29 @@ void boot_progress_exit(int,const char *,int,unsigned,uint64_t);
          '\t{ extern void k70_sp1_note(uint32_t,uint64_t,uint64_t,uint64_t,uint32_t,uint64_t); k70_sp1_note(esr, get_saved_state_pc(&context->ss), get_saved_state_lr(&context->ss), get_saved_state_sp(&context->ss), get_saved_state_cpsr(&context->ss), far); }\n\tesr_exception_class_t  class = ESR_EC(esr);')
     edit(root, 'osfmk/arm64/sleh.c', '\tesr_exception_class_t  class   = ESR_EC(esr);',
          '\t{ extern void k70_sp0_note(uint32_t,uint64_t,uint64_t,uint64_t,uint32_t,uint64_t); k70_sp0_note(esr, get_saved_state_pc(&context->ss), get_saved_state_lr(&context->ss), get_saved_state_sp(&context->ss), get_saved_state_cpsr(&context->ss), far); }\n\tesr_exception_class_t  class   = ESR_EC(esr);')
+    _snap = (
+        '\tmrs\t\tx2, FAR_EL1\n'  # Load fault address
+        '\tadrp\tx9, EXT(k70_asm_valid)@PAGE\n'
+        '\tldr\tx10, [x9, EXT(k70_asm_valid)@PAGEOFF]\n'
+        '\tcbnz\tx10, Lk70_snap_done\n'
+        '\tmov\tx10, #1\n'
+        '\tstr\tx10, [x9, EXT(k70_asm_valid)@PAGEOFF]\n'
+        '\tadrp\tx9, EXT(k70_asm_esr)@PAGE\n'
+        '\tstr\tx1, [x9, EXT(k70_asm_esr)@PAGEOFF]\n'
+        '\tadrp\tx9, EXT(k70_asm_far)@PAGE\n'
+        '\tstr\tx2, [x9, EXT(k70_asm_far)@PAGEOFF]\n'
+        '\tmrs\tx11, ELR_EL1\n'
+        '\tadrp\tx9, EXT(k70_asm_elr)@PAGE\n'
+        '\tstr\tx11, [x9, EXT(k70_asm_elr)@PAGEOFF]\n'
+        '\tmrs\tx11, SPSR_EL1\n'
+        '\tadrp\tx9, EXT(k70_asm_spsr)@PAGE\n'
+        '\tstr\tx11, [x9, EXT(k70_asm_spsr)@PAGEOFF]\n'
+        '\tmrs\tx11, MPIDR_EL1\n'
+        '\tadrp\tx9, EXT(k70_asm_mpidr)@PAGE\n'
+        '\tstr\tx11, [x9, EXT(k70_asm_mpidr)@PAGEOFF]\n'
+        'Lk70_snap_done:\tnop\n'
+    )
+    edit(root, 'osfmk/arm64/locore.s', '\tmrs\t\tx2, FAR_EL1\t\t\t\t\t\t\t// Load fault address', _snap)
     # The accepted entry patch applies after the guarded Apple tunables and
     # bounded 4K bootstrap pool patches, except its first include context.
     patch = (FORMAL / 'EntryDiagnostics.patch').read_text()
