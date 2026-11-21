@@ -67,6 +67,9 @@ jobs:
           p = Path('ufs-source/RootLayout.h')
           t = p.read_text()
           old = 'static const char wanted[] = "userdata";'
+          if 'unixnu' in t:
+              print('already points at unixnu')
+              raise SystemExit(0)
           assert old in t, 'wanted line not found'
           p.write_text(t.replace(old, 'static const char wanted[] = "unixnu";', 1))
           print('patched wanted -> unixnu')
