@@ -65,9 +65,14 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
     archive = Path(tmp) / "libNativeUfs.a"
     args[args.index(rec["file"])] = str(src)
     args[out_idx] = str(obj)
+    # Diagnostic mode: build the full block-device class so the kernel link
+    # can report exactly which IOStorageFamily symbols are still unresolved.
+    import os as _os
+    _full = True  # one diagnostic round: full block class, list unresolved symbols
     cmd = [clangxx, "-I", str(inc), *args[1:],
-           "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only",
-           "-DK70_NATIVE_UFS_PROBE_ONLY=1"]
+           "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only"]
+    if not _full:
+        cmd.append("-DK70_NATIVE_UFS_PROBE_ONLY=1")
     (out / "compile-command.json").write_text(json.dumps(cmd, indent=2) + "\n")
     with (out / "compile.log").open("w") as log:
         result = sp.run(cmd, cwd=cwd, stdout=log, stderr=sp.STDOUT)
@@ -93,6 +98,9 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
     expected = {"__ZN9NativeUfs5startEP9IOService", "_native_ufs_probe_calls"}
     if missing := expected - symbols:
         raise SystemExit(f"archive missing defined symbols: {sorted(missing)}")
+    if _full:
+        undef = sp.check_output(["xcrun", "nm", "-u", str(obj)], text=True)
+        (out / "undefined-symbols.txt").write_text(undef)
     obj.replace(out / obj.name)
     archive.replace(out / archive.name)
 
