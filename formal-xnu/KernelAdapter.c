@@ -397,15 +397,17 @@ void k70_summary_note(uintptr_t hdr, uint64_t size, int reused, int rc)
 /* Set once bzero(summaryHeader, summarySize) returns. */
 int k70_sum_zero_done;
 
+
+/* img4 interface provider: pointer registered via img4_interface_register(). */
+volatile uint64_t k70_img4_reg_count;
+volatile uint64_t k70_i4_if_at_panic;
+
 void k70_img4_entry(void)
 {
   k70_img4_reg_count++;
 }
 
-/* img4 interface provider: pointer registered via img4_interface_register(). */
 volatile uint64_t k70_img4_if_ptr, k70_img4_if_seq, k70_img4_if_valid;
-volatile uint64_t k70_img4_reg_count;
-volatile uint64_t k70_i4_if_at_panic;
 void k70_img4_if_note(uintptr_t ptr)
 {
   if (k70_img4_if_valid) return;
