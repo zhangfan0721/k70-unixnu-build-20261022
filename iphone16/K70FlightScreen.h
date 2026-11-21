@@ -6,7 +6,7 @@
 #include "FramebufferGuard.h"
 #include "Font.h"
 extern char k70_panic_text[41];
-#define KF_ROWS 31
+#define KF_ROWS 32
 #define KF_COLS 79
 static const uint64_t kf_font[]=GLYPH_FONT;
 struct kf_screen {uintptr_t va;uint64_t pa;unsigned width,height,stride,scale,top,cols,bound;};
@@ -204,10 +204,11 @@ static inline int kf_screen_draw(struct kf_screen *s,const struct kf_state *r,k7
       if(!k70_mmfr0_boot_valid)kf_text(&l,"MMFR0 NA");
       else{kf_text(&l,"MMFR0 ");kf_hex(&l,k70_mmfr0_boot);kf_text(&l," TG");kf_hex8(&l,(k70_mmfr0_boot>>20)&0xf);
       kf_text(&l," MP");kf_hex8(&l,k70_mpidr_boot);kf_text(&l," EL");kf_hex8(&l,(k70_curel_boot>>2)&3);}}
-     else if(row==30){extern volatile uint64_t k70_vm_physmap_base,k70_vm_physmap_end,k70_vm_static_end,k70_vm_virt_base,k70_vm_valid;
-      if(!k70_vm_valid)kf_text(&l,"VM NA");
-      else{kf_text(&l,"VM pmap ");kf_hex8(&l,k70_vm_physmap_base>>12);kf_text(&l," end ");kf_hex8(&l,k70_vm_physmap_end>>12);
-      kf_text(&l," V");kf_hex8(&l,(k70_vm_physmap_base>>12)&0xfffff);}}
+     else if(row==30){extern volatile uint32_t k70_sp1_esr,k70_sp1_cpsr,k70_sp1_valid;
+      extern volatile uint64_t k70_sp1_pc,k70_sp1_lr,k70_sp1_far;
+      if(!k70_sp1_valid)kf_text(&l,"SP1 NA");
+      else{kf_text(&l,"SP1 E");kf_hex8(&l,k70_sp1_esr);kf_text(&l," PC");kf_hex8(&l,(uint64_t)(uint32_t)k70_sp1_pc);
+      kf_text(&l," FAR");kf_hex8(&l,(uint64_t)(uint32_t)k70_sp1_far);}}
      else if(row==31){extern volatile uint32_t k70_sp1_esr,k70_sp1_cpsr,k70_sp1_valid;
 
       extern volatile uint64_t k70_sp1_pc,k70_sp1_lr,k70_sp1_far;
