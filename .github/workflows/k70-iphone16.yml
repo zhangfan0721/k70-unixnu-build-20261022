@@ -205,7 +205,7 @@ jobs:
           python3 scripts/build-native-ufs-kext.py drivers/ShengUfs/NativeUfs.cpp build/storage-abi/include 2>&1 | tee "$GITHUB_WORKSPACE/evidence/kext-gate.log"
           mkdir -p "$GITHUB_WORKSPACE/evidence/kext/NativeUfs.kext"
           cp build/native-ufs-kext/NativeUfs "$GITHUB_WORKSPACE/evidence/kext/NativeUfs.kext/NativeUfs"
-          cp kext/NativeUfs/Info.plist "$GITHUB_WORKSPACE/evidence/kext/NativeUfs.kext/Info.plist"
+          cp "$GITHUB_WORKSPACE/integration/iphone16/device/kext/NativeUfs/Info.plist" "$GITHUB_WORKSPACE/evidence/kext/NativeUfs.kext/Info.plist"
           cp build/native-ufs-kext/result.json "$GITHUB_WORKSPACE/evidence/kext/result.json"
 
       - uses: actions/upload-artifact@v4
