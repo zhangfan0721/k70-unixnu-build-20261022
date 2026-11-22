@@ -129,11 +129,26 @@ defined = sp.check_output(["xcrun", "nm", "-gU", str(kext)], text=True)
 undef_names = {line.split()[-1] for line in undef.splitlines() if line.split()}
 defined_names = {line.split()[-1] for line in defined.splitlines() if line.split()}
 
-BASE = "_ZN20IOBlockStorageDevice"
+BASE = "__ZN20IOBlockStorageDevice"
 BASE_VT = "__ZTV20IOBlockStorageDevice"
 BASE_TI = "__ZTI20IOBlockStorageDevice"
 imports_base = sorted(n for n in undef_names if n.startswith(BASE) or n.startswith(BASE_VT) or n.startswith(BASE_TI))
 defines_base = sorted(n for n in defined_names if n.startswith(BASE) or n.startswith(BASE_VT) or n.startswith(BASE_TI))
+
+REQUIRED_IMPORTS = [
+    "__ZN20IOBlockStorageDevice10gMetaClassE",
+    "__ZN20IOBlockStorageDeviceC2EPK11OSMetaClass",
+    "__ZN20IOBlockStorageDeviceD2Ev",
+    "__ZTV20IOBlockStorageDevice",
+    "__ZN20IOBlockStorageDevice4initEP12OSDictionary",
+    "__ZN20IOBlockStorageDevice13setPropertiesEP8OSObject",
+    "__ZNK20IOBlockStorageDevice11getPropertyEPK8OSSymbol",
+    "__ZN20IOBlockStorageDevice7doUnmapEP26IOBlockStorageDeviceExtentjj",
+    "__ZN20IOBlockStorageDevice13doSetPriorityEP26IOBlockStorageDeviceExtentjh",
+    "__ZN20IOBlockStorageDevice20doGetProvisionStatusEyyPjP35IOBlockStorageProvisionDeviceExtenty",
+    "__ZN20IOBlockStorageDevice11requestIdleEv",
+]
+missing_imports = [s for s in REQUIRED_IMPORTS if s not in undef_names]
 
 def provider(symbol):
     if symbol.startswith(BASE) or symbol.startswith(BASE_VT) or symbol.startswith(BASE_TI):
@@ -170,6 +185,7 @@ report = {
     "segments": segs,
     "sections": sorted((s["seg"] + "," + s["name"], s["addr"], s["size"]) for s in sects),
     "imports_io_storage": imports_base,
+    "required_imports_missing": missing_imports,
     "defines_io_storage": defines_base,
     "undefined_total": len(undef_names),
     "defined_total": len(defined_names),
@@ -197,6 +213,8 @@ if filetype != 11:
     failures.append(f"filetype {filetype} is not a kext bundle")
 if not imports_base:
     failures.append("no IOBlockStorageDevice imports; the driver is not binding the original class")
+if missing_imports:
+    failures.append("missing required base-class imports: " + ", ".join(missing_imports))
 if defines_base:
     failures.append("the kext defines the base class instead of importing it")
 if not init_entries:
