@@ -91,8 +91,11 @@ undef = sp.check_output(["xcrun", "nm", "-u", str(out / "NativeUfs")], text=True
 defined = sp.check_output(["xcrun", "nm", "-gU", str(out / "NativeUfs")], text=True)
 undef_names = {line.split()[-1] for line in undef.splitlines() if line.split()}
 defined_names = {line.split()[-1] for line in defined.splitlines() if line.split()}
-imported_storage = sorted(n for n in undef_names if "IOBlockStorageDevice" in n or "IOStorage" in n or "IOMedia" in n)
-defined_storage = sorted(n for n in defined_names if "IOBlockStorageDevice" in n or "IOStorage" in n or "IOMedia" in n)
+# Only symbols whose own class is IOBlockStorageDevice matter here: a method of our
+# class that merely takes IOStorageAttributes in its signature is not a duplicate.
+BASE = "_Z" + "N20IOBlockStorageDevice"
+imported_storage = sorted(n for n in undef_names if n.startswith(BASE) or n.startswith("__ZTV20IOBlockStorageDevice") or n.startswith("__ZTI20IOBlockStorageDevice"))
+defined_storage = sorted(n for n in defined_names if n.startswith(BASE) or n.startswith("__ZTV20IOBlockStorageDevice") or n.startswith("__ZTI20IOBlockStorageDevice"))
 
 report = {
     "source": str(src),
