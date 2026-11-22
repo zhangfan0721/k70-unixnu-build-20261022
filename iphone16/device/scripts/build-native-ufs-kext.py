@@ -5,12 +5,17 @@ The driver must bind the original IOStorageFamily class instead of shipping a
 private copy of IOBlockStorageDevice, so this gate proves three things before
 any prelink work starts:
 
-  * the source compiles against the SDK's own IOKit storage headers,
+  * the source compiles with the kernel tree's export headers (the iPhoneOS SDK
+    ships no Kernel.framework IOKit headers, so the tree's recipe is the only
+    way to see IOKit/IOService.h),
   * the link produces a Mach-O kext bundle (filetype 11),
   * IOBlockStorageDevice stays undefined (imported), never defined here.
+
+StorageBridge.cpp is deliberately NOT compiled: its job today is to define the
+base class inside the kernel, which is exactly what this gate forbids.
 """
+import hashlib
 import json
-import os as _os
 from pathlib import Path
 import struct
 import subprocess as sp
@@ -23,51 +28,51 @@ root = Path.cwd()
 src = Path(sys.argv[1]).resolve(strict=True)
 inc = (root / sys.argv[2]).resolve()
 
-sdk = sp.check_output(["xcrun", "--sdk", "iphoneos", "--show-sdk-path"], text=True).strip()
-kernel_fw = Path(sdk) / "System/Library/Frameworks/Kernel.framework"
-vendored = Path(__file__).resolve().parent.parent / "drivers/IOStorageFamily"
-storage_headers = kernel_fw / "Headers"
-if not (storage_headers / "IOKit/storage/IOBlockStorageDevice.h").is_file():
-    if not vendored.is_dir():
-        raise SystemExit(f"no IOStorageFamily headers under {storage_headers} or {vendored}")
-    storage_headers = vendored
-print(f"storage headers: {storage_headers}")
+recipe = root / (
+    "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/"
+    "iokit/DEVELOPMENT/IOPlatformExpert.cpo.json"
+)
+if not recipe.is_file():
+    raise SystemExit(f"missing {recipe}; run the kernel bootstrap first")
+rec = json.loads(recipe.read_text().strip().removesuffix(","))
+cwd = Path(rec["directory"]).resolve(strict=True)
+if cwd != recipe.parent.resolve():
+    raise SystemExit("stale compile recipe")
 
 out = root / "build/native-ufs-kext"
 out.mkdir(parents=True, exist_ok=True)
+obj = out / "NativeUfs.o"
 
 clangxx = sp.check_output(["xcrun", "--sdk", "iphoneos", "--find", "clang++"], text=True).strip()
-obj = out / "NativeUfs.o"
-compile_cmd = [
-    clangxx, "-target", "arm64-apple-ios16.0", "-isysroot", sdk,
-    "-mkernel", "-fapple-kext", "-fno-exceptions", "-fno-rtti", "-fno-threadsafe-statics",
-    "-std=gnu++17", "-O2", "-g", "-c",
-    "-DKERNEL=1", "-DKERNEL_PRIVATE=1", "-DNDEBUG=1",
-    "-I" + str(storage_headers), "-I" + str(inc),
-    "-I" + str(root / ".cache/xnu-work/osfmk"), "-I" + str(src.parent),
-    "-I" + str(kernel_fw / "PrivateHeaders"),
-    str(src), "-o", str(obj),
-]
-(out / "compile-command.json").write_text(json.dumps(compile_cmd, indent=2) + "\n")
+args = list(rec["arguments"])
+out_idx = args.index("-o") + 1
+args[args.index(rec["file"])] = str(src)
+args[out_idx] = str(obj)
+cmd = [clangxx, "-I", str(inc), *args[1:],
+       "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only",
+       "-DK70_NATIVE_UFS_FULL_BLOCK=1", "-DNATIVE_VERIFIED_BLOCK=1",
+       "-I", str(src.parent)]
+(out / "compile-command.json").write_text(json.dumps(cmd, indent=2) + "\n")
 with (out / "compile.log").open("w") as log:
-    rc = sp.run(compile_cmd, stdout=log, stderr=sp.STDOUT).returncode
+    rc = sp.run(cmd, cwd=cwd, stdout=log, stderr=sp.STDOUT).returncode
 if rc:
-    print((out / "compile.log").read_text(errors="replace"))
-    raise SystemExit("kext source did not compile against the SDK headers")
+    print((out / "compile.log").read_text(errors="replace")[-4000:])
+    raise SystemExit("kext source did not compile with the kernel export headers")
 
-link_base = [
-    "xcrun", "ld", "-arch", "arm64", "-platform_version", "ios", "16.0", "16.0",
-    "-o", str(out / "NativeUfs"), str(obj), "-undefined", "dynamic_lookup",
-]
-attempts = {"-kext": link_base + ["-kext"], "-bundle": ["xcrun", "ld"] + link_base[2:] + ["-bundle"]}
+link_modes = {
+    "-kext": ["xcrun", "ld", "-arch", "arm64", "-platform_version", "ios", "16.0", "16.0",
+              "-o", str(out / "NativeUfs"), str(obj), "-undefined", "dynamic_lookup", "-kext"],
+    "-bundle": ["xcrun", "ld", "-arch", "arm64", "-platform_version", "ios", "16.0", "16.0",
+                "-o", str(out / "NativeUfs"), str(obj), "-undefined", "dynamic_lookup", "-bundle"],
+}
 verdict = None
-for name, cmd in attempts.items():
+for name, link_cmd in link_modes.items():
     with (out / ("link" + name + ".log")).open("w") as log:
-        rc = sp.run(cmd, stdout=log, stderr=sp.STDOUT).returncode
+        rc = sp.run(link_cmd, stdout=log, stderr=sp.STDOUT).returncode
     if rc == 0:
         verdict = name
         break
-    print((out / ("link" + name + ".log")).read_text(errors="replace")[-2000:])
+    print((out / ("link" + name + ".log")).read_text(errors="replace")[-2500:])
 if verdict is None:
     raise SystemExit("kext link failed with every linker mode")
 print(f"link mode accepted: {verdict}")
@@ -88,13 +93,14 @@ defined_storage = sorted(n for n in defined_names if "IOBlockStorageDevice" in n
 
 report = {
     "source": str(src),
-    "storage_headers": str(storage_headers),
+    "storage_headers": str(inc),
     "link_mode": verdict,
     "macho_filetype": filetype,
-    "kext_sha256": __import__("hashlib").sha256(data).hexdigest(),
+    "kext_sha256": hashlib.sha256(data).hexdigest(),
     "imports_io_storage": imported_storage,
     "defines_io_storage": defined_storage,
     "defines_own_class": sorted(n for n in defined_names if "NativeUfs" in n),
+    "import_count": len(undef_names),
     "plea": "IOBlockStorageDevice must appear in imports and never in defines",
 }
 (out / "result.json").write_text(json.dumps(report, indent=2) + "\n")
