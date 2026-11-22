@@ -16,6 +16,7 @@ base class inside the kernel, which is exactly what this gate forbids.
 """
 import hashlib
 import json
+import os as _os
 from pathlib import Path
 import struct
 import subprocess as sp
@@ -48,10 +49,12 @@ args = list(rec["arguments"])
 out_idx = args.index("-o") + 1
 args[args.index(rec["file"])] = str(src)
 args[out_idx] = str(obj)
+kit = Path(_os.environ.get("K70_VR_KIT", ""))
+kit_include = kit / "include"
 cmd = [clangxx, "-I", str(inc), *args[1:],
        "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only",
        "-DK70_NATIVE_UFS_FULL_BLOCK=1", "-DNATIVE_VERIFIED_BLOCK=1",
-       "-I", str(src.parent)]
+       "-I", str(src.parent), "-I", str(kit_include)]
 (out / "compile-command.json").write_text(json.dumps(cmd, indent=2) + "\n")
 with (out / "compile.log").open("w") as log:
     rc = sp.run(cmd, cwd=cwd, stdout=log, stderr=sp.STDOUT).returncode
