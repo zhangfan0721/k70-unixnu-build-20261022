@@ -166,6 +166,34 @@ jobs:
           set -euo pipefail
           python -B integration/iphone16/ufs/preflight.py --upstream ufs-source --out evidence/ufs-preflight-path --cxx "$(command -v clang++)"
           python -B integration/iphone16/ufs/preflight.py --upstream ufs-source --out evidence/ufs-preflight-apple --cxx "$(xcrun --sdk macosx --find clang++)"
+      - name: Stage the owner-signed VerifiedRoot envelopes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VR_TAG=k70-20H392-vr1
+          VR_DIR="$RUNNER_TEMP/vr"
+          mkdir -p "$VR_DIR"
+          gh release download "$VR_TAG" --repo "${{ github.repository }}" \
+            --pattern 'os-manifest.bin' --pattern 'systemos-manifest.bin' \
+            --pattern 'trusted-key.bin' --dir "$VR_DIR"
+          cat > "$VR_DIR/SHA256SUMS" <<'SUMS'
+          aa67564b87159fdf331ef4cb6cbc95ef26d5fa1361fff0c6d02d29ef0712a8f3  os-manifest.bin
+          9044a40d1c21004b4bbda5c50bfe90e3234000312e037e9c88a320a48354b6ce  systemos-manifest.bin
+          9d9764d6be7510e68cf2c1b29edd2fcf9b0ba355d0ffcd5d154e91c17cdd4553  trusted-key.bin
+          SUMS
+          ( cd "$VR_DIR" && shasum -a 256 -c SHA256SUMS )
+          test "$(git -C upstream/kits/VerifiedRoot rev-parse HEAD)" = 2854c61f6c4dfda870ac3d93e1f03d9181edb041
+          {
+            echo "K70_VR_OS_MANIFEST=$VR_DIR/os-manifest.bin"
+            echo "K70_VR_SYS_MANIFEST=$VR_DIR/systemos-manifest.bin"
+            echo "K70_VR_KEY_BLOB=$VR_DIR/trusted-key.bin"
+            echo "K70_VR_OS_SHA256=aa67564b87159fdf331ef4cb6cbc95ef26d5fa1361fff0c6d02d29ef0712a8f3"
+            echo "K70_VR_SYS_SHA256=9044a40d1c21004b4bbda5c50bfe90e3234000312e037e9c88a320a48354b6ce"
+            echo "K70_VR_KEY_SHA256=9d9764d6be7510e68cf2c1b29edd2fcf9b0ba355d0ffcd5d154e91c17cdd4553"
+            echo "K70_VR_KIT=$GITHUB_WORKSPACE/upstream/kits/VerifiedRoot"
+          } >> "$GITHUB_ENV"
+          echo "VerifiedRoot inputs staged in $VR_DIR"
       - name: Build matching Darwin22 with K70 CPU GIC and diagnostics
         run: |
           set -euo pipefail

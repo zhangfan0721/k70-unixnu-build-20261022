@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Build the Darwin22 NativeUfs diagnostic archive from the live C++ recipe."""
+import hashlib
 import json
 import os as _os
 from pathlib import Path
@@ -76,10 +77,36 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
     args[out_idx] = str(obj)
     # Diagnostic mode: build the full block-device class so the kernel link
     # can report exactly which IOStorageFamily symbols are still unresolved.
-    import os as _os
     _full = True  # one diagnostic round: full block class, list unresolved symbols
+
+    # VerifiedRoot inputs are validated BEFORE any object is produced: a missing
+    # or mis-hashed envelope must fail loudly instead of silently linking a
+    # driver that never calls the verifier.
+    manifest_os = Path(_os.environ.get("K70_VR_OS_MANIFEST", ""))
+    manifest_sys = Path(_os.environ.get("K70_VR_SYS_MANIFEST", ""))
+    key_blob = Path(_os.environ.get("K70_VR_KEY_BLOB", ""))
+    verified_enabled = _full and all(
+        p.is_file() for p in (manifest_os, manifest_sys, key_blob))
+    if _full and not verified_enabled:
+        raise SystemExit(
+            "VerifiedRoot requested but inputs are missing: "
+            f"os={manifest_os} sys={manifest_sys} key={key_blob}")
+    if verified_enabled:
+        for p, want in (
+                (manifest_os, _os.environ.get("K70_VR_OS_SHA256", "")),
+                (manifest_sys, _os.environ.get("K70_VR_SYS_SHA256", "")),
+                (key_blob, _os.environ.get("K70_VR_KEY_SHA256", ""))):
+            if not want:
+                raise SystemExit(f"missing expected SHA-256 for {p.name}")
+            got = hashlib.sha256(p.read_bytes()).hexdigest()
+            if got != want:
+                raise SystemExit(f"SHA-256 mismatch for {p.name}: {got} != {want}")
+
     cmd = [clangxx, "-I", str(inc), *args[1:],
            "-I", str(root / ".cache/xnu-work/osfmk"), "-mgeneral-regs-only"]
+    if verified_enabled:
+        cmd.append("-DNATIVE_VERIFIED_BLOCK=1")
+        cmd += ["-I", str(kit_include), "-I", str(src.parent)]
     if _full:
         cmd.append("-DK70_NATIVE_UFS_FULL_BLOCK=1")
     else:
@@ -116,10 +143,7 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
             raise SystemExit(r2.returncode)
     # VerifiedRoot: link the two owner-signed envelopes plus the policy table.
     verified_objs = []
-    manifest_os = Path(_os.environ.get("K70_VR_OS_MANIFEST", ""))
-    manifest_sys = Path(_os.environ.get("K70_VR_SYS_MANIFEST", ""))
-    key_blob = Path(_os.environ.get("K70_VR_KEY_BLOB", ""))
-    if _full and manifest_os.is_file() and manifest_sys.is_file() and key_blob.is_file():
+    if verified_enabled:
         gen_src = src.parent / "VerifiedPolicy.cpp"
         gen_obj = Path(tmp) / "VerifiedPolicy.o"
         text = gen_src.read_text()
@@ -142,7 +166,7 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
         for name in ("verified_root.c", "xnu_crypto.c"):
             source_path = kit_src / name if name == "verified_root.c" else kit_adapters / name
             if not source_path.is_file():
-                continue
+                raise SystemExit(f"VerifiedRoot kit source missing: {source_path}")
             vobj = Path(tmp) / (name.replace(".c", ".o"))
             vcmd = list(cmd)
             vcmd[vcmd.index(str(src))] = str(source_path)
