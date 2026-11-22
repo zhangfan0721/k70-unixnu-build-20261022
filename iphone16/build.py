@@ -157,7 +157,7 @@ def main():
     parsed = config.parse_config((HERE / 'device/configs/vermeer16_defconfig').read_text())
     required = {'XNU_SOURCE_CORECRYPTO14', 'XNU_SOURCE_PTHREAD', 'XNU_ARM_DT_PLATFORM',
                 'XNU_ARMCPU', 'XNU_NATIVE_ARCH_TIMER', 'XNU_NATIVE_PAN', 'XNU_DT_PANIC_REGION', 'XNU_NATIVE_UFS',
-                'XNU_NATIVE_CS_HASH_CACHE'}
+                'XNU_NATIVE_CS_HASH_CACHE', 'XNU_NATIVE_VERIFIED_BLOCK'}
     if {k for k, v in parsed.items() if v is True} != required or parsed.get('XNU_CRYPTO_BOOTSTRAP') != 'source':
         raise ValueError('Unexpected integration configuration')
     if args.check:
