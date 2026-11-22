@@ -199,11 +199,14 @@ jobs:
           set -euo pipefail
           python -u integration/iphone16/build.py --core upstream --source-device device --font uefi/Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/Font.h --out out16 --jobs 4 2>&1 | tee evidence/kernel-console.log
       - name: Build the NativeUfs kext against the original IOStorageFamily
-        continue-on-error: true
         run: |
           set -euo pipefail
           cd out16/vermeer16/tree
           python3 scripts/build-native-ufs-kext.py drivers/ShengUfs/NativeUfs.cpp build/storage-abi/include 2>&1 | tee "$GITHUB_WORKSPACE/evidence/kext-gate.log"
+          mkdir -p "$GITHUB_WORKSPACE/evidence/kext/NativeUfs.kext"
+          cp build/native-ufs-kext/NativeUfs "$GITHUB_WORKSPACE/evidence/kext/NativeUfs.kext/NativeUfs"
+          cp kext/NativeUfs/Info.plist "$GITHUB_WORKSPACE/evidence/kext/NativeUfs.kext/Info.plist"
+          cp build/native-ufs-kext/result.json "$GITHUB_WORKSPACE/evidence/kext/result.json"
 
       - uses: actions/upload-artifact@v4
         with:
