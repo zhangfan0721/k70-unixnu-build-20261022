@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the Darwin22 NativeUfs diagnostic archive from the live C++ recipe."""
 import json
+import os as _os
 from pathlib import Path
 import re
 import shutil
@@ -60,6 +61,13 @@ if Path(clangxx).parent.resolve() != Path(args[0]).parent.resolve():
 
 out = root / "build/native-ufs"
 out.mkdir(parents=True, exist_ok=True)
+
+# VerifiedRoot kit inside the pinned core checkout.
+_kit_root = Path(_os.environ.get("K70_VR_KIT", ""))
+kit_include = _kit_root / "include"
+kit_src = _kit_root / "src"
+kit_adapters = _kit_root / "adapters"
+
 with tempfile.TemporaryDirectory(dir=out) as tmp:
     obj = Path(tmp) / "NativeUfs.o"
     bridge_obj = Path(tmp) / "StorageBridge.o"
@@ -106,7 +114,49 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
         if r2.returncode:
             print((out / "compile-bridge.log").read_text(errors="replace"), end="")
             raise SystemExit(r2.returncode)
-    objs = [str(obj)] + ([str(bridge_obj)] if bridge_obj.is_file() else [])
+    # VerifiedRoot: link the two owner-signed envelopes plus the policy table.
+    verified_objs = []
+    manifest_os = Path(_os.environ.get("K70_VR_OS_MANIFEST", ""))
+    manifest_sys = Path(_os.environ.get("K70_VR_SYS_MANIFEST", ""))
+    key_blob = Path(_os.environ.get("K70_VR_KEY_BLOB", ""))
+    if _full and manifest_os.is_file() and manifest_sys.is_file() and key_blob.is_file():
+        gen_src = src.parent / "VerifiedPolicy.cpp"
+        gen_obj = Path(tmp) / "VerifiedPolicy.o"
+        text = gen_src.read_text()
+        text = text.replace("VR_OS_MANIFEST", str(manifest_os))
+        text = text.replace("VR_SYS_MANIFEST", str(manifest_sys))
+        text = text.replace("VR_KEY_BLOB", str(key_blob))
+        staged = Path(tmp) / "VerifiedPolicy_gen.cpp"
+        staged.write_text(text)
+        gen_cmd = list(cmd)
+        gen_cmd[gen_cmd.index(str(src))] = str(staged)
+        gen_cmd[gen_cmd.index(str(obj))] = str(gen_obj)
+        gen_cmd += ["-I", str(src.parent), "-I", str(kit_include)]
+        with (out / "compile-policy.log").open("w") as log:
+            r3 = sp.run(gen_cmd, cwd=cwd, stdout=log, stderr=sp.STDOUT)
+        if r3.returncode:
+            print((out / "compile-policy.log").read_text(errors="replace"), end="")
+            raise SystemExit(r3.returncode)
+        verified_objs.append(str(gen_obj))
+        # verifier + xnu crypto adapter
+        for name in ("verified_root.c", "xnu_crypto.c"):
+            source_path = kit_src / name if name == "verified_root.c" else kit_adapters / name
+            if not source_path.is_file():
+                continue
+            vobj = Path(tmp) / (name.replace(".c", ".o"))
+            vcmd = list(cmd)
+            vcmd[vcmd.index(str(src))] = str(source_path)
+            vcmd[vcmd.index(str(obj))] = str(vobj)
+            vcmd += ["-I", str(kit_include)]
+            vcmd = [a for a in vcmd if a != "-xc++"]
+            vcmd.insert(1, "-xc")
+            with (out / ("compile-" + name + ".log")).open("w") as log:
+                rv = sp.run(vcmd, cwd=cwd, stdout=log, stderr=sp.STDOUT)
+            if rv.returncode:
+                print((out / ("compile-" + name + ".log")).read_text(errors="replace"), end="")
+                raise SystemExit(rv.returncode)
+            verified_objs.append(str(vobj))
+    objs = [str(obj)] + ([str(bridge_obj)] if bridge_obj.is_file() else []) + verified_objs
     sp.run(["xcrun", "ar", "rcs", str(archive), *objs], check=True)
     nm = sp.check_output(["xcrun", "nm", "-gU", str(archive)], text=True)
     symbols = {line.split()[-1] for line in nm.splitlines() if line.split()}
