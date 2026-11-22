@@ -11,6 +11,11 @@ import subprocess as sp
 import sys
 import tempfile
 
+# Switches in the kernel C++ recipe that a C translation unit cannot accept.
+CXX_ONLY_SWITCHES = ("-std=gnu++", "-std=c++", "-stdlib=", "-fno-exceptions",
+                     "-fno-rtti", "-fno-threadsafe-statics",
+                     "-fno-c++-static-destructors", "-fno-objc-arc")
+
 if len(sys.argv) != 3:
     raise SystemExit("usage: build-native-ufs.py SOURCE.cpp STORAGE_INCLUDE")
 
@@ -172,8 +177,13 @@ with tempfile.TemporaryDirectory(dir=out) as tmp:
             vcmd[vcmd.index(str(src))] = str(source_path)
             vcmd[vcmd.index(str(obj))] = str(vobj)
             vcmd += ["-I", str(kit_include)]
-            vcmd = [a for a in vcmd if a != "-xc++"]
+            # The kit verifier is plain C, so the C++ recipe has to drop every
+            # C++-only switch (clang rejects -std=gnu++1z for C outright) and
+            # name the C dialect explicitly.
+            vcmd = [a for a in vcmd
+                    if a != "-xc++" and not a.startswith(CXX_ONLY_SWITCHES)]
             vcmd.insert(1, "-xc")
+            vcmd.insert(2, "-std=gnu11")
             with (out / ("compile-" + name + ".log")).open("w") as log:
                 rv = sp.run(vcmd, cwd=cwd, stdout=log, stderr=sp.STDOUT)
             if rv.returncode:
