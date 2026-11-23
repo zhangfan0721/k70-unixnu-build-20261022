@@ -1,27 +1,36 @@
 --- a/libkern/c++/OSMetaClass.cpp
 +++ b/libkern/c++/OSMetaClass.cpp
-@@ -884,18 +884,20 @@
+@@ -884,18 +884,19 @@
  				if (orig) {
- 					/* Log this error here so we can include the class name.
- 					 * xxx - we should look up the other kext that defines the class
-+					 *
-+					 * K70: the native UFS kext's bridge supplies a kernel-side
-+					 * IOBlockStorageDevice so NativeUfs can link
-+					 * IOBlockStorageDevice::start/free statically.  The original
-+					 * IOStorageFamily component then registers the same class
-+					 * name.  Keep the kernel definition, skip the component's
-+					 * duplicate, and refuse the batch the way the macOS build
-+					 * does, instead of panicking.
- 					 */
+-					/* Log this error here so we can include the class name.
+-					 * xxx - we should look up the other kext that defines the class
+-					 */
 -#if defined(XNU_TARGET_OS_OSX)
- 					OSKextLog(myKext, kOSMetaClassLogSpec,
+-					OSKextLog(myKext, kOSMetaClassLogSpec,
 -#else
 -					panic(
 -#endif /* defined(XNU_TARGET_OS_OSX) */
- 					    "OSMetaClass: Kext %s class %s is a duplicate;"
- 					    "kext %s already has a class by that name.",
- 					    sStalled->kextIdentifier, (const char *)me->className,
- 					    ((OSKext *)orig->reserved->kext)->getIdentifierCString());
- 					result = kOSMetaClassDuplicateClass;
- 					break;
+-					    "OSMetaClass: Kext %s class %s is a duplicate;"
+-					    "kext %s already has a class by that name.",
+-					    sStalled->kextIdentifier, (const char *)me->className,
+-					    ((OSKext *)orig->reserved->kext)->getIdentifierCString());
+-					result = kOSMetaClassDuplicateClass;
+-					break;
++					/* Log this error here so we can include the class name.
++					 * xxx - we should look up the other kext that defines the class
++					 *
++					 * K70: the native UFS kext bridge supplies a kernel-side
++					 * IOBlockStorageDevice so NativeUfs can link
++					 * IOBlockStorageDevice::start/free statically. The original
++					 * IOStorageFamily component then registers the same class name.
++					 * Keep the kernel definition, skip the duplicate, and refuse the
++					 * batch the way the macOS build does, instead of panicking.
++					 */
++					OSKextLog(myKext, kOSMetaClassLogSpec,
++					    "OSMetaClass: Kext %s class %s is a duplicate;"
++					    "kext %s already has a class by that name.",
++					    sStalled->kextIdentifier, (const char *)me->className,
++					    ((OSKext *)orig->reserved->kext)->getIdentifierCString());
  				}
+ 				unsigned int depth = 1;
+ 				while ((me = me->superClassLink)) {
