@@ -1,0 +1,25 @@
+--- a/libkern/c++/OSMetaClass.cpp
++++ b/libkern/c++/OSMetaClass.cpp
+@@ -884,11 +884,18 @@
+ 				if (orig) {
+ 					/* Log this error here so we can include the class name.
+ 					 * xxx - we should look up the other kext that defines the class
++					 *
++					 * K70: the native UFS kext's bridge already provides a
++					 * kernel-side IOBlockStorageDevice so that NativeUfs can
++					 * link IOBlockStorageDevice::start/free statically.  When
++					 * the original IOStorageFamily component then registers
++					 * the same class name, the kernel definition stays and the
++					 * component's copy is skipped.  Log and refuse this batch
++					 * instead of panicking, exactly as the macOS build does.
+ 					 */
+-#if defined(XNU_TARGET_OS_OSX)
++#if defined(XNU_TARGET_OS_OSX) || defined(XNU_K70_TOLERATE_DUPLICATE_CLASS)
+ 					OSKextLog(myKext, kOSMetaClassLogSpec,
+ #else
+ 					panic(
+-#endif /* defined(XNU_TARGET_OS_OSX) */
++#endif /* defined(XNU_TARGET_OS_OSX) || defined(XNU_K70_TOLERATE_DUPLICATE_CLASS) */
+ 					    "OSMetaClass: Kext %s class %s is a duplicate;"
+ 					    "kext %s already has a class by that name.",
+ 					    sStalled->kextIdentifier, (const char *)me->className,
