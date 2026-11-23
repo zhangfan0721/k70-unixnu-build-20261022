@@ -1,0 +1,8 @@
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -1047,4 +1047,5 @@
+ #endif /* DEVELOPMENT || DEBUG */
+ 
++	boot_progress_stage("bsd_init complete");
+ 	bsd_init_kprintf("done\n");
+ }
