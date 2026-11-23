@@ -22,7 +22,17 @@ OSDefineMetaClassAndAbstractStructors(IOBlockStorageDevice, IOService)
 
 bool IOBlockStorageDevice::init(OSDictionary *properties)
 {
-	return IOService::init(properties);
+	// The original implementation publishes device-type=Generic here, and the
+	// IOStorageDriver personality in IOStorageFamily's Info.plist matches on
+	// exactly that property.  Without it the driver never attaches, so no
+	// IOMedia is ever published for the window and root publication then waits
+	// 30 s for a UUID that can never appear.
+	bool result = IOService::init(properties);
+	if (result) {
+		result = setProperty(kIOBlockStorageDeviceTypeKey,
+		                     kIOBlockStorageDeviceTypeGeneric);
+	}
+	return result;
 }
 
 OSObject *IOBlockStorageDevice::getProperty(const OSSymbol *key) const
