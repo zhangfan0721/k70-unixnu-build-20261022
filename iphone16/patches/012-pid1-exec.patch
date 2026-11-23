@@ -1,0 +1,8 @@
+--- a/bsd/kern/bsd_init.c
++++ b/bsd/kern/bsd_init.c
+@@ -1078,2 +1078,5 @@
+ 	load_init_program(p);
++	/* K70: load_init_program does not return on success, so reaching this
++	 * line means the launchd exec failed and process 1 never started. */
++	boot_progress_stage("PID1 launchd exec RETURNED");
+ 	lock_trace = 1;
