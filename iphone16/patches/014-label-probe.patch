@@ -1,0 +1,7 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -6480,3 +6480,4 @@
+ 			imgp->ip_mac_return = label_update_return;
++			boot_progress_stage(label_update_return ? "label update FAILED" : "label update ok");
+ 		}
+ 
