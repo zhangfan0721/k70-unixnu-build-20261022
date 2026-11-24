@@ -1,0 +1,7 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -2314,3 +2314,4 @@
+ 
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(50, error, 1); }
+ 	return error;
+ }
