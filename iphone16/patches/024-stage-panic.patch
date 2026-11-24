@@ -1,0 +1,14 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -2171,2 +2171,3 @@
+ 	if (error) {
++	if (error) { panic("K70NM errno=%d", error); }
+ 		if (error == ERESTART) {
+@@ -2194,2 +2194,3 @@
+ 	proc_unlock(p);
++	if (error) { panic("K70PT errno=%d", error); }
+ 	if (error) {
+@@ -2200,2 +2200,3 @@
+ 	if (error) {
++	if (error) { panic("K70CP errno=%d", error); }
+ 		goto bad;
