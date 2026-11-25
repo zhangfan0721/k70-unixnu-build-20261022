@@ -1,7 +1,0 @@
---- a/bsd/kern/kern_exec.c
-+++ b/bsd/kern/kern_exec.c
-@@ -6289,3 +6289,4 @@
- 	if ((error = vnode_authorize(vp, NULL, action, imgp->ip_vfs_context)) != 0) {
-+		boot_progress_stage("vnode_authorize EXECUTE FAILED");
- 		return error;
- 	}
