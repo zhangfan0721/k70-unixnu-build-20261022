@@ -1,7 +1,0 @@
---- a/bsd/vfs/vfs_subr.c
-+++ b/bsd/vfs/vfs_subr.c
-@@ -9871,3 +9871,4 @@
- 	if ((result = vnode_getattr(vp, &va, ctx)) != 0) {
-+		panic("K70GA getattr=%d", result);
- 		KAUTH_DEBUG("%p    ERROR - failed to get vnode attributes - %d", vp, result);
- 		goto out;
