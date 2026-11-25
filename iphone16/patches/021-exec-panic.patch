@@ -1,7 +1,0 @@
---- a/bsd/kern/kern_exec.c
-+++ b/bsd/kern/kern_exec.c
-@@ -2314,3 +2314,4 @@
- 
-+	if (error != 0) { panic("K70EXECACT errno=%d", error); }
- 	return error;
- }
