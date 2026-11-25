@@ -1,0 +1,18 @@
+--- a/bsd/vfs/vfs_subr.c
++++ b/bsd/vfs/vfs_subr.c
+@@ -9818,2 +9818,3 @@
+ 		goto out;
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x770, result, (int)(action & 0xffff)); }
+ 	}
+@@ -9854,2 +9854,3 @@
+ 		is_suser = TRUE;
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x771, 1, (int)(rights & 0xfffff)); }
+ 	}
+@@ -9904,2 +9904,3 @@
+ 	if (result) {
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x774, result, errorp ? *errorp : -9); }
+ 		if (parent_ref) {
+@@ -8516,2 +8516,3 @@
+ 	/* did the lower layers give a better error return? */
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x775, result, error); }
+ 	if ((result != 0) && (error != 0)) {
