@@ -1,0 +1,29 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -6218,2 +6218,3 @@
+ 	int error;
++	int k70_ga = -1, k70_mv = -1, k70_vz = -1, k70_seen = 0;
+ 	kauth_action_t action;
+@@ -6235,3 +6236,6 @@
+-	if ((error = vnode_getattr(vp, vap, imgp->ip_vfs_context)) != 0) {
++	error = vnode_getattr(vp, vap, imgp->ip_vfs_context);
++	k70_ga = error; k70_seen |= 1;
++	if (error != 0) {
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7000 | k70_seen, k70_ga, ((k70_mv & 0xffff) << 16) | (k70_vz & 0xffff)); }
+ 		return error;
+ 	}
+@@ -6277,4 +6281,6 @@
+ 	error = mac_vnode_check_exec(imgp->ip_vfs_context, vp, imgp);
++	k70_mv = error; k70_seen |= 2;
+ 	if (error) {
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7000 | k70_seen, k70_ga, ((k70_mv & 0xffff) << 16) | (k70_vz & 0xffff)); }
+ 		return error;
+ 	}
+@@ -6289,3 +6295,6 @@
+-	if ((error = vnode_authorize(vp, NULL, action, imgp->ip_vfs_context)) != 0) {
++	error = vnode_authorize(vp, NULL, action, imgp->ip_vfs_context);
++	k70_vz = error; k70_seen |= 4;
++	if (error != 0) {
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7000 | k70_seen, k70_ga, ((k70_mv & 0xffff) << 16) | (k70_vz & 0xffff)); }
+ 		return error;
+ 	}
