@@ -1,8 +1,0 @@
---- a/iphone16/K70FlightScreen.h
-+++ b/iphone16/K70FlightScreen.h
-@@ -172,2 +172,5 @@
-   else if(row==16){kf_text(&l,"1=PARENT 2=VECTORS 3=LOCK 4=MAX_CPUS");}
-+  else if(row==17){extern int k70_cp_hist_id(int);extern int k70_cp_hist_v1(int);
-+    kf_text(&l,"CP60/61/62 err ");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_hist_v1(2));kf_text(&l,"/");
-+    kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_hist_v1(1));kf_text(&l,"/");kf_hex8(&l,(uint64_t)(uint32_t)k70_cp_hist_v1(0));}
-   else if(row>=18 && row<=22){
