@@ -1,9 +1,0 @@
---- a/bsd/vfs/vfs_subr.c
-+++ b/bsd/vfs/vfs_subr.c
-@@ -8515,3 +8515,6 @@
- 	}
-+	if (result != 0) {
-+		panic("K70VA res=%d lower=%d act=%x", result, error, (unsigned)action);
-+	}
- 	/* did the lower layers give a better error return? */
- 	if ((result != 0) && (error != 0)) {
