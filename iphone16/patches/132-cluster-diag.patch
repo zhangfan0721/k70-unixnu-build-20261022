@@ -1,0 +1,11 @@
+--- a/bsd/vfs/vfs_cluster.c
++++ b/bsd/vfs/vfs_cluster.c
+@@ -3976,2 +3976,8 @@
+ 
++	if (uio_offset(uio) == 0 && uio_resid(uio) == 4096) {
++		printf("K70CL vid=%u uio=%llx size=%llx\n",
++		    (unsigned)vnode_vid(vp),
++		    (unsigned long long)(uintptr_t)uio,
++		    (unsigned long long)filesize);
++	}
+ 	flags = xflags;
