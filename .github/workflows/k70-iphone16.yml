@@ -64,7 +64,8 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('ufs-source/RootLayout.h')
+          import os
+          p = Path(os.environ['GITHUB_WORKSPACE']) / 'ufs-source' / 'RootLayout.h'
           t = p.read_text()
           old = 'static const char wanted[] = "userdata";'
           if 'unixnu' in t:
