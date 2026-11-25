@@ -1,0 +1,18 @@
+--- a/bsd/vfs/vfs_vnops.c
++++ b/bsd/vfs/vfs_vnops.c
+@@ -966,2 +966,3 @@
+ 	int error = 0;
++	volatile int k70_macerr = -1, k70_rdwerr = -1;
+ 	uio_stackbuf_t uio_buf[UIO_SIZEOF(1)];
+@@ -998,2 +998,3 @@
+ 	}
++	k70_macerr = error;
+ #endif
+@@ -1006,2 +1006,3 @@
+ 				error = VNOP_READ(vp, auio, ioflg, &context);
++				k70_rdwerr = error;
+ 			}
+@@ -1018,2 +1018,3 @@
+ 	}
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7b0, k70_macerr, (k70_rdwerr << 16) | (error & 0xffff)); }
+ 	return error;
