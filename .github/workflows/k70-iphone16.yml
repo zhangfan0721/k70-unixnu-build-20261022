@@ -66,6 +66,12 @@ jobs:
           from pathlib import Path
           import os
           p = Path(os.environ['GITHUB_WORKSPACE']) / 'ufs-source' / 'RootLayout.h'
+          print('cwd', os.getcwd())
+          print('ws', os.environ['GITHUB_WORKSPACE'])
+          print('target', p, 'exists', p.exists())
+          if not p.exists():
+              for c in sorted(Path(os.environ['GITHUB_WORKSPACE']).iterdir()):
+                  print(' entry', c.name)
           t = p.read_text()
           old = 'static const char wanted[] = "userdata";'
           if 'unixnu' in t:
