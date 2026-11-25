@@ -1,0 +1,15 @@
+--- a/bsd/vfs/vfs_vnops.c
++++ b/bsd/vfs/vfs_vnops.c
+@@ -962,3 +962,4 @@
+ {
+ 	uio_t auio;
++	int k70_vtype = -1; long long k70_ubcsize = -1;
+ 	int spacetype;
+@@ -969,2 +969,3 @@
+ 	context.vc_thread = current_thread();
++	k70_vtype = vnode_vtype(vp); k70_ubcsize = (long long)ubc_getsize(vp);
+ 	context.vc_ucred = cred;
+@@ -1018,2 +1018,3 @@
+ 	}
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7c1, k70_vtype, (int)(k70_ubcsize & 0xffffffff)); }
+ 	return error;
