@@ -1,0 +1,11 @@
+--- a/bsd/vfs/vfs_cluster.c
++++ b/bsd/vfs/vfs_cluster.c
+@@ -1458,3 +1458,4 @@
+ 		if ((error = VNOP_BLOCKMAP(vp, f_offset, io_size, &blkno, &io_size_tmp, NULL, bmap_flags, NULL))) {
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7d0, error, (int)f_offset); }
+ 			break;
+ 		}
+@@ -3969,2 +3969,3 @@
+ {
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7d1, (int)filesize, (int)uio_offset(uio)); }
+ 	int             retval = 0;
