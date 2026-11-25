@@ -1,0 +1,15 @@
+--- a/bsd/vfs/vfs_vnops.c
++++ b/bsd/vfs/vfs_vnops.c
+@@ -997,3 +997,4 @@
+ 		}
+ 	}
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7a0, error, 1); }
+ #endif
+@@ -1006,2 +1006,3 @@
+ 				error = VNOP_READ(vp, auio, ioflg, &context);
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7a1, error, (int)uio_resid(auio)); }
+ 			}
+@@ -1018,2 +1018,3 @@
+ 	}
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x7a2, error, (int)uio_resid(auio)); }
+ 	return error;
