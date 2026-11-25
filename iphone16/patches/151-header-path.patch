@@ -1,0 +1,10 @@
+--- a/bsd/kern/decmpfs.c
++++ b/bsd/kern/decmpfs.c
+@@ -519,2 +519,3 @@
+ 	decmpfs_header *hdr = NULL;
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x830, no_additional_data ? 0 : 1, (int)(cp ? cp->cmp_type : -1)); }
+ 
+@@ -596,2 +596,3 @@
+ 
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x831, err, hdr ? (int)hdr->compression_type : -1); }
+ 	if (hdr->compression_magic != DECMPFS_MAGIC) {
