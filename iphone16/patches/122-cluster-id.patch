@@ -1,0 +1,6 @@
+--- a/bsd/vfs/vfs_cluster.c
++++ b/bsd/vfs/vfs_cluster.c
+@@ -3969,2 +3969,3 @@
+ {
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x803, vnode_vid(vp), (int)(filesize & 0x7fffffff)); }
+ 	int             retval = 0;
