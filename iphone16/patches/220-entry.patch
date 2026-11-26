@@ -1,8 +1,0 @@
---- a/bsd/kern/decmpfs.c
-+++ b/bsd/kern/decmpfs.c
-@@ -1653,2 +1653,5 @@
- 	vnode_t vp                   = ap->a_vp;
-+	{ extern void k70_cp_note(int,int,int);
-+	  k70_cp_note(0x890, (is_compressed ? *is_compressed : -1) << 16 | (int)(vnode_vid(vp) & 0xffff),
-+	              (int)(cp ? cp->cmp_type : -1)); }
- 	int err                      = 0;
