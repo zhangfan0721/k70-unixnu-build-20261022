@@ -1,0 +1,21 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -2209,3 +2209,18 @@
+ 
++	{
++		/* Volume + file identity for the exec target, so the live vnode can be
++		 * matched against the delivered root.hfs instead of guessed. */
++		struct vnode_attr dva = { 0 };
++		mount_t mnt = vnode_mount(imgp->ip_vp);
++		int de;
++		VATTR_INIT(&dva);
++		VATTR_WANTED(&dva, va_fileid);
++		VATTR_WANTED(&dva, va_data_size);
++		de = vnode_getattr(imgp->ip_vp, &dva, imgp->ip_vfs_context);
++		{ extern void k70_cp_note(int,int,int);
++		  k70_cp_note(0x8a0, de, (int)(mnt ? 1 : 0));
++		  k70_cp_note(0x8a1, (int)(dva.va_fileid & 0xffff), (int)((dva.va_fileid >> 16) & 0xffff));
++		  k70_cp_note(0x8a2, (int)(dva.va_data_size & 0xffff), (int)((dva.va_data_size >> 16) & 0xffff)); }
++	}
+ 	error = vn_rdwr(UIO_READ, imgp->ip_vp, imgp->ip_vdata, PAGE_SIZE, 0,
+ 	    UIO_SYSSPACE, IO_NODELOCKED,
