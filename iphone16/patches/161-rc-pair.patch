@@ -1,0 +1,12 @@
+--- a/bsd/kern/decmpfs.c
++++ b/bsd/kern/decmpfs.c
+@@ -1709,3 +1709,4 @@
+ 	err = decmpfs_fetch_compressed_header(vp, cp, &hdr, 0, &alloc_size);
++	{ extern void k70_cp_note(int,int,int); k70_cp_note(0x840, (int)vnode_vid(vp), (hdr && err == 0) ? (int)hdr->compression_type : -1); }
+ 	if (err != 0) {
+ 		goto out;
+@@ -1713,3 +1713,4 @@
+ 	if (!compression_type_valid(vp, hdr)) {
++		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x841, (int)vnode_vid(vp), (int)hdr->compression_type); }
+ 		err = ENOTSUP;
+ 		goto out;
