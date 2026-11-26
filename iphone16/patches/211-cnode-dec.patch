@@ -1,7 +1,0 @@
---- a/bsd/kern/decmpfs.c
-+++ b/bsd/kern/decmpfs.c
-@@ -1713,3 +1713,4 @@
- 	if (!compression_type_valid(vp, hdr)) {
-+		{ extern void k70_cp_note(int,int,int); k70_cp_note(0x881, (int)(((uintptr_t)vp >> 4) & 0xffff) << 16 | (int)(((uintptr_t)vp->v_data >> 4) & 0xffff), (int)(((uintptr_t)vp->v_data >> 20) & 0xffff)); }
- 		err = ENOTSUP;
- 		goto out;
