@@ -1,0 +1,8 @@
+--- a/bsd/kern/kern_exec.c
++++ b/bsd/kern/kern_exec.c
+@@ -2209,3 +2209,5 @@
+ 
++	{ extern void k70_cp_note(int,int,int);
++	  k70_cp_note(0x880, (int)(((uintptr_t)imgp->ip_vp >> 4) & 0xffff) << 16 | (int)(((uintptr_t)imgp->ip_vp->v_data >> 4) & 0xffff), (int)(((uintptr_t)imgp->ip_vp->v_data >> 20) & 0xffff)); }
+ 	error = vn_rdwr(UIO_READ, imgp->ip_vp, imgp->ip_vdata, PAGE_SIZE, 0,
+ 	    UIO_SYSSPACE, IO_NODELOCKED,
