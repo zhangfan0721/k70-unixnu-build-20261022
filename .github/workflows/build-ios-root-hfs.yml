@@ -67,31 +67,46 @@ jobs:
           curl -fL --retry 3 -r 66-1097727317 "$IP" -o sysos.raw &
           wait
           ls -l
-          # sysos.raw is a zip stream fragment; recover the member
+          # The range is a zip *fragment*: the central directory is not in it, so
+          # zipfile cannot open it. Parse the local header and raw-inflate the
+          # deflate stream directly instead.
           python3 - <<'PY'
-          import zipfile, io, sys
+          import zlib, struct, sys
           raw = open('sysos.raw','rb').read()
-          # the fragment starts just before the local header; search for it
-          idx = raw.find(b'PK\x03\x04')
-          print('local header at', idx, 'len', len(raw))
-          if idx < 0:
-              sys.exit('no local file header found')
-          data = raw[idx:]
-          # wrap the fragment so zipfile can read just this member
-          buf = io.BytesIO(data)
-          try:
-              z = zipfile.ZipFile(buf)
-              names = z.namelist()
-              print('members:', names[:5])
-              with z.open(names[0]) as src, open('sysos.dmg','wb') as dst:
-                  while True:
-                      b = src.read(1 << 20)
-                      if not b: break
-                      dst.write(b)
-              print('extracted sysos.dmg')
-          except Exception as e:
-              print('zipfile failed:', e)
-              sys.exit(1)
+          i = raw.find(b'PK\x03\x04')
+          print('local header at', i, 'of', len(raw), 'bytes')
+          if i < 0:
+              sys.exit('no local file header')
+          sig, ver, flags, method, mt, md, crc, csize, usize, nlen, elen = struct.unpack('<4sHHHHHIIIHH', raw[i:i+30])
+          name = raw[i+30:i+30+nlen].decode('utf-8','replace')
+          print(f'method={method} flags={flags:#x} csize={csize} usize={usize} name={name}')
+          start = i + 30 + nlen + elen
+          d = zlib.decompressobj(-15)
+          out = bytearray()
+          pos = start
+          CH = 4 << 20
+          if flags & 0x08 or csize == 0:
+              while pos < len(raw):
+                  chunk = raw[pos:pos+CH]; pos += CH
+                  try:
+                      out += d.decompress(chunk)
+                  except zlib.error as e:
+                      print('inflate error:', e); break
+                  if d.eof:
+                      print('end of stream at', pos); break
+          else:
+              end = start + csize
+              while pos < end:
+                  chunk = raw[pos:min(pos+CH, end)]; pos += len(chunk)
+                  try:
+                      out += d.decompress(chunk)
+                  except zlib.error as e:
+                      print('inflate error:', e); break
+          print('decompressed', len(out), 'bytes (want', usize, ')')
+          if usize and len(out) != usize:
+              sys.exit('size mismatch')
+          open('sysos.dmg','wb').write(bytes(out))
+          print('wrote sysos.dmg')
           PY
           ls -l
 
