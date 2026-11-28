@@ -206,6 +206,7 @@ jobs:
           print(f"OS          offset={off_os:#x} size={os_size:#x} sha256={h_os}")
           print(f"SystemOS    offset={off_sys:#x} size={sys_size:#x} sha256={h_sys}")
           print(f"header      sha256={hashlib.sha256(bytes(hdr[0:4064])).hexdigest()}")
+          print("byte order  = big-endian (>Q for u64 fields)")
           PY
           ls -lh unixnu-root.img
           sha256sum unixnu-root.img | tee unixnu-root.img.sha256
@@ -222,7 +223,8 @@ jobs:
               print(("OK   " if cond else "FAIL ") + msg)
               ok = ok and cond
 
-          m0, m1, ver, n, image_bytes = struct.unpack_from(">IIIII", data, 0)
+          m0, m1, ver, n = struct.unpack_from(">IIII", data, 0)
+          image_bytes, = struct.unpack_from(">Q", data, 0x10)
           chk(m0 == 0x474e4853, f"magic0 {m0:#x}")
           chk(m1 == 0x544f4f52, f"magic1 {m1:#x}")
           chk(ver == 1, f"version {ver}")
