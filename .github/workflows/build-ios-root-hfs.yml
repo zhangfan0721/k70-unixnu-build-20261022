@@ -117,9 +117,12 @@ jobs:
           sudo apfs-fuse -o allow_other 087-86698-044.dmg /mnt/os || true
           sudo apfs-fuse -o allow_other 087-86593-047.dmg /mnt/sysos || true
           sudo apfs-fuse -o allow_other 087-86715-047.dmg /mnt/appos || true
-          echo "--- /mnt/os ---";   sudo ls /mnt/os   | head -20 || true
-          echo "--- /mnt/sysos ---"; sudo ls /mnt/sysos | head -20 || true
-          echo "--- /mnt/appos ---"; sudo ls /mnt/appos | head -20 || true
+          for m in os sysos appos; do
+            echo "--- /mnt/$m ---"
+            sudo ls "/mnt/$m" || true
+            echo "--- /mnt/$m/root (2 levels) ---"
+            sudo find "/mnt/$m/root" -maxdepth 2 2>/dev/null | head -20 || true
+          done
 
       - name: Build the HFS+ root
         run: |
@@ -138,24 +141,47 @@ jobs:
       - name: Copy the OS tree
         run: |
           set -euxo pipefail
-          # /mnt/os holds the OS root (3.apfs mount point contents)
-          SRC=/mnt/os
-          if [ -d "$SRC/3.apfs" ]; then SRC="$SRC/3.apfs"; fi
-          echo "source: $SRC"; ls "$SRC" | head
-          sudo rsync -aH --info=stats2 "$SRC"/ /mnt/root/ || {
-            echo "rsync failed, trying without hard links"; sudo rsync -a "$SRC"/ /mnt/root/;
-          }
+          # Each dmg mounts with a top level of {private-dir, root}. The OS lives
+          # under root/; private-dir/ carries the data-volume skeleton that the
+          # bring-up tweaks expect. Merge all three, OS first then the cryptexes,
+          # so later layers win where they overlap (same as on device).
+          for m in os sysos appos; do
+            SRC="/mnt/${m}/root"
+            if [ -d "$SRC" ]; then
+              echo "=== rsync $SRC -> /mnt/root ==="
+              sudo rsync -aH --info=stats2 "$SRC"/ /mnt/root/ || sudo rsync -a "$SRC"/ /mnt/root/
+            else
+              echo "no root/ under /mnt/$m"
+            fi
+          done
+          for m in os sysos appos; do
+            SRC="/mnt/${m}/private-dir"
+            if [ -d "$SRC" ]; then
+              echo "=== rsync $SRC -> /mnt/root/private ==="
+              sudo mkdir -p /mnt/root/private
+              sudo rsync -aH "$SRC"/ /mnt/root/private/ || sudo rsync -a "$SRC"/ /mnt/root/private/ || true
+            fi
+          done
           df -h /mnt/root
-          sudo ls /mnt/root | head -20
+          sudo ls /mnt/root
 
       - name: Sanity check the volume
         run: |
           set -euxo pipefail
-          for p in sbin/launchd usr/lib/dyld System/Library/CoreServices/SystemVersion.plist; do
-            if sudo test -e "/mnt/root/$p"; then echo "OK   $p"; else echo "MISS $p"; fi
+          PASS=0; FAIL=0
+          for p in sbin/launchd usr/lib/dyld \
+                   System/Library/CoreServices/SystemVersion.plist \
+                   System/Library/Caches/com.apple.dyld \
+                   private/var/keybags/systembag.kb; do
+            if sudo test -e "/mnt/root/$p"; then echo "OK   $p"; PASS=$((PASS+1));
+            else echo "MISS $p"; FAIL=$((FAIL+1)); fi
           done
-          sudo ls /mnt/root/System/Library/Caches/com.apple.dyld 2>/dev/null | head -3 || true
+          echo "present=$PASS missing=$FAIL"
+          echo "--- catalog size ---"
+          sudo du -sh /mnt/root 2>/dev/null || true
           df -h /mnt/root
+          # At least launchd must be there for the boot to mean anything.
+          sudo test -e /mnt/root/sbin/launchd
 
       - name: Unmount and verify
         run: |
