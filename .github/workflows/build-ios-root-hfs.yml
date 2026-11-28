@@ -33,7 +33,7 @@ jobs:
 
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/graalvm /usr/share/swift /usr/local/.ghcup /opt/microsoft /usr/lib/R || true
           sudo apt-get clean
           df -h /
 
@@ -56,95 +56,70 @@ jobs:
           sudo install -m 0755 apfs-fuse /usr/local/bin/apfs-fuse
           apfs-fuse 2>&1 | head -3 || true
 
-      - name: Download the three IPSW members
+      - name: Download the IPSW
         run: |
           set -euo pipefail
           IP=https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw
           mkdir -p dmg && cd dmg
-          # OS.dmg: stored (method 0) inside the zip -> plain HTTP range
-          curl -fL --retry 3 -r 1191497303-5922311346 "$IP" -o os.dmg &
-          # Cryptex1,SystemOS: deflated (method 8) -> needs a real inflate, fetch the range then unzip -p
-          curl -fL --retry 3 -r 66-1097727317 "$IP" -o sysos.raw &
-          wait
-          ls -l
-          # The range is a zip *fragment*: the central directory is not in it, so
-          # zipfile cannot open it. Parse the local header and raw-inflate the
-          # deflate stream directly instead.
-          python3 - <<'PY'
-          import zlib, struct, sys
-          raw = open('sysos.raw','rb').read()
-          i = raw.find(b'PK\x03\x04')
-          print('local header at', i, 'of', len(raw), 'bytes')
-          if i < 0:
-              sys.exit('no local file header')
-          sig, ver, flags, method, mt, md, crc, csize, usize, nlen, elen = struct.unpack('<4sHHHHHIIIHH', raw[i:i+30])
-          name = raw[i+30:i+30+nlen].decode('utf-8','replace')
-          print(f'method={method} flags={flags:#x} csize={csize} usize={usize} name={name}')
-          start = i + 30 + nlen + elen
-          d = zlib.decompressobj(-15)
-          out = bytearray()
-          pos = start
-          CH = 4 << 20
-          if flags & 0x08 or csize == 0:
-              while pos < len(raw):
-                  chunk = raw[pos:pos+CH]; pos += CH
-                  try:
-                      out += d.decompress(chunk)
-                  except zlib.error as e:
-                      print('inflate error:', e); break
-                  if d.eof:
-                      print('end of stream at', pos); break
-          else:
-              end = start + csize
-              while pos < end:
-                  chunk = raw[pos:min(pos+CH, end)]; pos += len(chunk)
-                  try:
-                      out += d.decompress(chunk)
-                  except zlib.error as e:
-                      print('inflate error:', e); break
-          print('decompressed', len(out), 'bytes (want', usize, ')')
-          if usize and len(out) != usize:
-              sys.exit('size mismatch')
-          open('sysos.dmg','wb').write(bytes(out))
-          print('wrote sysos.dmg')
-          PY
-          ls -l
+          # The three root components are stored members of this IPSW. Guessing
+          # HTTP byte ranges lands inside other members, so fetch the whole
+          # archive and let unzip index it properly.
+          curl -fL --retry 3 --progress-bar "$IP" -o restore.ipsw
+          ls -l restore.ipsw
+          unzip -l restore.ipsw | head -20
+          unzip -l restore.ipsw | grep -E '087-86698-044|087-86593-047|087-86715-047'
 
-      - name: Verify the OS.dmg
+      - name: Extract the three root components
         run: |
+          set -euo pipefail
           cd dmg
+          for m in 087-86698-044.dmg 087-86593-047.dmg 087-86715-047.dmg; do
+            echo "=== $m ==="
+            unzip -o -j restore.ipsw "$m" -d .
+          done
+          ls -lh *.dmg
+
+      - name: Verify the members against BuildManifest
+        run: |
+          set -euo pipefail
+          cd dmg
+          unzip -o -j restore.ipsw BuildManifest.plist -d . >/dev/null
           python3 - <<'PY'
-          import hashlib
-          want = '103b835176572a97ae36bc5ebe4c332c40b921e1f151b844116bbda49959c46c64364d343ceb0c4e9d95a51ba60d0e51'
-          h = hashlib.sha384()
-          n = 0
-          with open('os.dmg','rb') as f:
-              while True:
-                  b = f.read(1 << 20)
-                  if not b: break
-                  h.update(b); n += len(b)
-          got = h.hexdigest()
-          print('bytes', n, '(want 4730814044)')
-          print('sha384', got[:32], '...')
-          print('MATCH', got == want)
-          raise SystemExit(0 if (got == want and n == 4730814044) else 1)
+          import hashlib, plistlib, sys
+          d = plistlib.load(open('BuildManifest.plist','rb'))
+          want = {}
+          for i in d.get('BuildIdentities', []):
+              m = i.get('Manifest', {})
+              for k in ('OS', 'Cryptex1,SystemOS', 'Cryptex1,AppOS'):
+                  if k in m:
+                      info = m[k]['Info']
+                      want[info['Path']] = (m[k]['Digest'], info.get('HashMethod','sha2-384'))
+          ok = True
+          for path, (digest, method) in want.items():
+              h = hashlib.sha384() if method == 'sha2-384' else hashlib.sha256()
+              n = 0
+              with open(path,'rb') as f:
+                  while True:
+                      b = f.read(1<<20)
+                      if not b: break
+                      h.update(b); n += len(b)
+              good = h.digest() == digest
+              print(f'{path:24s} {n:>12} bytes  {method}  {"OK" if good else "MISMATCH"}')
+              ok = ok and good
+          sys.exit(0 if ok else 1)
           PY
 
-      - name: Mount the three APFS images
+      - name: Build apfs-fuse (already built earlier) and mount
         run: |
           set -euxo pipefail
           cd dmg
-          sudo mkdir -p /mnt/os /mnt/sysos
-          sudo apfs-fuse -o allow_other os.dmg /mnt/os || true
-          sudo apfs-fuse -o allow_other sysos.dmg /mnt/sysos || true
-          echo "--- /mnt/os ---"; sudo ls /mnt/os || true
-          echo "--- /mnt/sysos ---"; sudo ls /mnt/sysos || true
-
-      - name: Probe what the images contain
-        run: |
-          set -x
-          sudo find /mnt/os -maxdepth 2 2>/dev/null | head -20 || true
-          sudo find /mnt/sysos -maxdepth 2 2>/dev/null | head -20 || true
+          sudo mkdir -p /mnt/os /mnt/sysos /mnt/appos
+          sudo apfs-fuse -o allow_other 087-86698-044.dmg /mnt/os || true
+          sudo apfs-fuse -o allow_other 087-86593-047.dmg /mnt/sysos || true
+          sudo apfs-fuse -o allow_other 087-86715-047.dmg /mnt/appos || true
+          echo "--- /mnt/os ---";   sudo ls /mnt/os   | head -20 || true
+          echo "--- /mnt/sysos ---"; sudo ls /mnt/sysos | head -20 || true
+          echo "--- /mnt/appos ---"; sudo ls /mnt/appos | head -20 || true
 
       - name: Build the HFS+ root
         run: |
