@@ -1,0 +1,200 @@
+name: build-ios-root-hfs
+
+# Build a real 16 GiB case-sensitive journaled HFS+ iOS root from the public
+# iPhone X (D22AP) 16.7.16 IPSW, the way UniXNU-raphael does it.
+#
+# Why this matters: the 128 MiB hand-built image we used before held only two
+# files and no attributes B-tree. Apple's HFS kext then took an undefined path
+# and judged a UF_COMPRESSED-clear file as compressed, so execve returned
+# ENOTSUP(45). A real root has tens of thousands of files and the full metadata.
+
+on:
+  workflow_dispatch:
+    inputs:
+      size:
+        description: 'HFS+ volume size'
+        required: false
+        default: '16G'
+      do_tweaks:
+        description: 'Apply the SWEET bring-up tweaks'
+        required: false
+        default: 'true'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Show resources
+        run: |
+          df -h /
+          free -g
+          nproc
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean
+          df -h /
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            hfsprogs rsync unzip curl python3 python3-yaml \
+            cmake libfuse3-dev libbz2-dev zlib1g-dev libicu-dev pkg-config \
+            build-essential git
+          sudo modprobe hfsplus
+          grep hfsplus /proc/filesystems
+
+      - name: Build apfs-fuse from source
+        run: |
+          git clone --depth 1 --recursive https://github.com/sgan81/apfs-fuse /tmp/apfs-src
+          cd /tmp/apfs-src && mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j"$(nproc)"
+          sudo install -m 0755 apfs-fuse /usr/local/bin/apfs-fuse
+          apfs-fuse 2>&1 | head -3 || true
+
+      - name: Download the three IPSW members
+        run: |
+          set -euo pipefail
+          IP=https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw
+          mkdir -p dmg && cd dmg
+          # OS.dmg: stored (method 0) inside the zip -> plain HTTP range
+          curl -fL --retry 3 -r 1191497303-5922311346 "$IP" -o os.dmg &
+          # Cryptex1,SystemOS: deflated (method 8) -> needs a real inflate, fetch the range then unzip -p
+          curl -fL --retry 3 -r 66-1097727317 "$IP" -o sysos.raw &
+          wait
+          ls -l
+          # sysos.raw is a zip stream fragment; recover the member
+          python3 - <<'PY'
+          import zipfile, io, sys
+          raw = open('sysos.raw','rb').read()
+          # the fragment starts just before the local header; search for it
+          idx = raw.find(b'PK\x03\x04')
+          print('local header at', idx, 'len', len(raw))
+          if idx < 0:
+              sys.exit('no local file header found')
+          data = raw[idx:]
+          # wrap the fragment so zipfile can read just this member
+          buf = io.BytesIO(data)
+          try:
+              z = zipfile.ZipFile(buf)
+              names = z.namelist()
+              print('members:', names[:5])
+              with z.open(names[0]) as src, open('sysos.dmg','wb') as dst:
+                  while True:
+                      b = src.read(1 << 20)
+                      if not b: break
+                      dst.write(b)
+              print('extracted sysos.dmg')
+          except Exception as e:
+              print('zipfile failed:', e)
+              sys.exit(1)
+          PY
+          ls -l
+
+      - name: Verify the OS.dmg
+        run: |
+          cd dmg
+          python3 - <<'PY'
+          import hashlib
+          want = '103b835176572a97ae36bc5ebe4c332c40b921e1f151b844116bbda49959c46c64364d343ceb0c4e9d95a51ba60d0e51'
+          h = hashlib.sha384()
+          n = 0
+          with open('os.dmg','rb') as f:
+              while True:
+                  b = f.read(1 << 20)
+                  if not b: break
+                  h.update(b); n += len(b)
+          got = h.hexdigest()
+          print('bytes', n, '(want 4730814044)')
+          print('sha384', got[:32], '...')
+          print('MATCH', got == want)
+          raise SystemExit(0 if (got == want and n == 4730814044) else 1)
+          PY
+
+      - name: Mount the three APFS images
+        run: |
+          set -euxo pipefail
+          cd dmg
+          sudo mkdir -p /mnt/os /mnt/sysos
+          sudo apfs-fuse -o allow_other os.dmg /mnt/os || true
+          sudo apfs-fuse -o allow_other sysos.dmg /mnt/sysos || true
+          echo "--- /mnt/os ---"; sudo ls /mnt/os || true
+          echo "--- /mnt/sysos ---"; sudo ls /mnt/sysos || true
+
+      - name: Probe what the images contain
+        run: |
+          set -x
+          sudo find /mnt/os -maxdepth 2 2>/dev/null | head -20 || true
+          sudo find /mnt/sysos -maxdepth 2 2>/dev/null | head -20 || true
+
+      - name: Build the HFS+ root
+        run: |
+          set -euo pipefail
+          SIZE="${{ inputs.size }}"
+          dd if=/dev/zero of=ios16-root.img bs=1M count=0 seek=0 status=none || true
+          truncate -s "$SIZE" ios16-root.img
+          mkfs.hfsplus -v iOSRoot -b 4096 -J -c 2048 ios16-root.img || mkfs.hfsplus -v iOSRoot -b 4096 ios16-root.img
+          sudo mkdir -p /mnt/root
+          sudo mount -t hfsplus -o loop,force ios16-root.img /mnt/root
+          mount | grep /mnt/root
+          df -h /mnt/root
+          echo "=== 顶层内容 ==="
+          ls /mnt/root
+
+      - name: Copy the OS tree
+        run: |
+          set -euxo pipefail
+          # /mnt/os holds the OS root (3.apfs mount point contents)
+          SRC=/mnt/os
+          if [ -d "$SRC/3.apfs" ]; then SRC="$SRC/3.apfs"; fi
+          echo "source: $SRC"; ls "$SRC" | head
+          sudo rsync -aH --info=stats2 "$SRC"/ /mnt/root/ || {
+            echo "rsync failed, trying without hard links"; sudo rsync -a "$SRC"/ /mnt/root/;
+          }
+          df -h /mnt/root
+          sudo ls /mnt/root | head -20
+
+      - name: Sanity check the volume
+        run: |
+          set -euxo pipefail
+          for p in sbin/launchd usr/lib/dyld System/Library/CoreServices/SystemVersion.plist; do
+            if sudo test -e "/mnt/root/$p"; then echo "OK   $p"; else echo "MISS $p"; fi
+          done
+          sudo ls /mnt/root/System/Library/Caches/com.apple.dyld 2>/dev/null | head -3 || true
+          df -h /mnt/root
+
+      - name: Unmount and verify
+        run: |
+          set -euxo pipefail
+          sudo sync
+          sudo umount /mnt/root || sudo umount -l /mnt/root || true
+          fsck.hfsplus -f -y ios16-root.img || true
+          fsck.hfsplus -f -n ios16-root.img && echo "FSCK_CLEAN"
+          ls -lh ios16-root.img
+          sha256sum ios16-root.img
+
+      - name: Upload the raw image (split)
+        run: |
+          mkdir -p out
+          split -b 1900M -d ios16-root.img out/root-part.
+          ls -lh out
+          sha256sum ios16-root.img > out/root.img.sha256
+          ls out | wc -l
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-root-hfs
+          path: out/*
+          retention-days: 7
+
+      - name: Summarise
+        if: always()
+        run: |
+          echo "=== 结果 ==="
+          ls -lh ios16-root.img 2>/dev/null || echo "image missing"
+          df -h /
