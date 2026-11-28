@@ -1,0 +1,90 @@
+name: probe-hfsplus
+
+# Minimal check: can a GitHub runner create, mount, write into and read back
+# an HFS+ image? This decides whether the 16 GiB root can be built in CI at all.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Show kernel and disk
+        run: |
+          uname -a
+          df -h /
+          free -g
+
+      - name: Install hfsprogs and rsync
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends hfsprogs rsync
+          mkfs.hfsplus -V 2>&1 | head -2
+          fsck.hfsplus -V 2>&1 | head -2
+
+      - name: Load the hfsplus module
+        run: |
+          sudo modprobe hfsplus && echo "MODPROBE_OK" || echo "MODPROBE_FAIL"
+          grep hfsplus /proc/filesystems || echo "NOT_IN_FILESYSTEMS"
+
+      - name: Create and mount an HFS+ image
+        run: |
+          set -x
+          dd if=/dev/zero of=/tmp/probe.img bs=1M count=512 status=none
+          mkfs.hfsplus -v PROBE -b 4096 /tmp/probe.img
+          sudo mkdir -p /mnt/probe
+          sudo mount -t hfsplus -o loop,force /tmp/probe.img /mnt/probe && echo "MOUNT_OK" || echo "MOUNT_FAIL"
+          mount | grep /mnt/probe || true
+
+      - name: Write a tree and read it back
+        run: |
+          set -x
+          sudo mkdir -p /mnt/probe/a/b/c
+          echo "hello-hfs" | sudo tee /mnt/probe/a/b/c/hello.txt
+          sudo ln -sf /a/b/c/hello.txt /mnt/probe/link.txt
+          sudo chown 501:501 /mnt/probe/a/b/c/hello.txt
+          sudo chmod 0755 /mnt/probe/a/b/c/hello.txt
+          sudo sync
+          sudo umount /mnt/probe
+          fsck.hfsplus -f -n /tmp/probe.img && echo "FSCK_CLEAN" || echo "FSCK_DIRTY"
+          sudo mount -t hfsplus -o loop,force,ro /tmp/probe.img /mnt/probe && echo "REMOUNT_OK" || echo "REMOUNT_FAIL"
+          cat /mnt/probe/a/b/c/hello.txt
+          readlink /mnt/probe/link.txt
+          stat -c "%u:%g %a %n" /mnt/probe/a/b/c/hello.txt
+          sudo umount /mnt/probe
+
+      - name: Probe apfs-fuse availability
+        run: |
+          set -x
+          sudo apt-get install -y --no-install-recommends apfs-fuse && echo "APFS_FUSE_PKG_OK" || echo "APFS_FUSE_PKG_FAIL"
+          which apfs-fuse && apfs-fuse --help 2>&1 | head -3 || true
+
+      - name: Probe fuse3 build dependencies
+        run: |
+          set -x
+          sudo apt-get install -y --no-install-recommends cmake libfuse3-dev libbz2-dev zlib1g-dev libicu-dev
+          pkg-config --modversion fuse3 || echo "NO_FUSE3_PC"
+
+      - name: Build apfs-fuse from source if the package is missing
+        run: |
+          set -x
+          if command -v apfs-fuse >/dev/null 2>&1; then echo "SKIP_BUILD"; exit 0; fi
+          git clone --depth 1 --recursive https://github.com/sgan81/apfs-fuse /tmp/apfs-src
+          cd /tmp/apfs-src
+          mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j"$(nproc)"
+          sudo install -m 0755 apfs-fuse /usr/local/bin/apfs-fuse
+          apfs-fuse --help 2>&1 | head -3
+
+      - name: Summarise
+        if: always()
+        run: |
+          echo "=== 结论 ==="
+          grep -q hfsplus /proc/filesystems && echo "hfsplus module: OK" || echo "hfsplus module: MISSING"
+          command -v mkfs.hfsplus >/dev/null && echo "mkfs.hfsplus: OK" || echo "mkfs.hfsplus: MISSING"
+          command -v fsck.hfsplus >/dev/null && echo "fsck.hfsplus: OK" || echo "fsck.hfsplus: MISSING"
+          command -v apfs-fuse >/dev/null && echo "apfs-fuse: OK" || echo "apfs-fuse: MISSING"
+          df -h /
