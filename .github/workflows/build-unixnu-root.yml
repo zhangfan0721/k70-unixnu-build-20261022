@@ -1,0 +1,274 @@
+name: build-unixnu-root
+
+# Build the SHNGROOT container the NativeUfs driver expects, for the dedicated
+# 32 GiB `unixnu` partition. Layout (RootLayout.h:157-213):
+#
+#   0x0000  "SHNGROOT"                       magic
+#   0x0008  version = 1                      u32
+#   0x000C  n = 2                            u32 (window count)
+#   0x0010  imageBytes                       u64, 4K aligned, <= partition
+#   0x0018  window[0] "OS"                  128 B: name/offset/size/sector/sectors/sha256
+#   0x0098  window[1] "SystemOS"            128 B
+#   0x0FE0  sha256(first 4064 bytes)        32 B
+#
+# NativeUfs.cpp:1913 requires distinct OS and SystemOS windows, so the merged
+# single HFS+ volume of build-ios-root-hfs is not usable as-is.
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_size:
+        description: "OS window volume size"
+        required: false
+        default: "12G"
+      sysos_size:
+        description: "SystemOS window volume size"
+        required: false
+        default: "4G"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Show resources
+        run: |
+          df -h /
+          free -g
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/graalvm /usr/share/swift /usr/local/.ghcup /opt/microsoft /usr/lib/R || true
+          sudo apt-get clean
+          df -h /
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            hfsprogs rsync unzip curl python3 \
+            cmake libfuse3-dev libbz2-dev zlib1g-dev libicu-dev pkg-config \
+            build-essential git
+          sudo modprobe hfsplus
+          grep hfsplus /proc/filesystems
+
+      - name: Build apfs-fuse from source
+        run: |
+          git clone --depth 1 --recursive https://github.com/sgan81/apfs-fuse /tmp/apfs-src
+          cd /tmp/apfs-src && mkdir -p build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j"$(nproc)"
+          sudo install -m 0755 apfs-fuse /usr/local/bin/apfs-fuse
+
+      - name: Download the IPSW
+        run: |
+          set -euo pipefail
+          IP=https://updates.cdn-apple.com/2025FallFCS/fullrestores/122-77006/1158E502-D76D-4226-AA06-ED5E30CD1111/iPhone10,3,iPhone10,6_16.7.16_20H392_Restore.ipsw
+          mkdir -p dmg && cd dmg
+          curl -fL --retry 3 --progress-bar "$IP" -o restore.ipsw
+          ls -l restore.ipsw
+          for m in 087-86698-044.dmg 087-86593-047.dmg 087-86715-047.dmg; do
+            unzip -o -j restore.ipsw "$m" -d .
+          done
+          ls -lh *.dmg
+
+      - name: Mount the three APFS images
+        run: |
+          set -euxo pipefail
+          cd dmg
+          sudo mkdir -p /mnt/os /mnt/sysos /mnt/appos
+          sudo apfs-fuse -o allow_other 087-86698-044.dmg /mnt/os || true
+          sudo apfs-fuse -o allow_other 087-86593-047.dmg /mnt/sysos || true
+          sudo apfs-fuse -o allow_other 087-86715-047.dmg /mnt/appos || true
+          for m in os sysos appos; do
+            echo "--- /mnt/$m/root ---"
+            sudo ls "/mnt/$m/root" 2>/dev/null | head -10 || echo "(none)"
+          done
+
+      - name: Build the OS window volume
+        run: |
+          set -euxo pipefail
+          truncate -s "${{ inputs.os_size }}" os.img
+          mkfs.hfsplus -v OS -b 4096 os.img
+          sudo mkdir -p /mnt/w-os
+          sudo mount -t hfsplus -o loop,force os.img /mnt/w-os
+          # OS.dmg carries the base system; AppOS carries the app cryptex.
+          for src in /mnt/os/root /mnt/appos/root; do
+            if [ -d "$src" ]; then
+              echo "=== rsync $src ==="
+              sudo rsync -aH --info=stats2 "$src"/ /mnt/w-os/ || sudo rsync -a "$src"/ /mnt/w-os/
+            fi
+          done
+          # data-volume skeleton
+          for src in /mnt/os/private-dir /mnt/appos/private-dir; do
+            if [ -d "$src" ]; then
+              sudo mkdir -p /mnt/w-os/private
+              sudo rsync -aH "$src"/ /mnt/w-os/private/ || true
+            fi
+          done
+          sudo sync
+          sudo ls /mnt/w-os | head -20
+          sudo test -e /mnt/w-os/sbin/launchd && echo "OS_WINDOW_HAS_LAUNCHD"
+          sudo umount /mnt/w-os
+          fsck.hfsplus -f -y os.img || true
+          fsck.hfsplus -f -n os.img
+          ls -lh os.img
+
+      - name: Build the SystemOS window volume
+        run: |
+          set -euxo pipefail
+          truncate -s "${{ inputs.sysos_size }}" sysos.img
+          mkfs.hfsplus -v SystemOS -b 4096 sysos.img
+          sudo mkdir -p /mnt/w-sysos
+          sudo mount -t hfsplus -o loop,force sysos.img /mnt/w-sysos
+          if [ -d /mnt/sysos/root ]; then
+            sudo rsync -aH --info=stats2 /mnt/sysos/root/ /mnt/w-sysos/ || sudo rsync -a /mnt/sysos/root/ /mnt/w-sysos/
+          fi
+          if [ -d /mnt/sysos/private-dir ]; then
+            sudo mkdir -p /mnt/w-sysos/private
+            sudo rsync -aH /mnt/sysos/private-dir/ /mnt/w-sysos/private/ || true
+          fi
+          sudo sync
+          sudo ls /mnt/w-sysos | head -20
+          sudo umount /mnt/w-sysos
+          fsck.hfsplus -f -y sysos.img || true
+          fsck.hfsplus -f -n sysos.img
+          ls -lh sysos.img
+
+      - name: Pack the SHNGROOT container
+        run: |
+          set -euo pipefail
+          python3 - <<"PY"
+          import hashlib, struct, os
+
+          HEADER = 4096
+          ENTRY  = 128
+          MAGIC0 = 0x474e4853   # "SHNG"
+          MAGIC1 = 0x544f4f52   # "ROOT"
+
+          def window(name, path, offset):
+              size = os.path.getsize(path)
+              assert size % 512 == 0, f"{path}: size {size} not 512-aligned"
+              h = hashlib.sha256()
+              with open(path, "rb") as f:
+                  while True:
+                      b = f.read(1 << 20)
+                      if not b: break
+                      h.update(b)
+              e = bytearray(ENTRY)
+              nb = name.encode("ascii")
+              assert 0 < len(nb) < 32
+              e[0:len(nb)] = nb
+              struct.pack_into(">Q", e, 0x20, offset)
+              struct.pack_into(">Q", e, 0x28, size)
+              struct.pack_into(">I", e, 0x30, 512)
+              struct.pack_into(">I", e, 0x34, 1)
+              e[0x38:0x38+32] = h.digest()
+              return bytes(e), size, h.hexdigest()
+
+          os_size = os.path.getsize("os.img")
+          sys_size = os.path.getsize("sysos.img")
+          assert os_size % 4096 == 0 and sys_size % 4096 == 0
+
+          off_os = HEADER
+          off_sys = HEADER + os_size
+          image_bytes = HEADER + os_size + sys_size
+          image_bytes = (image_bytes + 4095) & ~4095
+
+          e_os, s_os, h_os = window("OS", "os.img", off_os)
+          e_sys, s_sys, h_sys = window("SystemOS", "sysos.img", off_sys)
+
+          hdr = bytearray(HEADER)
+          struct.pack_into(">I", hdr, 0x00, MAGIC0)
+          struct.pack_into(">I", hdr, 0x04, MAGIC1)
+          struct.pack_into(">I", hdr, 0x08, 1)          # version
+          struct.pack_into(">I", hdr, 0x0C, 2)          # n windows
+          struct.pack_into(">Q", hdr, 0x10, image_bytes)
+          hdr[0x18:0x18+ENTRY] = e_os
+          hdr[0x18+ENTRY:0x18+2*ENTRY] = e_sys
+          digest = hashlib.sha256(bytes(hdr[0:4064])).digest()
+          hdr[4064:4096] = digest
+
+          with open("unixnu-root.img", "wb") as out:
+              out.write(bytes(hdr))
+              for p in ("os.img", "sysos.img"):
+                  with open(p, "rb") as f:
+                      while True:
+                          b = f.read(1 << 20)
+                          if not b: break
+                          out.write(b)
+              cur = out.tell()
+              if cur < image_bytes:
+                  out.write(b"\0" * (image_bytes - cur))
+
+          print("=== container written ===")
+          print(f"imageBytes  = {image_bytes:#x} ({image_bytes/2**30:.2f} GiB)")
+          print(f"OS          offset={off_os:#x} size={os_size:#x} sha256={h_os}")
+          print(f"SystemOS    offset={off_sys:#x} size={sys_size:#x} sha256={h_sys}")
+          print(f"header      sha256={hashlib.sha256(bytes(hdr[0:4064])).hexdigest()}")
+          PY
+          ls -lh unixnu-root.img
+          sha256sum unixnu-root.img | tee unixnu-root.img.sha256
+
+      - name: Verify the container against RootLayout.h rules
+        run: |
+          python3 - <<"PY"
+          import hashlib, struct, os, sys
+
+          data = open("unixnu-root.img","rb").read(4096)
+          ok = True
+          def chk(cond, msg):
+              global ok
+              print(("OK   " if cond else "FAIL ") + msg)
+              ok = ok and cond
+
+          m0, m1, ver, n, image_bytes = struct.unpack_from(">IIIII", data, 0)
+          chk(m0 == 0x474e4853, f"magic0 {m0:#x}")
+          chk(m1 == 0x544f4f52, f"magic1 {m1:#x}")
+          chk(ver == 1, f"version {ver}")
+          chk(n == 2, f"windows {n}")
+          chk(image_bytes % 4096 == 0, f"imageBytes {image_bytes:#x} 4K aligned")
+          chk(hashlib.sha256(data[0:4064]).digest() == data[4064:4096], "header sha256")
+
+          names = []
+          prev = None
+          for i in range(n):
+              e = data[0x18 + i*128 : 0x18 + (i+1)*128]
+              nm = e[0:32].split(b"\0")[0].decode("ascii")
+              off, size = struct.unpack_from(">QQ", e, 0x20)
+              ss, sc = struct.unpack_from(">II", e, 0x30)
+              names.append(nm)
+              chk(off % 4096 == 0 and off >= 4096, f"  {nm}: offset {off:#x}")
+              chk(size % 512 == 0 and size > 0, f"  {nm}: size {size:#x}")
+              chk(ss == 512 and sc == 1, f"  {nm}: sector {ss}/{sc}")
+              chk(off + size <= image_bytes, f"  {nm}: inside imageBytes")
+              if prev:
+                  chk(prev[0] + prev[1] <= off, f"  {nm}: no overlap with previous")
+              prev = (off, size)
+          chk(names == ["OS","SystemOS"], f"names {names}")
+          print()
+          print("CONTAINER_VALID" if ok else "CONTAINER_INVALID")
+          sys.exit(0 if ok else 1)
+          PY
+
+      - name: Split for flashing
+        run: |
+          mkdir -p out
+          # 768 MiB is the device max-download-size; stay well under it
+          split -b 700M -d unixnu-root.img out/part.
+          ls -lh out
+          cp unixnu-root.img.sha256 out/
+          ls out | wc -l
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: unixnu-root
+          path: out/*
+          retention-days: 14
+
+      - name: Summarise
+        if: always()
+        run: |
+          ls -lh unixnu-root.img os.img sysos.img 2>/dev/null || true
+          df -h /
